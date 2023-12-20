@@ -1,0 +1,28 @@
+version: "3"
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "${RABBITMQ_PORT}:${RABBITMQ_PORT}"
+      - "${RABBITMQ_MANAGEMENT_PORT}:${RABBITMQ_MANAGEMENT_PORT}"
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS}
+    hostname: ${RABBITMQ_HOST}
+    restart: always
+
+  block_checker:
+    build: ./block_checker
+    env_file:
+      - .env
+    depends_on:
+      - rabbitmq
+    restart: always
+
+  # block_processor:
+  #   build: ./block_processor
+  #   env_file:
+  #     - .env
+  #   depends_on:
+  #     - rabbitmq
+  #   restart: always
