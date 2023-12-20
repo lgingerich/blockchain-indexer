@@ -41,6 +41,12 @@ This will start both the Block Checker and Block Processor services, as well as 
 - **Block Checker**: Configured to connect to Ethereum's WebSocket and RabbitMQ. Modify `block_checker/block_checker.py` for specific configurations.
 - **Block Processor**: Set up to listen to the RabbitMQ queue. Adjust settings in `block_processor/block_processor.py`.
 
+## Debugging
+
+### RabbitMQ Management UI
+- Navigate to http://localhost:[RABBITMQ_MANAGEMENT_PORT]/
+- Log in using your RabbitMQ credentials
+
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.
+This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details. -->
