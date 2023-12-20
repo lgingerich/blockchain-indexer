@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import time
+import traceback
 
 # Configure logging
 logger = logging.getLogger("block_checker")
@@ -22,10 +23,10 @@ QUEUE_NAME = os.getenv('RABBITMQ_QUEUE_NAME')
 
 async def connect_to_rabbitmq():
     """
-    Attempt to connect to RabbitMQ with retries.
+    Attempt to connect to RabbitMQ with retries using exponential backoff.
     """
     max_retries = 5
-    retry_delay = 5  # seconds
+    retry_delay = 5  # seconds, initial delay between retries
 
     for attempt in range(1, max_retries + 1):
         try:
@@ -34,8 +35,9 @@ async def connect_to_rabbitmq():
         except Exception as e:
             logger.error(f"Attempt {attempt} failed to connect to RabbitMQ: {e}")
             if attempt < max_retries:
-                logger.info(f"Retrying in {retry_delay} seconds...")
-                time.sleep(retry_delay)
+                wait_time = retry_delay * (2 ** (attempt - 1))  # Exponential backoff
+                logger.info(f"Retrying in {wait_time} seconds...")
+                await asyncio.sleep(wait_time)
     raise Exception("Failed to connect to RabbitMQ after several attempts")
 
 
@@ -55,6 +57,8 @@ async def send_to_rabbitmq(block_number, channel):
         logger.info(f"Sent block number {block_number} to RabbitMQ")
     except Exception as e:
         logger.error(f"Error sending to RabbitMQ: {e}")
+        logger.error(traceback.format_exc())
+
 
 
 async def block_checker():
