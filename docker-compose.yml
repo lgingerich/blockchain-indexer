@@ -1,4 +1,4 @@
-version: "3"
+version: "3.8"
 services:
   rabbitmq:
     image: rabbitmq:3-management
@@ -10,19 +10,26 @@ services:
       - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS}
     hostname: ${RABBITMQ_HOST}
     restart: always
+    healthcheck:  # Health check for RabbitMQ
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
   block_checker:
     build: ./block_checker
     env_file:
       - .env
     depends_on:
-      - rabbitmq
+      rabbitmq:
+        condition: service_healthy  # Depends on RabbitMQ being healthy
     restart: always
 
-  # block_processor:
-  #   build: ./block_processor
-  #   env_file:
-  #     - .env
-  #   depends_on:
-  #     - rabbitmq
-  #   restart: always
+  block_processor:
+    build: ./block_processor
+    env_file:
+      - .env
+    depends_on:
+      rabbitmq:
+        condition: service_healthy  # Depends on RabbitMQ being healthy
+    restart: always
