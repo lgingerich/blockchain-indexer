@@ -11,4 +11,4 @@ COPY . .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Run block_processor.py when the container launches
-CMD ["python", "./block_processor.py"]
+CMD ["python", "./src/main.py"]
