@@ -32,4 +32,4 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy  # Depends on RabbitMQ being healthy
-    restart: always
+    restart: on-failure
