@@ -47,19 +47,6 @@
 #         print(f"An error occurred: {e}")
 #         raise
 
-# def extract_block_info(block_data):
-#     """
-#     Extract and return block information from the block data.
-#     """
-#     # Extract necessary fields from block_data
-#     # This is a simplified example. You need to extract all the required fields.
-#     block_info = {
-#         'number': block_data.get('number'),
-#         'hash': block_data.get('hash'),
-#         'parent_hash': block_data.get('parentHash'),
-#         # Add other necessary fields...
-#     }
-#     return block_info
 
 # def extract_transaction_info(transaction_data):
 #     """
@@ -93,97 +80,109 @@
 # import asyncio
 from consumer import consume_blocks
 from database import get_db
+from utils import find_highest_num_in_storage
 from db.repository import BlockRepository
 import logging
 import datetime
 from decimal import Decimal
-
 from web3 import Web3
-# import pandas as pd
 import polars as pl
 
-
+# Configure logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# async def determine_next_block_to_process():
-#     with get_db() as db:
-        # latest_block_in_db = BlockRepository.get_latest_block(db)
-        # latest_block_in_chain = consume_blocks()
-        # if latest_block_in_db:
-        #     latest_block_number_in_db = latest_block_in_db.number
-        #     # Now, use latest_block_number for your logic
-        #     logger.info(f'latest_block_in_db = {latest_block_in_db}')
-        #     logger.info(f'latest_block_in_chain = {latest_block_in_chain}')
-#         else:
-#             # Handle the case when there are no blocks in the database
-#             print('no blocks in database')
 
-# async def determine_next_block_to_process():
-#     db = next(get_db())
-#     try:
-#         latest_block_in_db = BlockRepository.get_latest_block(db)
-#         latest_block_in_chain = consume_blocks()
-#         if latest_block_in_db:
-#             latest_block_number_in_db = latest_block_in_db.number
-#             # Now, use latest_block_number for your logic
-#             logger.info(f'latest_block_in_db = {latest_block_in_db}')
-#             logger.info(f'latest_block_in_chain = {latest_block_in_chain}')
-#     finally:
-#         db.close()
+# Global variable to track the next block number to be processed
+next_block_to_process = 0
 
-async def process_data():
-    # await determine_next_block_to_process()
+async def initialize_next_block_to_process():
+    global next_block_to_process
+    next_block_to_process = find_highest_num_in_storage(storage_path='/app/data/')
+    logger.info(f"Initialized with block number: {next_block_to_process}")
+
+async def determine_next_block_to_process():
+    global next_block_to_process
+    # Increment the block number after processing
+    next_block_to_process += 1
+    logger.info(f"Next block to process: {next_block_to_process}")
+    return next_block_to_process
+
+async def get_block_data(block_number):
+    """
+    Extract and return block information from the block data.
+    """
+    logger.info(f"Fetching block data for block number: {block_number}")
 
     # Connect to Ethereum node
     w3 = Web3(Web3.HTTPProvider('https://ethereum.publicnode.com'))
-
-    # Function to get block details
-    def get_block(block_number):
+    
+    try:
         block = w3.eth.get_block(block_number, full_transactions=True)
-        # print(block)
+    except Exception as e:
+        logger.error(f"Error fetching block data: {e}")
+        raise
 
-        # # Writing the block date to the file
-        # with open('/app/data/full_tx_data.txt', 'w') as file:
-        #     file.write(str(block))
+    block_data = {
+        'base_fee_per_gas': block.baseFeePerGas if 'baseFeePerGas' in block else None,
+        'difficulty': block.difficulty,
+        'gas_limit': block.gasLimit,
+        'gas_used': block.gasUsed,
+        'hash': block.hash.hex(),
+        'miner': block.miner,
+        'nonce': block.nonce.hex(),
+        'number': block.number,
+        'parent_hash': block.parentHash.hex(),
+        'size': block.size,
+        'timestamp': block.timestamp,
+        'total_difficulty': Decimal(block.totalDifficulty),
+        'block_time': datetime.datetime.utcfromtimestamp(block.timestamp).strftime('%Y-%m-%d %H:%M:%S'),
+        'block_date': datetime.datetime.utcfromtimestamp(block.timestamp).strftime('%Y-%m-%d')
+    }
 
-        block_data = {
-            'base_fee_per_gas': block.baseFeePerGas if 'baseFeePerGas' in block else None,
-            'difficulty': block.difficulty,
-            'gas_limit': block.gasLimit,
-            'gas_used': block.gasUsed,
-            'hash': block.hash.hex(),
-            'miner': block.miner,
-            'nonce': block.nonce.hex(),
-            'number': block.number,
-            'parent_hash': block.parentHash.hex(),
-            'size': block.size,
-            'timestamp': block.timestamp,
-            'total_difficulty': Decimal(block.totalDifficulty),
-            'block_time': datetime.datetime.utcfromtimestamp(block.timestamp).strftime('%Y-%m-%d %H:%M:%S'),
-            'block_date': datetime.datetime.utcfromtimestamp(block.timestamp).strftime('%Y-%m-%d')
-        }
+    logger.info(f"Block data fetched for block number: {block_number}")
+    return block_data
 
-        # print(block.transactions.to)
-        # Debug print to log the values
-        # print(f"Block {block_number}: {block_data}")
-
-        return block_data
+# this currently saves only a single block and overwrites data 
+async def save_data(data, chain, table):
+    logger.info(f"Saving data to {chain}_{table}.")
+    df = pl.DataFrame()
+    df = pl.DataFrame(data)
+    try:
+        df.write_parquet(f'/app/data/{chain}_{table}.parquet')
+    except Exception as e:
+        logger.error(f"Error saving data: {e}")
+        raise
+    logger.info(f"Data saved successfully to {chain}_{table}.")
 
 
-    # Get the latest block number
-    latest_block = w3.eth.block_number
-    # latest_block = 1
+async def process_data():
+    global next_block_to_process
+    await initialize_next_block_to_process()
 
-    # Fetch details of the latest 10 blocks
-    blocks = [get_block(latest_block - i) for i in range(10)]
+    while True:
+        try:
+            block_num_to_process = await determine_next_block_to_process()
+            block_data = await get_block_data(block_num_to_process)
+            await save_data(block_data, 'ethereum', 'blocks')
+        except Exception as e:
+            logger.error(f"Error in process_data: {e}")
+            break
 
-    # Convert to polars DataFrame
-    df = pl.DataFrame(blocks)
 
-    # Save DataFrame to Parquet file
-    df.write_parquet('/app/data/ethereum_blocks.parquet')
-    # df.write_csv('/app/data/ethereum_blocks.csv', separator=",")
+    # # Get the latest block number
+    # latest_block = w3.eth.block_number
+    # # latest_block = 1
 
+    # # Fetch details of the latest 10 blocks
+    # blocks = [get_block(latest_block - i) for i in range(10)]
+
+    # # Convert to polars DataFrame
+    # df = pl.DataFrame(blocks)
+
+    # # Save DataFrame to Parquet file
+    # df.write_parquet('/app/data/ethereum_blocks_2.parquet')
+    # # df.write_csv('/app/data/ethereum_blocks.csv', separator=",")
 
 
 # async def consume_messages():
