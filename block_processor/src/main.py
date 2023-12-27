@@ -14,7 +14,7 @@
 """
 TO-DO:
 
-- Abstract date type conversions by export type.
+- Pull https connection details out of direct function call
 """
 
 
@@ -30,7 +30,7 @@ async def main():
     # Set up global logging configuration
     setup_logging()
 
-    # Initialize the database (create tables, etc.)
+    # Initialize data storage if necessary (create tables, etc.)
     init_db()
 
     # Start the main processing logic
