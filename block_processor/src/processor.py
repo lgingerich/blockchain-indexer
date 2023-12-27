@@ -96,6 +96,7 @@ from database import get_db
 from db.repository import BlockRepository
 import logging
 import datetime
+from decimal import Decimal
 
 from web3 import Web3
 # import pandas as pd
@@ -138,34 +139,50 @@ async def process_data():
 
     # Function to get block details
     def get_block(block_number):
-        block = w3.eth.get_block(block_number, full_transactions=False)
-        return {
-            'hash': block.hash.hex(),
-            'miner': block.miner,
-            'nonce': block.nonce.hex(),
-            'parent_hash': block.parentHash.hex(),
-            'number': block.number,
-            'size': block.size,
-            'time': block.timestamp,
-            'total_difficulty': block.totalDifficulty,
+        block = w3.eth.get_block(block_number, full_transactions=True)
+        # print(block)
+
+        # # Writing the block date to the file
+        # with open('/app/data/full_tx_data.txt', 'w') as file:
+        #     file.write(str(block))
+
+        block_data = {
             'base_fee_per_gas': block.baseFeePerGas if 'baseFeePerGas' in block else None,
             'difficulty': block.difficulty,
             'gas_limit': block.gasLimit,
             'gas_used': block.gasUsed,
-            'date': datetime.datetime.fromtimestamp(block.timestamp).strftime('%Y-%m-%d %H:%M:%S')
+            'hash': block.hash.hex(),
+            'miner': block.miner,
+            'nonce': block.nonce.hex(),
+            'number': block.number,
+            'parent_hash': block.parentHash.hex(),
+            'size': block.size,
+            'timestamp': block.timestamp,
+            'total_difficulty': Decimal(block.totalDifficulty),
+            'block_time': datetime.datetime.utcfromtimestamp(block.timestamp).strftime('%Y-%m-%d %H:%M:%S'),
+            'block_date': datetime.datetime.utcfromtimestamp(block.timestamp).strftime('%Y-%m-%d')
         }
+
+        # print(block.transactions.to)
+        # Debug print to log the values
+        # print(f"Block {block_number}: {block_data}")
+
+        return block_data
+
 
     # Get the latest block number
     latest_block = w3.eth.block_number
+    # latest_block = 1
 
     # Fetch details of the latest 10 blocks
     blocks = [get_block(latest_block - i) for i in range(10)]
 
-    # Convert to pandas DataFrame
+    # Convert to polars DataFrame
     df = pl.DataFrame(blocks)
 
     # Save DataFrame to Parquet file
-    df.write_parquet('ethereum_blocks.parquet')
+    df.write_parquet('/app/data/ethereum_blocks.parquet')
+    # df.write_csv('/app/data/ethereum_blocks.csv', separator=",")
 
 
 

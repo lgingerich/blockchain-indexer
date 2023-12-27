@@ -24,7 +24,7 @@ services:
       rabbitmq:
         condition: service_healthy  # Depends on RabbitMQ being healthy
     restart: always
-
+    
   block_processor:
     build: ./block_processor
     env_file:
@@ -33,3 +33,5 @@ services:
       rabbitmq:
         condition: service_healthy  # Depends on RabbitMQ being healthy
     restart: on-failure
+    volumes:
+      - ./data:/app/data

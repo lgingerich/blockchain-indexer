@@ -11,6 +11,14 @@
 """
 
 
+"""
+TO-DO:
+
+- Abstract date type conversions by export type.
+"""
+
+
+
 import asyncio
 from utils import setup_logging
 from database import init_db
