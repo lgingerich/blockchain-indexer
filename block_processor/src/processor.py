@@ -87,6 +87,7 @@ import datetime
 from decimal import Decimal
 from web3 import Web3
 import polars as pl
+import os
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -135,7 +136,7 @@ async def get_block_data(block_number):
         'parent_hash': block.parentHash.hex(),
         'size': block.size,
         'timestamp': block.timestamp,
-        'total_difficulty': Decimal(block.totalDifficulty),
+        # 'total_difficulty': Decimal(block.totalDifficulty),
         'block_time': datetime.datetime.utcfromtimestamp(block.timestamp).strftime('%Y-%m-%d %H:%M:%S'),
         'block_date': datetime.datetime.utcfromtimestamp(block.timestamp).strftime('%Y-%m-%d')
     }
@@ -144,16 +145,46 @@ async def get_block_data(block_number):
     return block_data
 
 # this currently saves only a single block and overwrites data 
+# async def save_data(data, chain, table):
+#     logger.info(f"Saving data to {chain}_{table}.")
+#     df = pl.DataFrame()
+#     df = pl.DataFrame(data)
+#     try:
+#         df.write_parquet(f'/app/data/{chain}_{table}.parquet')
+#     except Exception as e:
+#         logger.error(f"Error saving data: {e}")
+#         raise
+#     logger.info(f"Data saved successfully to {chain}_{table}.")
+
+
 async def save_data(data, chain, table):
-    logger.info(f"Saving data to {chain}_{table}.")
-    df = pl.DataFrame()
-    df = pl.DataFrame(data)
+    file_path = f'/app/data/{chain}_{table}.parquet'
+    
+    # Convert the data to a DataFrame
+    new_df = pl.DataFrame(data)
+
+    # Check if the file already exists
+    if os.path.exists(file_path):
+        logger.info(f"Appending data to existing {chain}_{table} file.")
+        try:
+            # Read existing data
+            existing_df = pl.read_parquet(file_path)
+            # Append new data
+            combined_df = pl.concat([existing_df, new_df])
+        except Exception as e:
+            logger.error(f"Error reading existing data: {e}")
+            raise
+    else:
+        logger.info(f"Creating new {chain}_{table} file.")
+        combined_df = new_df
+
+    # Write combined data back to file
     try:
-        df.write_parquet(f'/app/data/{chain}_{table}.parquet')
+        combined_df.write_parquet(file_path)
     except Exception as e:
-        logger.error(f"Error saving data: {e}")
+        logger.error(f"Error writing data: {e}")
         raise
-    logger.info(f"Data saved successfully to {chain}_{table}.")
+    logger.info(f"Data successfully saved to {chain}_{table}.")
 
 
 async def process_data():
