@@ -6,7 +6,7 @@ import polars as pl
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def setup_logging(default_level=logging.INFO):
+def setup_logging(LOG_TO_FILE, default_level=logging.INFO):
     """
     Set up the logging configuration.
     """
@@ -16,13 +16,13 @@ def setup_logging(default_level=logging.INFO):
         datefmt='%Y-%m-%d %H:%M:%S'
     )
 
-    # Example of how to configure logging to a file
-    if os.getenv('LOG_TO_FILE'):
-        file_handler = logging.FileHandler('application.log')
+    if LOG_TO_FILE:
+        file_handler = logging.FileHandler('/app/data/application.log')
         file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
         logging.getLogger().addHandler(file_handler)
 
-    # If needed, set up other loggers or handlers (e.g., for external libraries)
+    # Setup logging to save to cloud storage
+        
 
 def find_highest_num_in_storage(storage_path):
     highest_number = 0 # if no data exists, start from genesis
