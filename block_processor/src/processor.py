@@ -1,86 +1,6 @@
-# import json
-# from .repository import BlockRepository, TransactionRepository, LogRepository
-# from .database import get_db
-# from sqlalchemy.exc import SQLAlchemyError
-
-# async def process_block(block_data_json):
-#     """
-#     Process the block data received from the queue.
-#     """
-#     try:
-#         # Parse the block data from JSON
-#         block_data = json.loads(block_data_json)
-
-#         # Extract block, transaction, and log data
-#         block_info = extract_block_info(block_data)
-#         transactions = block_data.get('transactions', [])
-
-#         # Process and store block data
-#         with get_db() as db:
-#             block = BlockRepository.create_block(db, block_info)
-#             for transaction_data in transactions:
-#                 # Extract transaction and log data
-#                 transaction_info = extract_transaction_info(transaction_data)
-#                 logs = transaction_data.get('logs', [])
-
-#                 # Create and store the transaction
-#                 transaction = TransactionRepository.create_transaction(db, transaction_info)
-
-#                 # Process each log
-#                 for log_data in logs:
-#                     log_info = extract_log_info(log_data)
-#                     LogRepository.create_log(db, log_info)
-
-#             # Commit the transaction
-#             db.commit()
-
-#     except SQLAlchemyError as e:
-#         # Handle database errors
-#         print(f"Database error occurred: {e}")
-#         raise
-#     except json.JSONDecodeError:
-#         # Handle JSON parsing error
-#         print("Failed to decode JSON data")
-#         raise
-#     except Exception as e:
-#         # Handle any other exceptions
-#         print(f"An error occurred: {e}")
-#         raise
-
-
-# def extract_transaction_info(transaction_data):
-#     """
-#     Extract and return transaction information from the transaction data.
-#     """
-#     # Extract necessary fields from transaction_data
-#     transaction_info = {
-#         'hash': transaction_data.get('hash'),
-#         'block_number': transaction_data.get('blockNumber'),
-#         # Add other necessary fields...
-#     }
-#     return transaction_info
-
-# def extract_log_info(log_data):
-#     """
-#     Extract and return log information from the log data.
-#     """
-#     # Extract necessary fields from log_data
-#     log_info = {
-#         'log_index': log_data.get('logIndex'),
-#         'transaction_hash': log_data.get('transactionHash'),
-#         # Add other necessary fields...
-#     }
-#     return log_info
-
-
-
-
-########################################################################################
-
-# import asyncio
 from consumer import consume_blocks
 from database import get_db
-from utils import find_highest_num_in_storage
+from utils import find_highest_num_in_storage, save_data
 from db.repository import BlockRepository
 import logging
 import datetime
@@ -95,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 # Global variable to track the next block number to be processed
-next_block_to_process = 0
+next_block_to_process = 100000
 
 async def initialize_next_block_to_process():
     global next_block_to_process
@@ -109,20 +29,23 @@ async def determine_next_block_to_process():
     logger.info(f"Next block to process: {next_block_to_process}")
     return next_block_to_process
 
-async def get_block_data(block_number):
+async def get_blocks(block_number, w3):
     """
-    Extract and return block information from the block data.
+    Extract and return block information from the block number.
     """
     logger.info(f"Fetching block data for block number: {block_number}")
-
-    # Connect to Ethereum node
-    w3 = Web3(Web3.HTTPProvider('https://ethereum.publicnode.com'))
     
     try:
         block = w3.eth.get_block(block_number, full_transactions=True)
+    except w3.exceptions.BlockNotFound as e:
+        logger.error(f"Block not found: {e}")
+        return None, None
+    except w3.exceptions.Web3Exception as e:
+        logger.error(f"Web3 related error: {e}")
+        return None, None
     except Exception as e:
-        logger.error(f"Error fetching block data: {e}")
-        raise
+        logger.error(f"Unexpected error fetching block data: {e}")
+        return None, None
 
     block_data = {
         'base_fee_per_gas': block.baseFeePerGas if 'baseFeePerGas' in block else None,
@@ -141,81 +64,150 @@ async def get_block_data(block_number):
         'block_date': datetime.datetime.utcfromtimestamp(block.timestamp).strftime('%Y-%m-%d')
     }
 
-    logger.info(f"Block data fetched for block number: {block_number}")
-    return block_data
-
-# this currently saves only a single block and overwrites data 
-# async def save_data(data, chain, table):
-#     logger.info(f"Saving data to {chain}_{table}.")
-#     df = pl.DataFrame()
-#     df = pl.DataFrame(data)
-#     try:
-#         df.write_parquet(f'/app/data/{chain}_{table}.parquet')
-#     except Exception as e:
-#         logger.error(f"Error saving data: {e}")
-#         raise
-#     logger.info(f"Data saved successfully to {chain}_{table}.")
-
-
-async def save_data(data, chain, table):
-    file_path = f'/app/data/{chain}_{table}.parquet'
+    # Save full transaction data. Will throw error if the transaction field does not exist
+    transaction_data = block['transactions']
     
-    # Convert the data to a DataFrame
-    new_df = pl.DataFrame(data)
+    logger.info(f"Block data fetched for block number: {block_number}")
+    
+    return block_data, transaction_data
 
-    # Check if the file already exists
-    if os.path.exists(file_path):
-        logger.info(f"Appending data to existing {chain}_{table} file.")
+
+async def get_transactions(block_data, w3):
+    # transactions = block_data.get('transactions', [])
+    print('block_data: ', block_data)
+    print('block_data["transactions"]: ', block_data['transactions'])
+    transactions = block_data['transactions']
+    transaction_data = []
+    log_data = []
+
+    for tx in transactions:
         try:
-            # Read existing data
-            existing_df = pl.read_parquet(file_path)
-            # Append new data
-            combined_df = pl.concat([existing_df, new_df])
+            # Process each transaction
+            txs = {
+                'access_list': tx['accessList'],
+                'block_hash': tx['blockHash'].hex(),
+                'block_number': tx['blockNumber'],
+                'chain_id': tx['chainId'],
+                'from_address': tx['from'],
+                'gas': tx['gas'],
+                'gas_price': tx['gasPrice'],
+                'input': tx['input'],
+                'max_fee_per_gas': tx['maxFeePerGas'],
+                'max_priority_fee_per_gas': tx['maxPriorityFeePerGas'],
+                'nonce': tx['nonce'],
+                'to_address': tx['to'],
+                'transaction_hash': tx['hash'].hex(),           
+                'transaction_index': tx['transactionIndex'],
+                'type': tx['type'],
+                'value': tx['value'],
+                'v': tx['v'],
+                'r': tx['r'].hex(),
+                's': tx['s'].hex(),
+                'y_parity': tx['yParity'],
+            }
+
+            # Fetch transaction receipt
+            try:
+                receipt = await w3.eth.get_transaction_receipt(tx['hash'])
+            except w3.exceptions.TransactionNotFound as e:
+                logger.error(f"Transaction receipt not found: {e}")
+                continue
+            except w3.exceptions.Web3Exception as e:
+                logger.error(f"Web3 related error fetching receipt: {e}")
+                continue
+
+            receipt_data = {
+                'contract_address': receipt.contractAddress,
+                'cumulative_gas_used': receipt.cumulativeGasUsed,
+                'effective_gas_price': receipt.effectiveGasPrice,
+                'gas_used': receipt.gasUsed,
+                'logs_bloom': receipt.logsBloom.hex(),
+                'status': receipt.status
+            }
+
+            # Combine transaction data with receipt data
+            txs.update(receipt_data)
+            transaction_data.append(txs)
+
+            # Process logs for each transaction
+            logs_for_tx = get_logs(receipt)
+            log_data.extend(logs_for_tx)
+
         except Exception as e:
-            logger.error(f"Error reading existing data: {e}")
-            raise
-    else:
-        logger.info(f"Creating new {chain}_{table} file.")
-        combined_df = new_df
+            logger.error(f"Error processing transaction {tx['hash'].hex()}: {e}")
+            continue
 
-    # Write combined data back to file
-    try:
-        combined_df.write_parquet(file_path)
-    except Exception as e:
-        logger.error(f"Error writing data: {e}")
-        raise
-    logger.info(f"Data successfully saved to {chain}_{table}.")
+    return transaction_data, log_data
 
 
-async def process_data():
+def get_logs(receipt):
+    processed_logs = []
+
+    for log in receipt.logs:
+        try:
+            topics = [topic.hex() for topic in log['topics']]
+            processed_log = {
+                'contract_address': log['address'],
+                'block_hash': log['blockHash'].hex(),
+                'block_number': log['blockNumber'],
+                'data': log['data'],
+                'log_index': log['logIndex'],
+                'removed': log['removed'],
+                'topic0': topics[0] if len(topics) > 0 else None,
+                'topic1': topics[1] if len(topics) > 1 else None,
+                'topic2': topics[2] if len(topics) > 2 else None,
+                'topic3': topics[3] if len(topics) > 3 else None,
+                'transaction_index': log['transactionIndex'],
+                'transaction_hash': log['transactionHash'].hex(),
+            }
+
+            processed_logs.append(processed_log)
+
+        except Exception as e:
+            logger.error(f"Error processing log entry: {e}")
+            break
+
+    return processed_logs
+
+
+async def process_data(w3):
     global next_block_to_process
     await initialize_next_block_to_process()
 
     while True:
         try:
             block_num_to_process = await determine_next_block_to_process()
-            block_data = await get_block_data(block_num_to_process)
-            await save_data(block_data, 'ethereum', 'blocks')
+            # block_num_to_process = 2
+
+            # Get blocks
+            block_data, block_tx_data = await get_blocks(block_num_to_process, w3)
+
+            # print(block_data)
+            # print('----------------------------------------------------------------')
+            # print(block_tx_data)
+            
+            if block_data:
+                # Save blocks
+                await save_data(block_data, 'ethereum', 'blocks')
+            else:
+                logger.warning(f"Block data is null for block number: {next_block_to_process}")
+
+
+            if block_tx_data:
+                # Get transactions and logs
+                transaction_data, log_data = await get_transactions(block_tx_data, w3)
+
+                # Save transactions
+                await save_data(transaction_data, 'ethereum', 'transactions')
+
+                if log_data:
+                    # Save logs
+                    await save_data(log_data, 'ethereum', 'logs')
+                else:
+                    logger.warning(f"Log data is null for transaction has: ###########")
+            else:
+                logger.warning(f"Transaction data is null for block number: {next_block_to_process}")
+
         except Exception as e:
             logger.error(f"Error in process_data: {e}")
-            break
-
-
-    # # Get the latest block number
-    # latest_block = w3.eth.block_number
-    # # latest_block = 1
-
-    # # Fetch details of the latest 10 blocks
-    # blocks = [get_block(latest_block - i) for i in range(10)]
-
-    # # Convert to polars DataFrame
-    # df = pl.DataFrame(blocks)
-
-    # # Save DataFrame to Parquet file
-    # df.write_parquet('/app/data/ethereum_blocks_2.parquet')
-    # # df.write_csv('/app/data/ethereum_blocks.csv', separator=",")
-
-
-# async def consume_messages():
-#     logger.info("Starting to consume blocks from RabbitMQ.")
-#     await consume_blocks()
+            continue
