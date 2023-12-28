@@ -5,9 +5,8 @@ from db.repository import BlockRepository
 import logging
 import datetime
 from decimal import Decimal
-from web3 import Web3
 import polars as pl
-import os
+import web3 as Web3
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -15,15 +14,29 @@ logger = logging.getLogger(__name__)
 
 
 # Global variable to track the next block number to be processed
-next_block_to_process = 100000
+next_block_to_process = 0
 
-async def initialize_next_block_to_process():
-    global next_block_to_process
-    next_block_to_process = find_highest_num_in_storage(storage_path='/app/data/')
-    logger.info(f"Initialized with block number: {next_block_to_process}")
+# async def initialize_next_block_to_process():
+#     global next_block_to_process
+#     next_block_to_process = find_highest_num_in_storage(storage_path='/app/data/')
+#     logger.info(f"Initialized with block number: {next_block_to_process}")
+
+# async def determine_next_block_to_process():
+#     global next_block_to_process
+#     # Increment the block number after processing
+#     next_block_to_process += 1
+#     logger.info(f"Next block to process: {next_block_to_process}")
+#     return next_block_to_process
+
+# async def initialize_next_block_to_process():
+#     global next_block_to_process
+#     next_block_to_process = find_highest_num_in_storage(storage_path='/app/data/')
+#     logger.info(f"Initialized with block number: {next_block_to_process}")
 
 async def determine_next_block_to_process():
     global next_block_to_process
+
+    next_block_to_process = find_highest_num_in_storage(storage_path='/app/data/')
     # Increment the block number after processing
     next_block_to_process += 1
     logger.info(f"Next block to process: {next_block_to_process}")
@@ -74,8 +87,8 @@ async def get_blocks(block_number, w3):
 
 async def get_transactions(block_data, w3):
     # transactions = block_data.get('transactions', [])
-    print('block_data: ', block_data)
-    print('block_data["transactions"]: ', block_data['transactions'])
+    # print('block_data: ', block_data)
+    # print('block_data["transactions"]: ', block_data['transactions'])
     transactions = block_data['transactions']
     transaction_data = []
     log_data = []
@@ -170,25 +183,23 @@ def get_logs(receipt):
     return processed_logs
 
 
-async def process_data(w3):
+async def process_data(RPC_URL_HTTPS, chain):
     global next_block_to_process
-    await initialize_next_block_to_process()
+    # await initialize_next_block_to_process()
+
+    # Set up HTTP RPC connection
+    w3 = Web3.Web3(Web3.HTTPProvider(RPC_URL_HTTPS))
 
     while True:
         try:
             block_num_to_process = await determine_next_block_to_process()
-            # block_num_to_process = 2
 
             # Get blocks
             block_data, block_tx_data = await get_blocks(block_num_to_process, w3)
-
-            # print(block_data)
-            # print('----------------------------------------------------------------')
-            # print(block_tx_data)
-            
+           
             if block_data:
                 # Save blocks
-                await save_data(block_data, 'ethereum', 'blocks')
+                await save_data(block_data, chain, 'blocks')
             else:
                 logger.warning(f"Block data is null for block number: {next_block_to_process}")
 
@@ -198,11 +209,11 @@ async def process_data(w3):
                 transaction_data, log_data = await get_transactions(block_tx_data, w3)
 
                 # Save transactions
-                await save_data(transaction_data, 'ethereum', 'transactions')
+                await save_data(transaction_data, chain, 'transactions')
 
                 if log_data:
                     # Save logs
-                    await save_data(log_data, 'ethereum', 'logs')
+                    await save_data(log_data, chain, 'logs')
                 else:
                     logger.warning(f"Log data is null for transaction has: ###########")
             else:
