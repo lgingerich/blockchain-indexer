@@ -12,31 +12,17 @@ import web3 as Web3
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
 # Global variable to track the next block number to be processed
 next_block_to_process = 0
 
-# async def initialize_next_block_to_process():
-#     global next_block_to_process
-#     next_block_to_process = find_highest_num_in_storage(storage_path='/app/data/')
-#     logger.info(f"Initialized with block number: {next_block_to_process}")
-
-# async def determine_next_block_to_process():
-#     global next_block_to_process
-#     # Increment the block number after processing
-#     next_block_to_process += 1
-#     logger.info(f"Next block to process: {next_block_to_process}")
-#     return next_block_to_process
-
-# async def initialize_next_block_to_process():
-#     global next_block_to_process
-#     next_block_to_process = find_highest_num_in_storage(storage_path='/app/data/')
-#     logger.info(f"Initialized with block number: {next_block_to_process}")
+async def initialize_next_block_to_process():
+    global next_block_to_process
+    next_block_to_process = find_highest_num_in_storage(storage_path='/app/data/')
+    logger.info(f"Initialized with block number: {next_block_to_process}")
 
 async def determine_next_block_to_process():
     global next_block_to_process
 
-    next_block_to_process = find_highest_num_in_storage(storage_path='/app/data/')
     # Increment the block number after processing
     next_block_to_process += 1
     logger.info(f"Next block to process: {next_block_to_process}")
@@ -185,7 +171,7 @@ def get_logs(receipt):
 
 async def process_data(RPC_URL_HTTPS, chain):
     global next_block_to_process
-    # await initialize_next_block_to_process()
+    await initialize_next_block_to_process()
 
     # Set up HTTP RPC connection
     w3 = Web3.Web3(Web3.HTTPProvider(RPC_URL_HTTPS))
