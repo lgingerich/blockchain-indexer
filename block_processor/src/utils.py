@@ -39,7 +39,7 @@ def find_highest_num_in_storage(storage_path):
     return highest_number
 
 async def save_data(data, chain, table):
-    file_path = f'/app/data/{chain}_{table}.parquet'
+    file_path = f'/app/data/{chain}/{table}/{table}.parquet'
     
     # Convert the data to a DataFrame
     try:
@@ -50,7 +50,7 @@ async def save_data(data, chain, table):
 
     # Check if the file already exists
     if os.path.exists(file_path):
-        # logger.info(f"Appending data to existing {chain}_{table} file.")
+        # logger.info(f"Appending data to existing {chain}/{table}/{table} file.")
         try:
             # Read existing data
             existing_df = pl.read_parquet(file_path)
@@ -60,7 +60,7 @@ async def save_data(data, chain, table):
             logger.error(f"Error reading or appending existing data: {e}")
             raise
     else:
-        # logger.info(f"Creating new {chain}_{table} file.")
+        # logger.info(f"Creating new {chain}/{table}/{table} file.")
         combined_df = new_df
 
     # Write combined data back to file

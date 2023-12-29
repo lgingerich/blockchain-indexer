@@ -15,9 +15,9 @@ logger = logging.getLogger(__name__)
 # Global variable to track the next block number to be processed
 next_block_to_process = 0
 
-async def initialize_next_block_to_process():
+async def initialize_next_block_to_process(chain):
     global next_block_to_process
-    next_block_to_process = find_highest_num_in_storage(storage_path='/app/data/')
+    next_block_to_process = find_highest_num_in_storage(storage_path=f'/app/data/{chain}/blocks')
     logger.info(f"Initialized with block number: {next_block_to_process}")
 
 async def determine_next_block_to_process():
