@@ -1,12 +1,13 @@
 from consumer import consume_blocks
-from database import get_db
+# from database import get_db
 from utils import find_highest_num_in_storage, save_data
-from db.repository import BlockRepository
+# from db.repository import BlockRepository
 import logging
 import datetime
 from decimal import Decimal
 import polars as pl
 import web3 as Web3
+from web3.exceptions import BlockNotFound, TransactionNotFound, Web3Exception
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -33,13 +34,14 @@ async def get_blocks(block_number, w3):
     Extract and return block information from the block number.
     """
     logger.info(f"Fetching block data for block number: {block_number}")
-    
+
     try:
         block = w3.eth.get_block(block_number, full_transactions=True)
-    except w3.exceptions.BlockNotFound as e:
+        print(block)
+    except BlockNotFound as e:
         logger.error(f"Block not found: {e}")
         return None, None
-    except w3.exceptions.Web3Exception as e:
+    except Web3Exception as e:
         logger.error(f"Web3 related error: {e}")
         return None, None
     except Exception as e:
@@ -64,26 +66,25 @@ async def get_blocks(block_number, w3):
     }
 
     # Save full transaction data. Will throw error if the transaction field does not exist
-    transaction_data = block['transactions']
-    
+    block_tx_data = block.transactions
+    print(block_tx_data)
     logger.info(f"Block data fetched for block number: {block_number}")
     
-    return block_data, transaction_data
+    return block_data, block_tx_data
 
 
-async def get_transactions(block_data, w3):
-    # transactions = block_data.get('transactions', [])
-    # print('block_data: ', block_data)
-    # print('block_data["transactions"]: ', block_data['transactions'])
-    transactions = block_data['transactions']
+async def get_transactions(block_tx_data, w3):
+    
     transaction_data = []
     log_data = []
+
+    transactions = block_tx_data  
 
     for tx in transactions:
         try:
             # Process each transaction
             txs = {
-                'access_list': tx['accessList'],
+                'access_list': tx['accessList'] if 'accessList' in tx else None,
                 'block_hash': tx['blockHash'].hex(),
                 'block_number': tx['blockNumber'],
                 'chain_id': tx['chainId'],
@@ -108,10 +109,10 @@ async def get_transactions(block_data, w3):
             # Fetch transaction receipt
             try:
                 receipt = await w3.eth.get_transaction_receipt(tx['hash'])
-            except w3.exceptions.TransactionNotFound as e:
+            except TransactionNotFound as e:
                 logger.error(f"Transaction receipt not found: {e}")
                 continue
-            except w3.exceptions.Web3Exception as e:
+            except Web3Exception as e:
                 logger.error(f"Web3 related error fetching receipt: {e}")
                 continue
 
@@ -171,12 +172,13 @@ def get_logs(receipt):
 
 async def process_data(RPC_URL_HTTPS, chain):
     global next_block_to_process
-    await initialize_next_block_to_process()
+    await initialize_next_block_to_process(chain)
 
     # Set up HTTP RPC connection
     w3 = Web3.Web3(Web3.HTTPProvider(RPC_URL_HTTPS))
 
-    while True:
+    # while True:
+    while next_block_to_process <= 1650189:
         try:
             block_num_to_process = await determine_next_block_to_process()
 
@@ -207,4 +209,5 @@ async def process_data(RPC_URL_HTTPS, chain):
 
         except Exception as e:
             logger.error(f"Error in process_data: {e}")
+            logger.error("Traceback:", exc_info=True)
             continue
