@@ -1,6 +1,7 @@
 import logging
 import os
 import polars as pl
+import yaml
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -22,7 +23,46 @@ def setup_logging(LOG_TO_FILE, default_level=logging.INFO):
         logging.getLogger().addHandler(file_handler)
 
     # Setup logging to save to cloud storage
-        
+
+def get_config_value(config_path):
+    """
+    Retrieves a specific configuration value based on a dot-notated path.
+    Automatically handles 'local' or 'cloud' type for 'data' and 'log' sections.
+
+    :param config_path: A string in the format 'section.key'.
+    :return: The value of the configuration setting or None if not found.
+    """
+    # Get the directory of the current script (utils.py)
+    current_dir = os.path.dirname(__file__)
+
+    # Go up two directories from the current script
+    parent_dir = os.path.dirname(os.path.dirname(current_dir))
+
+    # Construct the path to config.yml
+    file_path = os.path.join(parent_dir, 'config.yml')
+
+    try:
+        with open(file_path, 'r') as file:
+            config = yaml.safe_load(file)
+
+        # Split the path to get section and key
+        path_parts = config_path.split('.')
+        if len(path_parts) != 2:
+            raise ValueError("Config path must be in the format 'section.key'")
+
+        section, key = path_parts
+        section_config = config.get(section, {})
+
+        # Handle destination logic for 'data' and 'log' sections
+        if key == 'destination':
+            section_type = section_config.get('type')
+            return section_config.get(section_type, {}).get(key)
+
+        # Handle other generic keys
+        return section_config.get(key)
+    except Exception as e:
+        print(f"Error processing config file: {e}")
+        return None
 
 def find_highest_num_in_storage(storage_path):
     highest_number = 0  # if no data exists, start from genesis
