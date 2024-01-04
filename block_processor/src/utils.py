@@ -84,8 +84,7 @@ def find_highest_num_in_storage(storage_path):
 
     return highest_number
 
-
-async def save_data(data, chain, table):
+def save_data(data, chain, table):
     file_path = f'/app/data/{chain}/{table}/{table}.parquet'
     
     # Ensure the directory exists

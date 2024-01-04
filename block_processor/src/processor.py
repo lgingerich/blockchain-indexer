@@ -8,6 +8,11 @@ from decimal import Decimal
 import polars as pl
 import web3 as Web3
 from web3.exceptions import BlockNotFound, TransactionNotFound, Web3Exception
+from concurrent.futures import ThreadPoolExecutor
+import asyncio
+
+executor = ThreadPoolExecutor(max_workers=4)  # Adjust the number of workers as needed
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -204,7 +209,7 @@ async def process_data(RPC_URL_HTTPS, chain):
     w3 = Web3.Web3(Web3.HTTPProvider(RPC_URL_HTTPS))
 
     # while True:
-    while next_block_to_process <= 1650200:
+    while next_block_to_process <= 1650050:
         try:
             block_num_to_process = await determine_next_block_to_process()
 
@@ -213,7 +218,9 @@ async def process_data(RPC_URL_HTTPS, chain):
            
             if block_data:
                 # Save blocks
-                await save_data(block_data, chain, 'blocks')
+                loop = asyncio.get_running_loop()
+                loop.run_in_executor(executor, save_data, block_data, chain, 'blocks')
+
             else:
                 logger.warning(f"Block data is null for block number: {next_block_to_process}")
 
@@ -223,7 +230,8 @@ async def process_data(RPC_URL_HTTPS, chain):
                 transaction_data = await get_transactions(block_tx_data)
 
                 # Save transactions
-                await save_data(transaction_data, chain, 'transactions')
+                loop = asyncio.get_running_loop()
+                loop.run_in_executor(executor, save_data, transaction_data, chain, 'transactions')
                 
                 if transaction_data:
                     # Get logs
@@ -231,7 +239,8 @@ async def process_data(RPC_URL_HTTPS, chain):
                     log_data = await get_logs(log_data)
 
                     # Save logs
-                    await save_data(log_data, chain, 'logs')
+                    loop = asyncio.get_running_loop()
+                    loop.run_in_executor(executor, save_data, log_data, chain, 'logs')                    
 
                     if not log_data:
                         missing_log_transactions = [tx['transaction_hash'] for tx in transaction_data if not tx.get('logs')]
