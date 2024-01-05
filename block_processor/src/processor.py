@@ -85,7 +85,7 @@ async def get_blocks(block_number, w3):
 
 async def get_transactions(block_tx_data):
     """
-    Extract information for each transaction from data returned by get_blocks. 
+    Extract information for each transaction from data returned by get_blocks(). 
     Return cleaned transaction data.
     """
     transaction_data = []
@@ -123,6 +123,53 @@ async def get_transactions(block_tx_data):
 
     return transaction_data
 
+async def get_logs(block_data, w3):
+    """
+    Extract information for each log from data returned by get_blocks().
+    Return cleaned log data.
+    """
+    log_data = []
+
+    block_hash = block_data.get('block_hash')
+
+    if block_hash:
+        try:
+            logs = await w3.eth.get_logs({'blockHash': block_hash})
+        except BlockNotFound as e:
+            logger.error(f"Block not found: {e}")
+            return None, None
+        except Web3Exception as e:
+            logger.error(f"Web3 related error: {e}")
+            return None, None
+        except Exception as e:
+            logger.error(f"Unexpected error fetching block data: {e}")
+            return None, None
+        
+        for log in logs:
+            try:
+                topics = [topic.hex() for topic in log.get('topics', [])]
+                processed_log = {
+                    'contract_address': log.get('address'),
+                    'block_hash': log.get('blockHash', None).hex() if log.get('blockHash') is not None else None,
+                    'block_number': log.get('blockNumber', None),
+                    'data': log.get('data'),
+                    'log_index': log.get('logIndex', None),
+                    'removed': log.get('removed', None),
+                    'topic0': topics[0] if len(topics) > 0 else None,
+                    'topic1': topics[1] if len(topics) > 1 else None,
+                    'topic2': topics[2] if len(topics) > 2 else None,
+                    'topic3': topics[3] if len(topics) > 3 else None,
+                    'transaction_index': log.get('transactionIndex', None),
+                    'transaction_hash': log.get('transactionHash', None).hex() if log.get('transactionHash') is not None else None,
+                }
+
+                log_data.append(processed_log)
+
+            except Exception as e:
+                logger.error(f"Error processing log entry: {e}")
+                continue
+
+    return log_data
 
 async def get_transaction_receipts(transactions, w3):
     """
@@ -130,7 +177,6 @@ async def get_transaction_receipts(transactions, w3):
     """
 
     tx_receipts = []
-    log_data = []
 
     for tx in transactions:
         transaction_hash = tx.get('transaction_hash')
@@ -165,40 +211,7 @@ async def get_transaction_receipts(transactions, w3):
 
         tx_receipts.append(txs)
 
-        if receipt.get('logs', None):
-            log_data.extend(receipt['logs'])
-
-    return tx_receipts, log_data
-
-
-async def get_logs(log_data):
-    processed_logs = []
-
-    for log in log_data:
-        try:
-            topics = [topic.hex() for topic in log.get('topics', [])]
-            processed_log = {
-                'contract_address': log.get('address'),
-                'block_hash': log.get('blockHash', None).hex() if log.get('blockHash') is not None else None,
-                'block_number': log.get('blockNumber', None),
-                'data': log.get('data'),
-                'log_index': log.get('logIndex', None),
-                'removed': log.get('removed', None),
-                'topic0': topics[0] if len(topics) > 0 else None,
-                'topic1': topics[1] if len(topics) > 1 else None,
-                'topic2': topics[2] if len(topics) > 2 else None,
-                'topic3': topics[3] if len(topics) > 3 else None,
-                'transaction_index': log.get('transactionIndex', None),
-                'transaction_hash': log.get('transactionHash', None).hex() if log.get('transactionHash') is not None else None,
-            }
-
-            processed_logs.append(processed_log)
-
-        except Exception as e:
-            logger.error(f"Error processing log entry: {e}")
-            continue  # Skip the problematic log entry
-
-    return processed_logs
+    return tx_receipts
 
 
 async def process_data(RPC_URL_HTTPS, chain):
@@ -221,9 +234,19 @@ async def process_data(RPC_URL_HTTPS, chain):
                 loop = asyncio.get_running_loop()
                 loop.run_in_executor(executor, save_data, block_data, chain, 'blocks')
 
+                # Get logs
+                log_data = await get_logs(block_data, w3)
+
             else:
                 logger.warning(f"Block data is null for block number: {next_block_to_process}")
 
+            if log_data:
+                # Save logs
+                loop = asyncio.get_running_loop()
+                loop.run_in_executor(executor, save_data, log_data, chain, 'logs')
+
+            else:
+                logger.warning(f"Log data is null for block number: {next_block_to_process}")
 
             if block_tx_data:
                 # Get transactions
@@ -232,19 +255,6 @@ async def process_data(RPC_URL_HTTPS, chain):
                 # Save transactions
                 loop = asyncio.get_running_loop()
                 loop.run_in_executor(executor, save_data, transaction_data, chain, 'transactions')
-                
-                if transaction_data:
-                    # Get logs
-                    tx_receipts, log_data = await get_transaction_receipts(transaction_data, w3)
-                    log_data = await get_logs(log_data)
-
-                    # Save logs
-                    loop = asyncio.get_running_loop()
-                    loop.run_in_executor(executor, save_data, log_data, chain, 'logs')                    
-
-                    if not log_data:
-                        missing_log_transactions = [tx['transaction_hash'] for tx in transaction_data if not tx.get('logs')]
-                        logger.warning(f"No log data found for transactions: {missing_log_transactions} in block number: {block_num_to_process}")
             else:
                 logger.warning(f"Transaction data is null for block number: {next_block_to_process}")
 
