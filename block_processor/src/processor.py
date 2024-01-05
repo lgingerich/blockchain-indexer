@@ -130,11 +130,11 @@ async def get_logs(block_data, w3):
     """
     log_data = []
 
-    block_hash = block_data.get('block_hash')
+    block_hash = block_data.get('block_hash', None)
 
     if block_hash:
         try:
-            logs = await w3.eth.get_logs({'blockHash': block_hash})
+            logs = w3.eth.get_logs({'blockHash': block_hash})
         except BlockNotFound as e:
             logger.error(f"Block not found: {e}")
             return None, None
@@ -163,7 +163,7 @@ async def get_logs(block_data, w3):
                     'transaction_hash': log.get('transactionHash', None).hex() if log.get('transactionHash') is not None else None,
                 }
 
-                log_data.append(processed_log)
+                log_data.extend(processed_log)
 
             except Exception as e:
                 logger.error(f"Error processing log entry: {e}")
@@ -185,7 +185,7 @@ async def get_transaction_receipts(transactions, w3):
             continue
 
         try:
-            receipt = await w3.eth.get_transaction_receipt(transaction_hash)
+            receipt = w3.eth.get_transaction_receipt(transaction_hash)
         except TransactionNotFound as e:
             logger.error(f"Transaction receipt not found: {e}")
             continue
@@ -222,7 +222,7 @@ async def process_data(RPC_URL_HTTPS, chain):
     w3 = Web3.Web3(Web3.HTTPProvider(RPC_URL_HTTPS))
 
     # while True:
-    while next_block_to_process <= 1650050:
+    while next_block_to_process <= 1650500:
         try:
             block_num_to_process = await determine_next_block_to_process()
 
