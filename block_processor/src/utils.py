@@ -90,39 +90,39 @@ def save_data(data, chain, table):
     # Ensure the directory exists
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
-    # Convert the data to a DataFrame
-    try:
-        new_df = pl.DataFrame(data)
-    except Exception as e:
-        logger.error(f"Error converting data to DataFrame: {e}")
-        raise
+    # # Convert the data to a DataFrame
+    # try:
+    #     new_df = pl.DataFrame(data)
+    # except Exception as e:
+    #     logger.error(f"Error converting data to DataFrame: {e}")
+    #     raise
 
-    # Check if the file already exists
-    if os.path.exists(file_path):
-        logger.info(f"Appending data to existing {chain}/{table}/{table} file.")
-        try:
-            # Attempt to read existing data
-            try:
-                existing_df = pl.read_parquet(file_path)
-            except Exception as e:
-                logger.error(f"Error reading existing Parquet file: {e}")
-                # Handle the error (e.g., skip appending, log the issue, etc.)
-                # For example, just use new data
-                combined_df = new_df
-                # Optionally, you can skip the rest of this iteration with 'continue'
-            else:
-                # Append new data if existing data is successfully read
-                combined_df = pl.concat([existing_df, new_df])
-        except Exception as e:
-            logger.error(f"Error appending data: {e}")
-            raise
-    else:
-        logger.info(f"Creating new {chain}/{table}/{table} file.")
-        combined_df = new_df
+    # # Check if the file already exists
+    # if os.path.exists(file_path):
+    #     logger.info(f"Appending data to existing {chain}/{table}/{table} file.")
+    #     try:
+    #         # Attempt to read existing data
+    #         try:
+    #             existing_df = pl.read_parquet(file_path)
+    #         except Exception as e:
+    #             logger.error(f"Error reading existing Parquet file: {e}")
+    #             # Handle the error (e.g., skip appending, log the issue, etc.)
+    #             # For example, just use new data
+    #             combined_df = new_df
+    #             # Optionally, you can skip the rest of this iteration with 'continue'
+    #         else:
+    #             # Append new data if existing data is successfully read
+    #             combined_df = pl.concat([existing_df, new_df])
+    #     except Exception as e:
+    #         logger.error(f"Error appending data: {e}")
+    #         raise
+    # else:
+    #     logger.info(f"Creating new {chain}/{table}/{table} file.")
+    #     combined_df = new_df
 
     # Write combined data back to file
     try:
-        combined_df.write_parquet(file_path)
+        data.write_parquet(file_path)
     except Exception as e:
         logger.error(f"Error writing data to {file_path}: {e}")
         raise

@@ -13,7 +13,6 @@ import asyncio
 
 executor = ThreadPoolExecutor(max_workers=4)  # Adjust the number of workers as needed
 
-
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -39,7 +38,7 @@ async def get_blocks(block_number, w3):
     """
     Extract information for each block number. Return block data and transaction data.
     """
-    logger.info(f"Fetching block data for block number: {block_number}")
+    # logger.info(f"Fetching block data for block number: {block_number}")
 
     try:
         block = w3.eth.get_block(block_number, full_transactions=True)
@@ -214,8 +213,16 @@ async def get_transaction_receipts(transactions, w3):
     return tx_receipts
 
 
-async def process_data(RPC_URL_HTTPS, chain):
+async def process_data(RPC_URL_HTTPS, chain, CHUNK_SIZE):
     global next_block_to_process
+
+    # Initialize separate dataframes for blocks, transactions, and logs
+    block_df = pl.DataFrame()
+    transaction_df = pl.DataFrame()
+    log_df = pl.DataFrame()
+    
+    first_block_in_batch = None
+
     await initialize_next_block_to_process(chain)
 
     # Set up HTTP RPC connection
@@ -225,38 +232,53 @@ async def process_data(RPC_URL_HTTPS, chain):
     while next_block_to_process <= 1650500:
         try:
             block_num_to_process = await determine_next_block_to_process()
+            
+            # logger.info(f"block_num_to_process: {block_num_to_process}")
+            # Initialize first_block_in_batch for the first iteration
+            if first_block_in_batch is None:
+                first_block_in_batch = block_num_to_process
+                # logger.info(f"first_block_in_batch: {first_block_in_batch}")
 
             # Get block and transaction data
             block_data, block_tx_data = await get_blocks(block_num_to_process, w3)
-           
+
             if block_data:
-                # Save blocks
-                loop = asyncio.get_running_loop()
-                loop.run_in_executor(executor, save_data, block_data, chain, 'blocks')
+                # Append block data
+                block_df = block_df.vstack(pl.DataFrame(block_data))
 
                 # Get logs
                 log_data = await get_logs(block_data, w3)
-
-            else:
-                logger.warning(f"Block data is null for block number: {next_block_to_process}")
-
-            if log_data:
-                # Save logs
-                loop = asyncio.get_running_loop()
-                loop.run_in_executor(executor, save_data, log_data, chain, 'logs')
-
-            else:
-                logger.warning(f"Log data is null for block number: {next_block_to_process}")
+                if log_data:
+                    # Append log data
+                    log_df = log_df.vstack(pl.DataFrame(log_data))
 
             if block_tx_data:
                 # Get transactions
                 transaction_data = await get_transactions(block_tx_data)
+                if transaction_data:
+                    # Append transaction data
+                    transaction_df = transaction_df.vstack(pl.DataFrame(transaction_data))
+
+            # Check if the interval is reached. If yes, save data
+            if (block_num_to_process - first_block_in_batch + 1) >= CHUNK_SIZE:
+
+                # Save blocks
+                loop = asyncio.get_running_loop()
+                loop.run_in_executor(executor, save_data, block_df, chain, f'blocks_{first_block_in_batch}_{block_num_to_process}')
 
                 # Save transactions
                 loop = asyncio.get_running_loop()
-                loop.run_in_executor(executor, save_data, transaction_data, chain, 'transactions')
-            else:
-                logger.warning(f"Transaction data is null for block number: {next_block_to_process}")
+                loop.run_in_executor(executor, save_data, transaction_df, chain, f'transactions_{first_block_in_batch}_{block_num_to_process}')
+
+#               # Save logs
+                loop = asyncio.get_running_loop()
+                loop.run_in_executor(executor, save_data, log_df, chain, f'logs_{first_block_in_batch}_{block_num_to_process}')
+
+                # Reset the dataframes for the next set of blocks
+                block_df = pl.DataFrame()
+                transaction_df = pl.DataFrame()
+                log_df = pl.DataFrame()
+                first_block_in_batch = None
 
         except Exception as e:
             logger.error(f"Error in process_data: {e}")
