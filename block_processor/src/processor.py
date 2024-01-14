@@ -20,9 +20,9 @@ logger = logging.getLogger(__name__)
 # Global variable to track the next block number to be processed
 next_block_to_process = 0
 
-async def initialize_next_block_to_process(chain):
+async def initialize_next_block_to_process(CHAIN):
     global next_block_to_process
-    next_block_to_process = find_highest_num_in_storage(storage_path=f'/app/data/{chain}/blocks')
+    next_block_to_process = find_highest_num_in_storage(storage_path=f'/app/data/{CHAIN}/blocks')
     next_block_to_process = 1650000
     logger.info(f"Initialized with block number: {next_block_to_process}")
 
@@ -213,7 +213,7 @@ async def get_transaction_receipts(transactions, w3):
     return tx_receipts
 
 
-async def process_data(RPC_URL_HTTPS, chain, CHUNK_SIZE):
+async def process_data(RPC_URL_HTTPS, CHAIN, CHUNK_SIZE):
     global next_block_to_process
 
     # Initialize separate dataframes for blocks, transactions, and logs
@@ -223,7 +223,7 @@ async def process_data(RPC_URL_HTTPS, chain, CHUNK_SIZE):
     
     first_block_in_batch = None
 
-    await initialize_next_block_to_process(chain)
+    await initialize_next_block_to_process(CHAIN)
 
     # Set up HTTP RPC connection
     w3 = Web3.Web3(Web3.HTTPProvider(RPC_URL_HTTPS))
@@ -264,15 +264,15 @@ async def process_data(RPC_URL_HTTPS, chain, CHUNK_SIZE):
 
                 # Save blocks
                 loop = asyncio.get_running_loop()
-                loop.run_in_executor(executor, save_data, block_df, chain, f'blocks_{first_block_in_batch}_{block_num_to_process}')
+                loop.run_in_executor(executor, save_data, block_df, CHAIN, f'blocks_{first_block_in_batch}_{block_num_to_process}')
 
                 # Save transactions
                 loop = asyncio.get_running_loop()
-                loop.run_in_executor(executor, save_data, transaction_df, chain, f'transactions_{first_block_in_batch}_{block_num_to_process}')
+                loop.run_in_executor(executor, save_data, transaction_df, CHAIN, f'transactions_{first_block_in_batch}_{block_num_to_process}')
 
 #               # Save logs
                 loop = asyncio.get_running_loop()
-                loop.run_in_executor(executor, save_data, log_df, chain, f'logs_{first_block_in_batch}_{block_num_to_process}')
+                loop.run_in_executor(executor, save_data, log_df, CHAIN, f'logs_{first_block_in_batch}_{block_num_to_process}')
 
                 # Reset the dataframes for the next set of blocks
                 block_df = pl.DataFrame()

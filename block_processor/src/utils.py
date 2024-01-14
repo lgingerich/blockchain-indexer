@@ -7,7 +7,7 @@ import yaml
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def setup_logging(LOG_TO_FILE, default_level=logging.INFO):
+def setup_logging(LOG_TO_FILE, LOG_DESTINATION, default_level=logging.INFO):
     """
     Set up the logging configuration.
     """
@@ -18,20 +18,24 @@ def setup_logging(LOG_TO_FILE, default_level=logging.INFO):
     )
 
     if LOG_TO_FILE:
-        file_handler = logging.FileHandler('/app/data/application.log')
+        file_handler = logging.FileHandler('/app' + LOG_DESTINATION)
         file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
         logging.getLogger().addHandler(file_handler)
 
     # Setup logging to save to cloud storage
-
+        
 def get_config_value(config_path):
     """
     Retrieves a specific configuration value based on a dot-notated path.
-    Automatically handles 'local' or 'cloud' type for 'data' and 'log' sections.
+    Automatically handles special keys for sections like 'data' and 'logging' based on their 'type'.
 
-    :param config_path: A string in the format 'section.key'.
+    :param config_path: A string in the format 'section.key' or 'section.subsection.key'.
     :return: The value of the configuration setting or None if not found.
     """
+
+    # Define keys that require special handling based on 'type'
+    special_keys = {'destination'}
+
     # Get the directory of the current script (utils.py)
     current_dir = os.path.dirname(__file__)
 
@@ -47,22 +51,31 @@ def get_config_value(config_path):
 
         # Split the path to get section and key
         path_parts = config_path.split('.')
-        if len(path_parts) != 2:
-            raise ValueError("Config path must be in the format 'section.key'")
+        if len(path_parts) < 2:
+            raise ValueError("Config path must be in the format 'section.key' or 'section.subsection.key'")
 
-        section, key = path_parts
+        section = path_parts[0]
+        key = path_parts[-1]
         section_config = config.get(section, {})
 
-        # Handle destination logic for 'data' and 'log' sections
-        if key == 'destination':
-            section_type = section_config.get('type')
-            return section_config.get(section_type, {}).get(key)
+        # Navigate through subsections if any
+        for part in path_parts[1:-1]:
+            section_config = section_config.get(part, {})
 
-        # Handle other generic keys
+        # Check if the key is one of the special keys and handle accordingly
+        if key in special_keys and section in ['data', 'logging']:
+            type_key = section_config.get('type')
+            if type_key not in ['local', 'cloud']:
+                raise ValueError(f"Invalid type for section {section}. Must be 'local' or 'cloud'.")
+
+            return section_config.get(type_key, {}).get(key)
+
+        # For other sections or keys, handle normally
         return section_config.get(key)
     except Exception as e:
         print(f"Error processing config file: {e}")
         return None
+
 
 def find_highest_num_in_storage(storage_path):
     highest_number = 0  # if no data exists, start from genesis
