@@ -1,6 +1,7 @@
 from consumer import consume_blocks
 # from database import get_db
 from utils import find_highest_num_in_storage, save_data
+from schemas import process_blocks , process_transactions, process_logs
 # from db.repository import BlockRepository
 import logging
 import datetime
@@ -20,9 +21,9 @@ logger = logging.getLogger(__name__)
 # Global variable to track the next block number to be processed
 next_block_to_process = 0
 
-async def initialize_next_block_to_process(CHAIN):
+async def initialize_next_block_to_process(chain):
     global next_block_to_process
-    next_block_to_process = find_highest_num_in_storage(storage_path=f'/app/data/{CHAIN}/blocks')
+    next_block_to_process = find_highest_num_in_storage(storage_path=f'/app/data/{chain}/blocks')
     next_block_to_process = 1650000
     logger.info(f"Initialized with block number: {next_block_to_process}")
 
@@ -34,14 +35,18 @@ async def determine_next_block_to_process():
     logger.info(f"Next block to process: {next_block_to_process}")
     return next_block_to_process
 
-async def get_blocks(block_number, w3):
+async def get_blocks(block_number, chain, w3):
     """
     Extract information for each block number. Return block data and transaction data.
     """
-    # logger.info(f"Fetching block data for block number: {block_number}")
+    logger.info(f"Fetching block data for block number: {block_number}")
 
     try:
         block = w3.eth.get_block(block_number, full_transactions=True)
+        block_data = await process_blocks(block, chain)
+
+        # Save full transaction data
+        block_tx_data = block.get('transactions', [])
     except BlockNotFound as e:
         logger.error(f"Block not found: {e}")
         return None, None
@@ -52,37 +57,12 @@ async def get_blocks(block_number, w3):
         logger.error(f"Unexpected error fetching block data: {e}")
         return None, None
 
-    block_data = {
-        'base_fee_per_gas': block.get('baseFeePerGas', None),
-        'difficulty': block.get('difficulty', None),
-        'extra_data': block.get('extra_data', None).hex() if block.get('extra_data') is not None else None,
-        'gas_limit': block.get('gasLimit', None),
-        'gas_used': block.get('gasUsed'),
-        'block_hash': block.get('hash', None).hex() if block.get('hash') is not None else None,
-        'logs_bloom': block.get('logsBloom', None).hex() if block.get('logsBloom') is not None else None,
-        'miner': block.get('miner', None),
-        'mix_hash': block.get('mixHash', None).hex() if block.get('mixHash') is not None else None,
-        'nonce': block.get('nonce').hex() if block.get('nonce') is not None else None,
-        'number': block.get('number'),
-        'parent_hash': block.get('parentHash').hex() if block.get('parentHash') is not None else None,
-        'receipts_root': block.get('receiptsRoot').hex() if block.get('receiptsRoot') is not None else None,
-        'sha3_uncles': block.get('sha3Uncles').hex() if block.get('sha3Uncles') is not None else None,
-        'size': block.get('size'),
-        'state_root': block.get('stateRoot').hex() if block.get('stateRoot') is not None else None,
-        'timestamp': block.get('timestamp'),
-        # 'total_difficulty': Decimal(block.totalDifficulty),
-        'block_time': datetime.datetime.utcfromtimestamp(block.get('timestamp')).strftime('%Y-%m-%d %H:%M:%S') if block.get('timestamp') is not None else None,
-        'block_date': datetime.datetime.utcfromtimestamp(block.get('timestamp')).strftime('%Y-%m-%d') if block.get('timestamp') is not None else None
-    }
+    logger.info(f"Block data fetched for block number: {block_data['number']}")
 
-    # Save full transaction data
-    block_tx_data = block.get('transactions', [])
-
-    logger.info(f"Block data fetched for block number: {block_number}")
-    
     return block_data, block_tx_data
+    
 
-async def get_transactions(block_tx_data):
+async def get_transactions(block_tx_data, chain):
     """
     Extract information for each transaction from data returned by get_blocks(). 
     Return cleaned transaction data.
@@ -91,29 +71,7 @@ async def get_transactions(block_tx_data):
 
     for tx in block_tx_data:
         try:
-            txs = {
-                'block_hash': tx.get('blockHash', None).hex() if tx.get('blockHash') is not None else None,
-                'block_number': tx.get('blockNumber', None),
-                'from_address': tx.get('from', None),
-                'to_address': tx.get('to', None),
-                'gas_limit': tx.get('gas', None),
-                'gas_price': tx.get('gasPrice', None),
-                'max_fee_per_gas': tx.get('maxFeePerGas', None),
-                'max_priority_fee_per_gas': tx.get('maxPriorityFeePerGas', None),
-                'transaction_hash': tx.get('hash', None).hex() if tx.get('hash') is not None else None,
-                'input': tx.get('input', None).hex() if tx.get('input') is not None else None,
-                'nonce': tx.get('nonce', None),
-                'transaction_index': tx.get('transactionIndex', None),
-                'value': tx.get('value', None),
-                'type': tx.get('type', None),
-                'access_list': tx.get('accessList', None),
-                'chain_id': tx.get('chainId', None),
-                'v': tx.get('v', None),
-                'r': tx.get('r', None).hex() if tx.get('r') is not None else None,
-                's': tx.get('s', None).hex() if tx.get('s') is not None else None,
-                'y_parity': tx.get('yParity', None),
-            }
-
+            txs = await process_transactions(tx, chain)
             transaction_data.append(txs)
 
         except Exception as e:
@@ -122,7 +80,8 @@ async def get_transactions(block_tx_data):
 
     return transaction_data
 
-async def get_logs(block_data, w3):
+
+async def get_logs(block_data, chain, w3):
     """
     Extract information for each log from data returned by get_blocks().
     Return cleaned log data.
@@ -147,20 +106,7 @@ async def get_logs(block_data, w3):
         for log in logs:
             try:
                 topics = [topic.hex() for topic in log.get('topics', [])]
-                processed_log = {
-                    'contract_address': log.get('address'),
-                    'block_hash': log.get('blockHash', None).hex() if log.get('blockHash') is not None else None,
-                    'block_number': log.get('blockNumber', None),
-                    'data': log.get('data'),
-                    'log_index': log.get('logIndex', None),
-                    'removed': log.get('removed', None),
-                    'topic0': topics[0] if len(topics) > 0 else None,
-                    'topic1': topics[1] if len(topics) > 1 else None,
-                    'topic2': topics[2] if len(topics) > 2 else None,
-                    'topic3': topics[3] if len(topics) > 3 else None,
-                    'transaction_index': log.get('transactionIndex', None),
-                    'transaction_hash': log.get('transactionHash', None).hex() if log.get('transactionHash') is not None else None,
-                }
+                processed_log = await process_logs(log, topics, chain)
 
                 log_data.extend(processed_log)
 
@@ -170,7 +116,7 @@ async def get_logs(block_data, w3):
 
     return log_data
 
-async def get_transaction_receipts(transactions, w3):
+async def get_transaction_receipts(transactions, chain, w3):
     """
     Extract and return transactions receipts from the transaction hash.
     """
@@ -233,28 +179,30 @@ async def process_data(RPC_URL_HTTPS, CHAIN, CHUNK_SIZE):
         try:
             block_num_to_process = await determine_next_block_to_process()
             
-            # logger.info(f"block_num_to_process: {block_num_to_process}")
+            logger.info(f"block_num_to_process: {block_num_to_process}")
+
             # Initialize first_block_in_batch for the first iteration
             if first_block_in_batch is None:
                 first_block_in_batch = block_num_to_process
                 # logger.info(f"first_block_in_batch: {first_block_in_batch}")
 
             # Get block and transaction data
-            block_data, block_tx_data = await get_blocks(block_num_to_process, w3)
+            block_data, block_tx_data = await get_blocks(block_num_to_process, CHAIN, w3)
 
             if block_data:
                 # Append block data
                 block_df = block_df.vstack(pl.DataFrame(block_data))
 
                 # Get logs
-                log_data = await get_logs(block_data, w3)
+                log_data = await get_logs(block_data, CHAIN, w3)
+
                 if log_data:
                     # Append log data
                     log_df = log_df.vstack(pl.DataFrame(log_data))
 
             if block_tx_data:
                 # Get transactions
-                transaction_data = await get_transactions(block_tx_data)
+                transaction_data = await get_transactions(block_tx_data, CHAIN)
                 if transaction_data:
                     # Append transaction data
                     transaction_df = transaction_df.vstack(pl.DataFrame(transaction_data))
@@ -270,7 +218,7 @@ async def process_data(RPC_URL_HTTPS, CHAIN, CHUNK_SIZE):
                 loop = asyncio.get_running_loop()
                 loop.run_in_executor(executor, save_data, transaction_df, CHAIN, f'transactions_{first_block_in_batch}_{block_num_to_process}')
 
-#               # Save logs
+                # Save logs
                 loop = asyncio.get_running_loop()
                 loop.run_in_executor(executor, save_data, log_df, CHAIN, f'logs_{first_block_in_batch}_{block_num_to_process}')
 
