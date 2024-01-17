@@ -1,7 +1,6 @@
 import asyncio
 import os
 from utils import setup_logging, get_config_value
-# from database import init_db
 from processor import process_data
 import time 
 import cProfile
@@ -20,10 +19,6 @@ async def main():
 
     # Set up global logging configuration
     setup_logging(LOG_TO_FILE, LOG_DESTINATION)
-
-    # Initialize data storage if necessary (create tables, etc.)
-    # init_db()
-
 
     # Start the main processing logic
     profiler = cProfile.Profile()
@@ -57,4 +52,5 @@ Notes:
 - standardize warning vs error vs info logging
 - some transactions don't have receipts
 - fix data save location. currently combines config var and combining with chain name
+- should I batch get_logs over all blocks in a "100 block" batch?
 """
