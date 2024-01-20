@@ -57,7 +57,6 @@ def get_config_value(config_path):
         section = path_parts[0]
         key = path_parts[-1]
         section_config = config.get(section, {})
-
         # Navigate through subsections if any
         for part in path_parts[1:-1]:
             section_config = section_config.get(part, {})
@@ -77,8 +76,21 @@ def get_config_value(config_path):
         return None
 
 
+
+
+# if highest_block_in_storage > start_block
+#     start from highest block
+
+# else
+#     start from start block
+
+
+
+
 def find_highest_num_in_storage(storage_path):
-    highest_number = 0  # if no data exists, start from genesis
+    # highest_number = 0  # if no data exists, start from genesis
+    START_BLOCK = get_config_value('chain.block.start')
+    highest_number = START_BLOCK
     
     # Check if the storage_path exists
     if not os.path.exists(storage_path):
@@ -97,43 +109,13 @@ def find_highest_num_in_storage(storage_path):
 
     return highest_number
 
-def save_data(data, chain, table):
-    file_path = f'/app/data/{chain}/{table}/{table}.parquet'
+def save_data(data, chain, table, block_range):
+    file_path = f'/app/data/{chain}/{table}/{table}_{block_range}.parquet'
     
     # Ensure the directory exists
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
-    # # Convert the data to a DataFrame
-    # try:
-    #     new_df = pl.DataFrame(data)
-    # except Exception as e:
-    #     logger.error(f"Error converting data to DataFrame: {e}")
-    #     raise
-
-    # # Check if the file already exists
-    # if os.path.exists(file_path):
-    #     logger.info(f"Appending data to existing {chain}/{table}/{table} file.")
-    #     try:
-    #         # Attempt to read existing data
-    #         try:
-    #             existing_df = pl.read_parquet(file_path)
-    #         except Exception as e:
-    #             logger.error(f"Error reading existing Parquet file: {e}")
-    #             # Handle the error (e.g., skip appending, log the issue, etc.)
-    #             # For example, just use new data
-    #             combined_df = new_df
-    #             # Optionally, you can skip the rest of this iteration with 'continue'
-    #         else:
-    #             # Append new data if existing data is successfully read
-    #             combined_df = pl.concat([existing_df, new_df])
-    #     except Exception as e:
-    #         logger.error(f"Error appending data: {e}")
-    #         raise
-    # else:
-    #     logger.info(f"Creating new {chain}/{table}/{table} file.")
-    #     combined_df = new_df
-
-    # Write combined data back to file
+    # Write data to file
     try:
         data.write_parquet(file_path)
     except Exception as e:
