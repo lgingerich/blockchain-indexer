@@ -10,19 +10,19 @@ rabbitmq:
 
 # Chain Configuration
 chain:
-  name: ethereum
+  name: 'ethereum'
   rpc:
-    https: 'https://eth.llamarpc.com'
+    # https: 'https://eth.llamarpc.com'
+    https: 'https://mainnet.era.zksync.io'
     wss: 'wss://ethereum.publicnode.com'
-  # type: 'historical' # Can be 'historical or real-time'
-  # block:
-  #   start: 0
-  #   end: 100000
+  block:
+    start: 10000000
+    end: 10001000
 
 
 # Data Output Configuration
 data:
-  type: local  # Can be 'local' or 'cloud'
+  type: 'local'  # Can be 'local' or 'cloud'
   local:
     destination: '/data'
   cloud:
@@ -30,13 +30,13 @@ data:
     credentials:
       access_key: 'your_access_key'
       secret_key: 'your_secret_key'
-  chunk_size: 100
+  chunk_size: 1000
 
 
 # Log Configuration
 logging:
   to_file: true # If true, logs will be saved to a file. If false, logs are only printed to console.
-  type: local  # Can be 'local' or 'cloud'
+  type: 'local'  # Can be 'local' or 'cloud'
   local:
     destination: '/application.log'
   cloud:
