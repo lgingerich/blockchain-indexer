@@ -13,6 +13,7 @@ LOG_DESTINATION = get_config_value('logging.destination')
 RPC_URL_HTTPS = get_config_value('chain.rpc.https')
 CHUNK_SIZE = get_config_value('data.chunk_size')
 
+
 start_time = time.time()  # Start time
 
 async def main():
@@ -47,10 +48,12 @@ Notes:
 - For L2s, need to update data after transaction settle on L1
     - every minute, check if certain columns are returned and update data if yes
 - separate transaction receipt appending
-- make data folder if it doesn't exist
+- make data folder if it doesn't exist. need to make whatever folder the user specifies
 - in processor.py, are there times I should throw an error if a certain field isn't returned?
 - standardize warning vs error vs info logging
 - some transactions don't have receipts
 - fix data save location. currently combines config var and combining with chain name
 - should I batch get_logs over all blocks in a "100 block" batch?
+- figure out how to handle end block config vs. real-time/historical. also starting from existing data
+- maybe get rid of all np.nan. it does not behave the same as 'None'
 """

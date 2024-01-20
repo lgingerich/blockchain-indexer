@@ -1,6 +1,6 @@
 from consumer import consume_blocks
 # from database import get_db
-from utils import find_highest_num_in_storage, save_data
+from utils import find_highest_num_in_storage, save_data, get_config_value
 from schemas import process_blocks , process_transactions, process_logs
 # from db.repository import BlockRepository
 import logging
@@ -11,6 +11,7 @@ import web3 as Web3
 from web3.exceptions import BlockNotFound, TransactionNotFound, Web3Exception
 from concurrent.futures import ThreadPoolExecutor
 import asyncio
+import numpy as np
 
 executor = ThreadPoolExecutor(max_workers=4)  # Adjust the number of workers as needed
 
@@ -18,13 +19,17 @@ executor = ThreadPoolExecutor(max_workers=4)  # Adjust the number of workers as 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Access setup configurations
+# START_BLOCK = get_config_value('chain.block.start')
+END_BLOCK = get_config_value('chain.block.end')
+
 # Global variable to track the next block number to be processed
-next_block_to_process = 0
+# next_block_to_process = np.nan
+next_block_to_process = None
 
 async def initialize_next_block_to_process(chain):
     global next_block_to_process
     next_block_to_process = find_highest_num_in_storage(storage_path=f'/app/data/{chain}/blocks')
-    next_block_to_process = 1650000
     logger.info(f"Initialized with block number: {next_block_to_process}")
 
 async def determine_next_block_to_process():
@@ -39,7 +44,7 @@ async def get_blocks(block_number, chain, w3):
     """
     Extract information for each block number. Return block data and transaction data.
     """
-    logger.info(f"Fetching block data for block number: {block_number}")
+    # logger.info(f"Fetching block data for block number: {block_number}")
 
     try:
         block = w3.eth.get_block(block_number, full_transactions=True)
@@ -116,7 +121,7 @@ async def get_logs(block_data, chain, w3):
 
     return log_data
 
-async def get_transaction_receipts(transactions, chain, w3):
+async def get_transaction_receipts(transactions, CHAIN, w3):
     """
     Extract and return transactions receipts from the transaction hash.
     """
@@ -166,7 +171,7 @@ async def process_data(RPC_URL_HTTPS, CHAIN, CHUNK_SIZE):
     block_df = pl.DataFrame()
     transaction_df = pl.DataFrame()
     log_df = pl.DataFrame()
-    
+    # first_block_in_batch = np.nan
     first_block_in_batch = None
 
     await initialize_next_block_to_process(CHAIN)
@@ -175,16 +180,15 @@ async def process_data(RPC_URL_HTTPS, CHAIN, CHUNK_SIZE):
     w3 = Web3.Web3(Web3.HTTPProvider(RPC_URL_HTTPS))
 
     # while True:
-    while next_block_to_process <= 1650500:
+    while next_block_to_process <= END_BLOCK:
         try:
             block_num_to_process = await determine_next_block_to_process()
-            
-            logger.info(f"block_num_to_process: {block_num_to_process}")
 
-            # Initialize first_block_in_batch for the first iteration
+            # If first_block_in_batch is Falsy, initialize it for the first iteration
             if first_block_in_batch is None:
+
                 first_block_in_batch = block_num_to_process
-                # logger.info(f"first_block_in_batch: {first_block_in_batch}")
+                logger.info(f"first_block_in_batch: {first_block_in_batch}")
 
             # Get block and transaction data
             block_data, block_tx_data = await get_blocks(block_num_to_process, CHAIN, w3)
@@ -212,20 +216,21 @@ async def process_data(RPC_URL_HTTPS, CHAIN, CHUNK_SIZE):
 
                 # Save blocks
                 loop = asyncio.get_running_loop()
-                loop.run_in_executor(executor, save_data, block_df, CHAIN, f'blocks_{first_block_in_batch}_{block_num_to_process}')
+                loop.run_in_executor(executor, save_data, block_df, CHAIN, 'blocks', f'{first_block_in_batch}_{block_num_to_process}')
 
                 # Save transactions
                 loop = asyncio.get_running_loop()
-                loop.run_in_executor(executor, save_data, transaction_df, CHAIN, f'transactions_{first_block_in_batch}_{block_num_to_process}')
+                loop.run_in_executor(executor, save_data, transaction_df, CHAIN, 'transactions', f'{first_block_in_batch}_{block_num_to_process}')
 
                 # Save logs
                 loop = asyncio.get_running_loop()
-                loop.run_in_executor(executor, save_data, log_df, CHAIN, f'logs_{first_block_in_batch}_{block_num_to_process}')
+                loop.run_in_executor(executor, save_data, log_df, CHAIN, 'logs', f'{first_block_in_batch}_{block_num_to_process}')
 
                 # Reset the dataframes for the next set of blocks
                 block_df = pl.DataFrame()
                 transaction_df = pl.DataFrame()
                 log_df = pl.DataFrame()
+                # first_block_in_batch = np.nan
                 first_block_in_batch = None
 
         except Exception as e:
