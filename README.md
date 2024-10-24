@@ -1,14 +1,15 @@
 # Blockchain Indexer
 
 ## Description
-The Blockchain Indexer is a tool designed to monitor and process Ethereum blockchain data in real-time. It consists of two main microservices: `Block Checker` and `Block Processor`. The Block Checker listens for new blocks on the Ethereum blockchain using
-a WebSocket connection and sends this information to a RabbitMQ queue. The Block Processor then consumes these messages from the queue and processes them accordingly.
+
+The Blockchain Indexer is a tool designed to monitor and process Ethereum blockchain data in real-time. It supports multiple Ethereum-compatible chains, including Ethereum, Arbitrum, Optimism, and ZKSync. The indexer connects to these blockchains using Web3 and retrieves block data asynchronously.
 
 ## Features
-- Real-time monitoring of Ethereum blockchain.
-- Efficient queuing of blockchain data using RabbitMQ.
-- Separate microservices for checking and processing blocks.
-- Dockerized environment for easy deployment and scaling.
+
+- Real-time monitoring of Ethereum-compatible blockchains.
+- Asynchronous operations using `asyncio` for efficient data retrieval.
+- Support for multiple chains: Ethereum, Arbitrum, Optimism, and ZKSync.
+- Customizable chain configurations.
 
 ## Installation
 
@@ -19,34 +20,28 @@ git clone https://github.com/lgingerich/blockchain-indexer.git
 cd blockchain-indexer
 ```
 
-Build the Docker images:
+Set up a virtual environment and install dependencies using Astral UV:
 
 ```bash
-docker compose build
+uv venv
+uv install
 ```
 
 ## Usage
 
-Start the services using Docker Compose:
+Run the indexer:
 
 ```bash
-docker compose up
+python src/main.py
 ```
 
-This will start both the Block Checker and Block Processor services, as well as the RabbitMQ server.
+This will start the indexer, which will connect to the specified blockchain and begin retrieving block data.
 
 ## Configuration
 
-- **RabbitMQ**: The RabbitMQ server is configured in `docker-compose.yml`. Modify the environment variables as needed.
-- **Block Checker**: Configured to connect to Ethereum's WebSocket and RabbitMQ. Modify `block_checker/block_checker.py` for specific configurations.
-- **Block Processor**: Set up to listen to the RabbitMQ queue. Adjust settings in `block_processor/block_processor.py`.
-
-## Debugging
-
-### RabbitMQ Management UI
-- Navigate to http://localhost:[RABBITMQ_MANAGEMENT_PORT]/
-- Log in using your RabbitMQ credentials
+- **Chain Selection**: Modify the `CHAIN_NAME` and `rpc_url` in `src/main.py` to select the desired blockchain and RPC endpoint.
+- **Block Retrieval**: The indexer retrieves the current block number and block details using the `EVMIndexer` class.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details. -->
+This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.

@@ -1,0 +1,12 @@
+[project]
+name = "blockchain-indexer"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "asyncio>=3.4.3",
+    "eth-typing>=5.0.1",
+    "loguru>=0.7.2",
+    "web3>=7.4.0",
+]
