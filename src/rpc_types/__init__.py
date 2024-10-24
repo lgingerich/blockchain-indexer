@@ -12,7 +12,12 @@ from .transactions import (
     EthereumTransaction,
     ZKsyncTransaction
 )
-
+from .logs import (
+    BaseLog,
+    ArbitrumLog,
+    EthereumLog,
+    ZKsyncLog
+)
 
 # Add new chains here. Applicable for all chains!
 class ChainType(Enum):
@@ -22,6 +27,7 @@ class ChainType(Enum):
     ZKSYNC = "zksync"
 
 Block = ArbitrumBlock | EthereumBlock | ZKsyncBlock
+Logs = ArbitrumLog | EthereumLog | ZKsyncLog
 Transaction = ArbitrumTransaction | EthereumTransaction | ZKsyncTransaction
 
 # Mapping of ChainType to Block class
@@ -32,6 +38,16 @@ BLOCK_TYPE_MAPPING: dict[ChainType, Type[BaseBlock]] = {
     ChainType.CRONOS_ZKEVM: ZKsyncBlock,
     ChainType.ETHEREUM: EthereumBlock,
     ChainType.ZKSYNC: ZKsyncBlock,
+}
+
+# Mapping of ChainType to Log class
+# Add new chains here. Applicable for all chains!
+# If the new chain does not fit an existing class, add a new class and add it to the mapping.
+LOG_TYPE_MAPPING: dict[ChainType, Type[BaseLog]] = {
+    ChainType.ARBITRUM: ArbitrumLog,
+    ChainType.CRONOS_ZKEVM: ZKsyncLog,
+    ChainType.ETHEREUM: EthereumLog,
+    ChainType.ZKSYNC: ZKsyncLog,
 }
 
 # Mapping of ChainType to Transaction class

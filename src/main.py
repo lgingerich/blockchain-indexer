@@ -32,29 +32,31 @@ async def main():
         block = await evm_indexer.process_block(raw_block)
         transactions = await evm_indexer.process_transactions(raw_block['transactions'])
 
+        logs = await evm_indexer.get_logs(block_number)
+        print(logs)
         # print(f"Current block: {block}")
 
-        # Convert block to JSON-serializable format
-        block_json = Web3.to_json(block)
+        # # Convert block to JSON-serializable format
+        # block_json = Web3.to_json(block)
 
-        # If block_json is a string, parse it back to a Python object
-        if isinstance(block_json, str):
-            block_json = json.loads(block_json)
+        # # If block_json is a string, parse it back to a Python object
+        # if isinstance(block_json, str):
+        #     block_json = json.loads(block_json)
 
-        # Write directly to file
-        # with open(f"data/schema-ref{CHAIN_NAME}/{CHAIN_NAME}_block_{block_number}.json", 'w') as file:
-        with open(f"data/temp-new/{CHAIN_NAME}/{CHAIN_NAME}_block_{block_number}.json", 'w') as file:
-            json.dump(block_json, file, indent=4, sort_keys=True)
+        # # Write directly to file
+        # # with open(f"data/schema-ref{CHAIN_NAME}/{CHAIN_NAME}_block_{block_number}.json", 'w') as file:
+        # with open(f"data/temp-new/{CHAIN_NAME}/{CHAIN_NAME}_block_{block_number}.json", 'w') as file:
+        #     json.dump(block_json, file, indent=4, sort_keys=True)
 
-        # Convert transactions to JSON-serializable format
-        transactions_json = [Web3.to_json(tx) for tx in transactions]
+        # # Convert transactions to JSON-serializable format
+        # transactions_json = [Web3.to_json(tx) for tx in transactions]
 
-        # If any transaction is a string, parse it back to a Python object
-        transactions_json = [json.loads(tx) if isinstance(tx, str) else tx for tx in transactions_json]
+        # # If any transaction is a string, parse it back to a Python object
+        # transactions_json = [json.loads(tx) if isinstance(tx, str) else tx for tx in transactions_json]
 
-        # Write transactions data to file
-        with open(f"data/temp-new/{CHAIN_NAME}/{CHAIN_NAME}_transactions_{block_number}.json", 'w') as file:
-            json.dump(transactions_json, file, indent=4, sort_keys=True)
+        # # Write transactions data to file
+        # with open(f"data/temp-new/{CHAIN_NAME}/{CHAIN_NAME}_transactions_{block_number}.json", 'w') as file:
+        #     json.dump(transactions_json, file, indent=4, sort_keys=True)
 
     except KeyError as e:
         logger.error(f"Configuration error: Missing key {e}")

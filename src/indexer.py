@@ -55,3 +55,8 @@ class EVMIndexer:
             raise ValueError(f"Unsupported chain type for transactions: {self.chain_type}")
 
         return [transaction_class(**tx) for tx in transformed_transactions]
+
+    async def get_logs(self, block_number: BlockNumber):
+        logs = await self.w3.eth.get_logs({'fromBlock': block_number, 'toBlock': block_number})
+        return logs
+
