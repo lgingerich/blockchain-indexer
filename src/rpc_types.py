@@ -8,17 +8,21 @@ from eth_typing import (
 )
 from web3.types import Wei
 
-
-# TO DO: these fields have changed with blobs now. need to check earliest and latest blocks
-
-
+# Add new chains here. Applicable for all chains!
 class ChainType(Enum):
-    ETHEREUM = "ethereum"
     ARBITRUM = "arbitrum"
-    OPTIMISM = "optimism"
+    CRONOS_ZKEVM = "cronos-zkevm"
+    ETHEREUM = "ethereum"
     ZKSYNC = "zksync"
 
+class Withdrawal(TypedDict):
+    address: str
+    amount: int
+    index: int
+    validatorIndex: int
+
 class BaseBlock(TypedDict):
+    baseFeePerGas: Optional[Wei]
     difficulty: int
     extraData: HexStr
     gasLimit: Wei
@@ -35,39 +39,37 @@ class BaseBlock(TypedDict):
     size: int
     stateRoot: Hash32
     timestamp: int
+    totalDifficulty: int
     transactions: List[Hash32]
     transactionsRoot: Hash32
     uncles: List[Hash32]
 
-# Exactly the same as BaseBlock. Keep in for clarity.
 class EthereumBlock(BaseBlock):
-    pass
+    blobGasUsed: Optional[int]
+    excessBlobGas: Optional[int]
+    parentBeaconBlockRoot: Optional[Hash32]
+    withdrawals: Optional[List[Withdrawal]]
+    withdrawalsRoot: Optional[Hash32]
 
 class ArbitrumBlock(BaseBlock):
-    baseFeePerGas: Wei
-    l1BlockNumber: Optional[int]
+    l1BlockNumber: int
     sendCount: Optional[int]
     sendRoot: Optional[Hash32]
-    totalDifficulty: int
-
-class OptimismBlock(BaseBlock):
-    baseFeePerGas: Wei
-    totalDifficulty: int
 
 class ZKsyncBlock(BaseBlock):
-    baseFeePerGas: Wei
     l1BatchNumber: Optional[int]
     l1BatchTimestamp: Optional[int]
     sealFields: List[HexStr]
-    totalDifficulty: int
 
-Block = EthereumBlock | ArbitrumBlock | OptimismBlock | ZKsyncBlock
+Block = EthereumBlock | ArbitrumBlock | ZKsyncBlock
 
 
 # Mapping of ChainType to Block class
+# Add new chains here. Applicable for all chains!
+# If the new chain does not fit an existing class, add a new class and add it to the mapping.
 BLOCK_TYPE_MAPPING: dict[ChainType, Type[BaseBlock]] = {
-    ChainType.ETHEREUM: EthereumBlock,
     ChainType.ARBITRUM: ArbitrumBlock,
-    ChainType.OPTIMISM: OptimismBlock,
+    ChainType.ETHEREUM: EthereumBlock,
+    ChainType.CRONOS_ZKEVM: ZKsyncBlock,
     ChainType.ZKSYNC: ZKsyncBlock,
 }
