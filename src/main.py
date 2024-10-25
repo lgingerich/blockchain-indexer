@@ -1,11 +1,9 @@
 import asyncio
-import json
+from loguru import logger
 import sys
 
-from loguru import logger
 from indexer import EVMIndexer
 from rpc_types import ChainType
-from web3 import Web3
 
 # CHAIN_NAME = "arbitrum"
 # CHAIN_NAME = "cronos-zkevm"
@@ -19,44 +17,40 @@ rpc_url = "https://eth.llamarpc.com"
 
 async def main():
     try:
-
+        # Setup indexer
+        logger.info(f"Processing {CHAIN_NAME} chain")
         chain_type = ChainType(CHAIN_NAME)
-
         evm_indexer = EVMIndexer(rpc_url, chain_type)
 
+        # Get current block number
         block_number = await evm_indexer.get_block_number()
-        # print(f"Current block number: {block_number}")
+        logger.info(f"Current block number: {block_number}")
 
         # block_number = 1
+
+        # Get raw block and logs
         raw_block = await evm_indexer.get_block(block_number)
-        block = await evm_indexer.process_block(raw_block)
-        transactions = await evm_indexer.process_transactions(raw_block['transactions'])
+        # raw_logs = await evm_indexer.get_logs(block_number)
+        
+        # Parse block, transactions, and logs
+        parsed_block = await evm_indexer.parse_block(raw_block)
+        # parsed_transactions = await evm_indexer.parse_transactions(raw_block['transactions'])
+        # parsed_logs = await evm_indexer.parse_logs(raw_logs)
 
-        logs = await evm_indexer.get_logs(block_number)
-        print(logs)
-        # print(f"Current block: {block}")
 
-        # # Convert block to JSON-serializable format
-        # block_json = Web3.to_json(block)
+        # Print or process the results
+        # print("Parsed Block:", json.dumps(parsed_block, indent=2))
+        # print(f"Parsed {len(parsed_transactions)} transactions")
+        
+        # # Optionally save to files
+        # with open(f"data/temp-new/{CHAIN_NAME}/{CHAIN_NAME}_block_{block_number}.json", 'w') as f:
+        #     json.dump(parsed_block, f, indent=4)
+            
+        # with open(f"data/temp-new/{CHAIN_NAME}/{CHAIN_NAME}_transactions_{block_number}.json", 'w') as f:
+        #     json.dump(parsed_transactions, f, indent=4)
 
-        # # If block_json is a string, parse it back to a Python object
-        # if isinstance(block_json, str):
-        #     block_json = json.loads(block_json)
-
-        # # Write directly to file
-        # # with open(f"data/schema-ref{CHAIN_NAME}/{CHAIN_NAME}_block_{block_number}.json", 'w') as file:
-        # with open(f"data/temp-new/{CHAIN_NAME}/{CHAIN_NAME}_block_{block_number}.json", 'w') as file:
-        #     json.dump(block_json, file, indent=4, sort_keys=True)
-
-        # # Convert transactions to JSON-serializable format
-        # transactions_json = [Web3.to_json(tx) for tx in transactions]
-
-        # # If any transaction is a string, parse it back to a Python object
-        # transactions_json = [json.loads(tx) if isinstance(tx, str) else tx for tx in transactions_json]
-
-        # # Write transactions data to file
-        # with open(f"data/temp-new/{CHAIN_NAME}/{CHAIN_NAME}_transactions_{block_number}.json", 'w') as file:
-        #     json.dump(transactions_json, file, indent=4, sort_keys=True)
+        # with open(f"data/temp-new/{CHAIN_NAME}/{CHAIN_NAME}_logs_{block_number}.json", 'w') as f:
+        #     json.dump(logs, f, indent=4)
 
     except KeyError as e:
         logger.error(f"Configuration error: Missing key {e}")

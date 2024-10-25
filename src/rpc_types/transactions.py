@@ -40,7 +40,7 @@ class EthereumTransaction(BaseTransaction):
     maxFeePerBlobGas: Optional[Wei] # TO DO: Why should I use the Wei type?
     maxFeePerGas: Optional[Wei]
     maxPriorityFeePerGas: Optional[Wei]
-    yParity: int
+    yParity: Optional[int]
 
 class ZKsyncTransaction(BaseTransaction):
     l1BatchNumber: HexStr

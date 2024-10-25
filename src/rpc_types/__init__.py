@@ -4,19 +4,19 @@ from .blocks import (
     BaseBlock,
     ArbitrumBlock,
     EthereumBlock,
-    ZKsyncBlock
-)
-from .transactions import (
-    BaseTransaction,
-    ArbitrumTransaction,
-    EthereumTransaction,
-    ZKsyncTransaction
+    ZKsyncBlock,
 )
 from .logs import (
     BaseLog,
     ArbitrumLog,
     EthereumLog,
     ZKsyncLog
+)
+from .transactions import (
+    BaseTransaction,
+    ArbitrumTransaction,
+    EthereumTransaction,
+    ZKsyncTransaction
 )
 
 # Add new chains here. Applicable for all chains!
@@ -27,7 +27,7 @@ class ChainType(Enum):
     ZKSYNC = "zksync"
 
 Block = ArbitrumBlock | EthereumBlock | ZKsyncBlock
-Logs = ArbitrumLog | EthereumLog | ZKsyncLog
+Log = ArbitrumLog | EthereumLog | ZKsyncLog
 Transaction = ArbitrumTransaction | EthereumTransaction | ZKsyncTransaction
 
 # Mapping of ChainType to Block class

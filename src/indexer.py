@@ -1,12 +1,20 @@
 from loguru import logger
 from web3 import AsyncWeb3, AsyncHTTPProvider
 from eth_typing import BlockNumber
+from typing import Dict, Any, cast, List
 from rpc_types import (
     ChainType,
     Block,
-    Transaction,
     BLOCK_TYPE_MAPPING,
-    TRANSACTION_TYPE_MAPPING
+    Transaction,
+    TRANSACTION_TYPE_MAPPING,
+    Log,
+    LOG_TYPE_MAPPING
+)
+from parsers import (
+    BLOCK_PARSERS, 
+    TRANSACTION_PARSERS,
+    LOG_PARSERS
 )
 
 class EVMIndexer:
@@ -20,43 +28,21 @@ class EVMIndexer:
         logger.info(f"Retrieved block number: {block_number}")
         return block_number
 
-    async def get_block(self, block_number: BlockNumber) -> dict:
+    async def get_block(self, block_number: BlockNumber) -> Dict[str, Any]:
         logger.info(f"Fetching block with number: {block_number}")
         raw_block = await self.w3.eth.get_block(block_number, full_transactions=True)
         return dict(raw_block)
 
-    async def process_block(self, raw_block: dict) -> Block:
-        block_class = BLOCK_TYPE_MAPPING.get(self.chain_type)
-        if block_class is None:
-            logger.error(f"Unsupported chain type: {self.chain_type}")
-            raise ValueError(f"Unsupported chain type: {self.chain_type}")
-        
-        # Create a copy of the block data before modifying it
-        block_data = raw_block.copy()
-        
-        # Extract only transaction hashes from full transaction data
-        block_data['transactions'] = [tx['hash'] for tx in block_data['transactions']]
-        
-        return block_class(**block_data)
-        
-    async def process_transactions(self, raw_transactions: list) -> list[Transaction]:
-        # First rename fields for all transactions
-        transformed_transactions = []
-        for tx in raw_transactions:
-            tx_dict = dict(tx)
-            tx_dict['from_address'] = tx_dict.pop('from')
-            tx_dict['to_address'] = tx_dict.pop('to')
-            transformed_transactions.append(tx_dict)
-
-        # Then apply type mapping to the renamed transactions
-        transaction_class = TRANSACTION_TYPE_MAPPING.get(self.chain_type)
-        if transaction_class is None:
-            logger.error(f"Unsupported chain type for transactions: {self.chain_type}")
-            raise ValueError(f"Unsupported chain type for transactions: {self.chain_type}")
-
-        return [transaction_class(**tx) for tx in transformed_transactions]
-
-    async def get_logs(self, block_number: BlockNumber):
-        logs = await self.w3.eth.get_logs({'fromBlock': block_number, 'toBlock': block_number})
-        return logs
-
+    async def parse_block(self, raw_block: Dict[str, Any]) -> Block:
+        logger.info(f"Parsing block data")
+        block_class = BLOCK_TYPE_MAPPING[self.chain_type]
+        parser_class = BLOCK_PARSERS[block_class]
+        parsed_data = parser_class.parse_raw(raw_block)
+        return cast(Block, block_class(parsed_data))
+    
+    async def parse_transactions(self, raw_transactions: List[Dict[str, Any]]) -> List[Transaction]:
+        logger.info(f"Parsing transaction data")
+        transaction_class = TRANSACTION_TYPE_MAPPING[self.chain_type]
+        parser_class = TRANSACTION_PARSERS[transaction_class]
+        parsed_data = [parser_class.parse_raw(raw_tx) for raw_tx in raw_transactions]
+        return cast(List[Transaction], [transaction_class(parsed_tx) for parsed_tx in parsed_data])

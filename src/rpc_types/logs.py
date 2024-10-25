@@ -13,8 +13,8 @@ class BaseLog(TypedDict):
 class ArbitrumLog(BaseLog):
     pass
 
-class EthereumBlock(BaseLog):
+class EthereumLog(BaseLog):
     pass
 
-class ZKsyncBlock(BaseLog):
+class ZKsyncLog(BaseLog):
     pass
