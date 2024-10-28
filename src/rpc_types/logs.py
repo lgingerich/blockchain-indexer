@@ -1,20 +1,23 @@
-from typing import List, TypedDict
+from typing import List, Optional
 from eth_typing import (
     BlockNumber,
-    Address,
     HexStr,
 )
-from hexbytes import HexBytes
+from pydantic import BaseModel
 
-class BaseLog(TypedDict):
-    address: Address
-    blockHash: HexBytes
+class BaseLog(BaseModel):
+    model_config = {
+        "arbitrary_types_allowed": True
+    }
+    
+    address: str
+    blockHash: HexStr
     blockNumber: BlockNumber
-    data: HexBytes
+    data: HexStr
     logIndex: int
     removed: bool
-    topics: List[HexBytes]
-    transactionHash: HexBytes
+    topics: List[HexStr]
+    transactionHash: HexStr
     transactionIndex: int
 
 # Same as BaseTransaction — keep here for clarity and completeness
@@ -23,10 +26,10 @@ class ArbitrumLog(BaseLog):
     pass
 
 class EthereumLog(BaseLog):
-    blockTimestamp: int
+    blockTimestamp: Optional[int] = None
 
 class ZKsyncLog(BaseLog):
-    blockTimestamp: int
-    l1BatchNumber: int
+    blockTimestamp: Optional[int] = None
+    l1BatchNumber: Optional[int] = None
     logType: str
-    transactionLogIndex: int
+    transactionLogIndex: Optional[int] = None

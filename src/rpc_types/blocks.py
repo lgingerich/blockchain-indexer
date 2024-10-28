@@ -1,54 +1,57 @@
-from typing import List, Optional, TypedDict
+from typing import List, Optional
 from eth_typing import (
     BlockNumber,
-    Address,
     HexStr,
 )
-from hexbytes import HexBytes
 from web3.types import Wei
+from pydantic import BaseModel
 
-class Withdrawal(TypedDict):
+class Withdrawal(BaseModel):
     address: str
     amount: int
     index: int
     validatorIndex: int
 
-class BaseBlock(TypedDict):
-    baseFeePerGas: Optional[Wei]
+class BaseBlock(BaseModel):
+    model_config = {
+        "arbitrary_types_allowed": True
+    }
+    
+    baseFeePerGas: Optional[Wei] = None
     difficulty: int
-    extraData: HexBytes
+    extraData: Optional[HexStr] = None
     gasLimit: Wei
     gasUsed: Wei
-    hash: HexBytes
-    logsBloom: HexBytes
-    miner: Address
-    mixHash: HexBytes
-    nonce: HexBytes
+    hash: HexStr
+    logsBloom: HexStr
+    miner: str
+    mixHash: HexStr
+    nonce: HexStr
     number: BlockNumber
-    parentHash: HexBytes
-    receiptsRoot: HexBytes
-    sha3Uncles: HexBytes
+    parentHash: HexStr
+    receiptsRoot: HexStr
+    sha3Uncles: HexStr
     size: int
-    stateRoot: HexBytes
+    stateRoot: HexStr
     timestamp: int
     totalDifficulty: int
-    transactions: List[HexBytes]
-    transactionsRoot: HexBytes
-    uncles: List[HexBytes]
+    transactions: List[HexStr] = []
+    transactionsRoot: HexStr
+    uncles: List[HexStr] = []
 
 class ArbitrumBlock(BaseBlock):
     l1BlockNumber: int
-    sendCount: Optional[int]
-    sendRoot: Optional[HexStr]
+    sendCount: Optional[int] = None
+    sendRoot: Optional[HexStr] = None
 
 class EthereumBlock(BaseBlock):
-    blobGasUsed: Optional[int]
-    excessBlobGas: Optional[int]
-    parentBeaconBlockRoot: Optional[HexBytes]
-    withdrawals: Optional[List[Withdrawal]] # TO DO: This should become it's own data set
-    withdrawalsRoot: Optional[HexBytes]
+    blobGasUsed: Optional[int] = None
+    excessBlobGas: Optional[int] = None
+    parentBeaconBlockRoot: Optional[HexStr] = None
+    withdrawals: Optional[List[Withdrawal]] = []
+    withdrawalsRoot: Optional[HexStr] = None
 
 class ZKsyncBlock(BaseBlock):
-    l1BatchNumber: Optional[int]
-    l1BatchTimestamp: Optional[int]
-    sealFields: List[HexBytes]
+    l1BatchNumber: Optional[int] = None
+    l1BatchTimestamp: Optional[int] = None
+    sealFields: List[HexStr] = []
