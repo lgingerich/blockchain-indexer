@@ -1,20 +1,32 @@
-from typing import List, Optional, TypedDict
+from typing import List, TypedDict
 from eth_typing import (
     BlockNumber,
-    Hash32,
     Address,
     HexStr,
 )
-from web3.types import Wei
+from hexbytes import HexBytes
 
 class BaseLog(TypedDict):
-    pass
+    address: Address
+    blockHash: HexBytes
+    blockNumber: BlockNumber
+    data: HexBytes
+    logIndex: int
+    removed: bool
+    topics: List[HexBytes]
+    transactionHash: HexBytes
+    transactionIndex: int
 
+# Same as BaseTransaction — keep here for clarity and completeness
+# Note: Arbitrum does not return blockTimestamp in logs
 class ArbitrumLog(BaseLog):
     pass
 
 class EthereumLog(BaseLog):
-    pass
+    blockTimestamp: int
 
 class ZKsyncLog(BaseLog):
-    pass
+    blockTimestamp: int
+    l1BatchNumber: int
+    logType: str
+    transactionLogIndex: int

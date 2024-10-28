@@ -32,6 +32,10 @@ class EVMIndexer:
         logger.info(f"Fetching block with number: {block_number}")
         raw_block = await self.w3.eth.get_block(block_number, full_transactions=True)
         return dict(raw_block)
+    
+    async def get_logs(self, block_number: BlockNumber):
+        logs = await self.w3.eth.get_logs({'fromBlock': block_number, 'toBlock': block_number})
+        return logs
 
     async def parse_block(self, raw_block: Dict[str, Any]) -> Block:
         logger.info(f"Parsing block data")
@@ -46,3 +50,10 @@ class EVMIndexer:
         parser_class = TRANSACTION_PARSERS[transaction_class]
         parsed_data = [parser_class.parse_raw(raw_tx) for raw_tx in raw_transactions]
         return cast(List[Transaction], [transaction_class(parsed_tx) for parsed_tx in parsed_data])
+    
+    async def parse_logs(self, raw_logs: List[Dict[str, Any]]) -> List[Log]:
+        logger.info(f"Parsing log data")
+        log_class = LOG_TYPE_MAPPING[self.chain_type]
+        parser_class = LOG_PARSERS[log_class]
+        parsed_data = [parser_class.parse_raw(raw_log) for raw_log in raw_logs]
+        return cast(List[Log], [log_class(parsed_log) for parsed_log in parsed_data])
