@@ -1,4 +1,5 @@
 from rpc_types import EthereumBlock, ArbitrumBlock, ZKsyncBlock
+from utils import hex_to_str
 
 class BaseBlockParser:
     @staticmethod
@@ -6,65 +7,58 @@ class BaseBlockParser:
         return {
             'baseFeePerGas': raw_block.get('baseFeePerGas'),
             'difficulty': raw_block['difficulty'],
-            'extraData': raw_block['extraData'].hex(),
+            'extraData': hex_to_str(raw_block['extraData']),
             'gasLimit': raw_block['gasLimit'],
             'gasUsed': raw_block['gasUsed'],
-            'hash': raw_block['hash'].hex(),
-            'logsBloom': raw_block['logsBloom'].hex(),
-            'miner': raw_block['miner'],
-            'mixHash': raw_block['mixHash'].hex(),
-            'nonce': raw_block['nonce'].hex(),
+            'hash': hex_to_str(raw_block['hash']),
+            'logsBloom': hex_to_str(raw_block['logsBloom']),
+            'miner': str(raw_block['miner']),
+            'mixHash': hex_to_str(raw_block['mixHash']),
+            'nonce': hex_to_str(raw_block['nonce']),
             'number': raw_block['number'],
-            'parentHash': raw_block['parentHash'].hex(),
-            'receiptsRoot': raw_block['receiptsRoot'].hex(),
-            'sha3Uncles': raw_block['sha3Uncles'].hex(),
+            'parentHash': hex_to_str(raw_block['parentHash']),
+            'receiptsRoot': hex_to_str(raw_block['receiptsRoot']),
+            'sha3Uncles': hex_to_str(raw_block['sha3Uncles']),
             'size': raw_block['size'],
-            'stateRoot': raw_block['stateRoot'].hex(),
+            'stateRoot': hex_to_str(raw_block['stateRoot']),
             'timestamp': raw_block['timestamp'],
             'totalDifficulty': raw_block['totalDifficulty'],
-            'transactions': [tx.hash for tx in raw_block['transactions']],
-            'transactionsRoot': raw_block['transactionsRoot'].hex(),
-            'uncles': [uncle.hex() for uncle in raw_block['uncles']]
+            'transactions': [hex_to_str(tx['hash']) for tx in raw_block['transactions']],
+            'transactionsRoot': hex_to_str(raw_block['transactionsRoot']),
+            'uncles': [hex_to_str(uncle) for uncle in raw_block['uncles']]
         }
-    
-class EthereumBlockParser(BaseBlockParser):
-    @staticmethod
-    def parse_raw(raw_block: dict) -> dict:
-        parsed = BaseBlockParser.parse_raw(raw_block)
-        parsed.update({
-            'blobGasUsed': raw_block.get('blobGasUsed'),
-            'excessBlobGas': raw_block.get('excessBlobGas'),
-            'parentBeaconBlockRoot': raw_block.get('parentBeaconBlockRoot'),
-            'withdrawals': raw_block.get('withdrawals'),
-            'withdrawalsRoot': raw_block.get('withdrawalsRoot'),
-        })
-        return parsed
     
 class ArbitrumBlockParser(BaseBlockParser):
     @staticmethod
-    def parse_raw(raw_block: dict) -> dict:
+    def parse_raw(raw_block: dict) -> ArbitrumBlock:
         parsed = BaseBlockParser.parse_raw(raw_block)
         parsed.update({
             'l1BlockNumber': raw_block['l1BlockNumber'],
             'sendCount': raw_block.get('sendCount'),
-            'sendRoot': raw_block.get('sendRoot'),
+            'sendRoot': hex_to_str(raw_block.get('sendRoot')) if raw_block.get('sendRoot') else None,
+        })
+        return parsed
+
+class EthereumBlockParser(BaseBlockParser):
+    @staticmethod
+    def parse_raw(raw_block: dict) -> EthereumBlock:
+        parsed = BaseBlockParser.parse_raw(raw_block)
+        parsed.update({
+            'blobGasUsed': raw_block.get('blobGasUsed'),
+            'excessBlobGas': raw_block.get('excessBlobGas'),
+            'parentBeaconBlockRoot': hex_to_str(raw_block.get('parentBeaconBlockRoot')) if raw_block.get('parentBeaconBlockRoot') else None,
+            'withdrawals': raw_block.get('withdrawals'),
+            'withdrawalsRoot': hex_to_str(raw_block.get('withdrawalsRoot')) if raw_block.get('withdrawalsRoot') else None,
         })
         return parsed
     
 class ZKsyncBlockParser(BaseBlockParser):
     @staticmethod
-    def parse_raw(raw_block: dict) -> dict:
+    def parse_raw(raw_block: dict) -> ZKsyncBlock:
         parsed = BaseBlockParser.parse_raw(raw_block)
         parsed.update({
-            'l1BatchNumber': raw_block.get('l1BatchNumber'),
-            'l1BatchTimestamp': raw_block.get('l1BatchTimestamp'),
-            'sealFields': raw_block['sealFields'],
+            'l1BatchNumber': int(raw_block['l1BatchNumber'], 16) if raw_block.get('l1BatchNumber') else None, # convert hex to int
+            'l1BatchTimestamp': int(raw_block['l1BatchTimestamp'], 16) if raw_block.get('l1BatchTimestamp') else None, # convert hex to int
+            'sealFields': [hex_to_str(sf) for sf in raw_block['sealFields']],
         })
         return parsed
-    
-# Mapping to connect types with their parsers
-BLOCK_PARSERS = {
-    ArbitrumBlock: ArbitrumBlockParser,
-    EthereumBlock: EthereumBlockParser,
-    ZKsyncBlock: ZKsyncBlockParser,
-}
