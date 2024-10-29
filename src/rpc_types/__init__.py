@@ -22,9 +22,10 @@ from .transactions import (
 # Add new chains here. Applicable for all chains!
 class ChainType(Enum):
     ARBITRUM = "arbitrum"
-    CRONOS_ZKEVM = "cronos-zkevm"
+    CRONOS_ZKEVM = "cronos_zkevm"
     ETHEREUM = "ethereum"
     ZKSYNC = "zksync"
+    ZKSYNC_SEPOLIA = "zksync_sepolia"
 
 Block = ArbitrumBlock | EthereumBlock | ZKsyncBlock
 Log = ArbitrumLog | EthereumLog | ZKsyncLog
@@ -38,6 +39,7 @@ BLOCK_TYPE_MAPPING: dict[ChainType, Type[BaseBlock]] = {
     ChainType.CRONOS_ZKEVM: ZKsyncBlock,
     ChainType.ETHEREUM: EthereumBlock,
     ChainType.ZKSYNC: ZKsyncBlock,
+    ChainType.ZKSYNC_SEPOLIA: ZKsyncBlock,
 }
 
 # Mapping of ChainType to Log class
@@ -48,6 +50,7 @@ LOG_TYPE_MAPPING: dict[ChainType, Type[BaseLog]] = {
     ChainType.CRONOS_ZKEVM: ZKsyncLog,
     ChainType.ETHEREUM: EthereumLog,
     ChainType.ZKSYNC: ZKsyncLog,
+    ChainType.ZKSYNC_SEPOLIA: ZKsyncLog,
 }
 
 # Mapping of ChainType to Transaction class
@@ -58,4 +61,5 @@ TRANSACTION_TYPE_MAPPING: dict[ChainType, Type[BaseTransaction]] = {
     ChainType.CRONOS_ZKEVM: ZKsyncTransaction,
     ChainType.ETHEREUM: EthereumTransaction,
     ChainType.ZKSYNC: ZKsyncTransaction,
+    ChainType.ZKSYNC_SEPOLIA: ZKsyncTransaction,
 }
