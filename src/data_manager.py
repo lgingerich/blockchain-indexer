@@ -3,6 +3,7 @@ from google.oauth2 import service_account
 import pandas as pd
 from typing import Optional, Dict, List
 from loguru import logger
+import google.api_core.exceptions
 
 class BigQueryManager:
     """
@@ -27,8 +28,8 @@ class BigQueryManager:
         )
         self.dataset_id = dataset_id
         
-        # Predefined schema for blockchain data
-        self.schema = [
+        # Add new block schema for ZKSync
+        self.block_schema = [
             bigquery.SchemaField('base_fee_per_gas', 'INTEGER', mode='NULLABLE'),
             bigquery.SchemaField('difficulty', 'INTEGER', mode='REQUIRED'),
             bigquery.SchemaField('extra_data', 'STRING', mode='NULLABLE'),
@@ -56,6 +57,46 @@ class BigQueryManager:
             bigquery.SchemaField('seal_fields', 'STRING', mode='REPEATED')
         ]
         
+        # Add new transaction schema for ZKSync
+        self.transaction_schema = [
+            bigquery.SchemaField('block_hash', 'STRING', mode='REQUIRED'),
+            bigquery.SchemaField('block_number', 'INTEGER', mode='REQUIRED'),
+            bigquery.SchemaField('chain_id', 'INTEGER', mode='NULLABLE'),
+            bigquery.SchemaField('from_address', 'STRING', mode='REQUIRED'),
+            bigquery.SchemaField('gas', 'INTEGER', mode='REQUIRED'),
+            bigquery.SchemaField('gas_price', 'INTEGER', mode='REQUIRED'),
+            bigquery.SchemaField('hash', 'STRING', mode='REQUIRED'),
+            bigquery.SchemaField('input', 'STRING', mode='REQUIRED'),
+            bigquery.SchemaField('nonce', 'INTEGER', mode='REQUIRED'),
+            bigquery.SchemaField('r', 'STRING', mode='NULLABLE'),
+            bigquery.SchemaField('s', 'STRING', mode='NULLABLE'),
+            bigquery.SchemaField('to_address', 'STRING', mode='REQUIRED'),
+            bigquery.SchemaField('transaction_index', 'INTEGER', mode='REQUIRED'),
+            bigquery.SchemaField('type', 'INTEGER', mode='REQUIRED'),
+            bigquery.SchemaField('v', 'INTEGER', mode='NULLABLE'),
+            bigquery.SchemaField('value', 'INTEGER', mode='REQUIRED'),
+            bigquery.SchemaField('l1_batch_number', 'INTEGER', mode='NULLABLE'),
+            bigquery.SchemaField('l1_batch_tx_index', 'INTEGER', mode='NULLABLE'),
+            bigquery.SchemaField('max_fee_per_gas', 'INTEGER', mode='REQUIRED'),
+            bigquery.SchemaField('max_priority_fee_per_gas', 'INTEGER', mode='REQUIRED'),
+        ]
+
+        # Add new log schema for ZKSync
+        self.log_schema = [
+            bigquery.SchemaField('address', 'STRING', mode='REQUIRED'),
+            bigquery.SchemaField('block_hash', 'STRING', mode='REQUIRED'),
+            bigquery.SchemaField('block_number', 'INTEGER', mode='REQUIRED'),
+            bigquery.SchemaField('data', 'STRING', mode='REQUIRED'),
+            bigquery.SchemaField('log_index', 'INTEGER', mode='REQUIRED'),
+            bigquery.SchemaField('removed', 'BOOLEAN', mode='REQUIRED'),
+            bigquery.SchemaField('topics', 'STRING', mode='REPEATED'),
+            bigquery.SchemaField('transaction_hash', 'STRING', mode='REQUIRED'),
+            bigquery.SchemaField('transaction_index', 'INTEGER', mode='REQUIRED'),
+            bigquery.SchemaField('block_timestamp', 'INTEGER', mode='NULLABLE'),
+            bigquery.SchemaField('l1_batch_number', 'INTEGER', mode='NULLABLE'),
+            bigquery.SchemaField('log_type', 'STRING', mode='NULLABLE'),
+            bigquery.SchemaField('transaction_log_index', 'INTEGER', mode='NULLABLE')
+        ]
         # Create dataset if it doesn't exist on client initialization
         self.create_dataset(self.dataset_id, location="US")
 
@@ -104,12 +145,27 @@ class BigQueryManager:
             elif if_exists == 'append':
                 self._load_dataframe(df, table_ref, chunk_size)
                 return
-        except Exception:
-            # Table doesn't exist, create new one
-            pass
+        except google.api_core.exceptions.NotFound:
+            # Table doesn't exist, continue to create new one
+            logger.info(f"Table {table_id} does not exist, creating new table")
+        except Exception as e:
+            # Re-raise any other unexpected exceptions
+            logger.error(f"Unexpected error while checking table: {str(e)}")
+            raise
         
-        # Create table with predefined schema
-        table = bigquery.Table(table_ref, schema=self.schema)
+        # Update to use the correct schema based on table type
+        schema = None
+        if table_id == 'blocks':
+            schema = self.block_schema
+        elif table_id == 'transactions':
+            schema = self.transaction_schema
+        elif table_id == 'logs':
+            schema = self.log_schema
+        else:
+            raise ValueError(f"Unable to determine schema for table {table_id}")
+        
+        # Create table with appropriate schema
+        table = bigquery.Table(table_ref, schema=schema)
         table = self.client.create_table(table)
         logger.info(f"Created table {table.project}.{table.dataset_id}.{table.table_id}")
         
@@ -125,8 +181,22 @@ class BigQueryManager:
             table_ref (str): Reference to the target table
             chunk_size (int): Number of rows to load in each batch
         """
+        # Get the table ID from the TableReference object
+        table_id = table_ref.table_id
+        
+        # Update to use the correct schema based on table name
+        schema = None
+        if table_id == 'blocks':
+            schema = self.block_schema
+        elif table_id == 'transactions':
+            schema = self.transaction_schema
+        elif table_id == 'logs':
+            schema = self.log_schema
+        else:
+            raise ValueError(f"Unable to determine schema for table {table_id}")
+
         job_config = bigquery.LoadJobConfig(
-            schema=self.schema,
+            schema=schema,
             write_disposition=bigquery.WriteDisposition.WRITE_APPEND
         )
 

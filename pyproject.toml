@@ -7,8 +7,12 @@ requires-python = ">=3.12"
 dependencies = [
     "asyncio>=3.4.3",
     "eth-typing>=5.0.1",
+    "google-cloud-bigquery>=3.26.0",
     "hexbytes>=1.2.1",
     "loguru>=0.7.2",
+    "pandas>=2.2.3",
+    "pandas-gbq>=0.24.0",
     "pydantic>=2.9.2",
     "web3>=7.4.0",
+    "python-dotenv>=1.0.1",
 ]

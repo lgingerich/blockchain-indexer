@@ -49,59 +49,63 @@ async def main():
         block_number = await evm_indexer.get_block_number()
         logger.info(f"Current block number: {block_number}")
 
-        block_number = 1
+        # block_number = 1
         # block_number -= 100_000
+        block_number = 100_000
+
+
+
+        """
+        TO DO:
+        - Add block time to logs and transactions
+        - Add partioning on block date
+        - Add transaction receipts
+        """
+
 
         # while True:
+        while block_number < 100_001:
 
-        # Get raw block and logs
-        raw_block = await evm_indexer.get_block(cast(BlockNumber, block_number))
-        # print(raw_block)
-        # raw_logs = await evm_indexer.get_logs(cast(BlockNumber, block_number))
+            # Get raw block and logs
+            raw_block = await evm_indexer.get_block(cast(BlockNumber, block_number))
+            raw_logs = await evm_indexer.get_logs(cast(BlockNumber, block_number))
 
-        # if raw_block is None or raw_logs is None:
-        #     logger.error(f"Failed to fetch data for block {block_number}")
-        #     # continue
+            if raw_block is None or raw_logs is None:
+                logger.error(f"Failed to fetch data for block {block_number}")
+                # continue
 
-        # Parse block, transactions, and logs
-        parsed_block = await evm_indexer.parse_block(raw_block)
-        # parsed_transactions = await evm_indexer.parse_transactions(raw_block['transactions'])
-        # parsed_logs = await evm_indexer.parse_logs(raw_logs)
+            # Parse block, transactions, and logs
+            parsed_block = await evm_indexer.parse_block(raw_block)
+            parsed_transactions = await evm_indexer.parse_transactions(raw_block['transactions'])
+            parsed_logs = await evm_indexer.parse_logs(raw_logs)
 
-        block_dict = dict(parsed_block)  # TO DO: Move this conversion elsewhere
-        df = pd.DataFrame([block_dict])
-        print(df)
-        print(df.dtypes)
+            blocks_df = pd.DataFrame([dict(parsed_block)])
+            transactions_df = pd.DataFrame([dict(tx) for tx in parsed_transactions]) if parsed_transactions else pd.DataFrame()
+            logs_df = pd.DataFrame([dict(log) for log in parsed_logs]) if parsed_logs else pd.DataFrame()
 
-
-
-        # Create table and load data
-        bq_manager.create_and_load_table(
-            df=df,
-            table_id=f"blocks",
-            if_exists='replace'
-        )
-
-
-        # block_number += 1
-        # print(parsed_block)
-
-        # Print or process the results
-        # print("Parsed Block:", json.dumps(parsed_block, indent=2))
-        # print(f"Parsed {len(parsed_transactions)} transactions")
+            # Load data to BigQuery
+            if not blocks_df.empty:
+                bq_manager.create_and_load_table(
+                    df=blocks_df,
+                    table_id="blocks",
+                    if_exists='append'
+                )
         
-        # # Optionally save to files
-        # with open(f"data/temp-new/{CHAIN_NAME}/{CHAIN_NAME}_block_{block_number}.json", 'w') as f:
-        #     json.dump(parsed_block, f, indent=4)
-            
-        # with open(f"data/temp-new/{CHAIN_NAME}/{CHAIN_NAME}_transactions_{block_number}.json", 'w') as f:
-        #     json.dump(parsed_transactions, f, indent=4)
+            if not transactions_df.empty:
+                bq_manager.create_and_load_table(
+                    df=transactions_df,
+                    table_id="transactions",
+                    if_exists='append'
+                )
+        
+            if not logs_df.empty:
+                bq_manager.create_and_load_table(
+                    df=logs_df,
+                    table_id="logs",
+                    if_exists='append'
+                )
 
-        # with open(f"data/temp-new/{CHAIN_NAME}/{CHAIN_NAME}_logs_{block_number}.json", 'w') as f:
-        #     json.dump(parsed_logs, f, indent=4)
-        # with open(f"data/schema-ref/{CHAIN_NAME}/{CHAIN_NAME}_logs_{block_number}.json", 'w') as f:
-        #     json.dump(raw_logs, f, indent=4)
-
+            block_number += 1
     except KeyError as e:
         logger.error(f"Configuration error: Missing key {e}")
         sys.exit(1)

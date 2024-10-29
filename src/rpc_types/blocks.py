@@ -14,6 +14,8 @@ class BaseBlock(BaseModel):
     }
     
     base_fee_per_gas: Optional[int] = None
+    block_time: datetime
+    block_date: date
     difficulty: int
     extra_data: Optional[str] = None
     gas_limit: int
@@ -29,8 +31,7 @@ class BaseBlock(BaseModel):
     sha3_uncles: str
     size: int
     state_root: str
-    block_time: datetime
-    block_date: date
+
     total_difficulty: int
     transactions: List[str] = []
     transactions_root: str
