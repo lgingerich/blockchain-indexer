@@ -74,7 +74,7 @@ class BigQueryManager:
             bigquery.SchemaField('transaction_index', 'INTEGER', mode='REQUIRED'),
             bigquery.SchemaField('type', 'INTEGER', mode='REQUIRED'),
             bigquery.SchemaField('v', 'INTEGER', mode='NULLABLE'),
-            bigquery.SchemaField('value', 'INTEGER', mode='REQUIRED'),
+            bigquery.SchemaField('value', 'STRING', mode='REQUIRED'),
             bigquery.SchemaField('l1_batch_number', 'INTEGER', mode='NULLABLE'),
             bigquery.SchemaField('l1_batch_tx_index', 'INTEGER', mode='NULLABLE'),
             bigquery.SchemaField('max_fee_per_gas', 'INTEGER', mode='REQUIRED'),
@@ -97,8 +97,26 @@ class BigQueryManager:
             bigquery.SchemaField('log_type', 'STRING', mode='NULLABLE'),
             bigquery.SchemaField('transaction_log_index', 'INTEGER', mode='NULLABLE')
         ]
+        
         # Create dataset if it doesn't exist on client initialization
         self.create_dataset(self.dataset_id, location="US")
+        
+        # Create tables if they don't exist
+        table_configs = {
+            'blocks': self.block_schema,
+            'transactions': self.transaction_schema,
+            'logs': self.log_schema
+        }
+        
+        for table_id, schema in table_configs.items():
+            table_ref = self.client.dataset(self.dataset_id).table(table_id)
+            try:
+                self.client.get_table(table_ref)
+                logger.info(f"Table {table_id} already exists")
+            except google.api_core.exceptions.NotFound:
+                table = bigquery.Table(table_ref, schema=schema)
+                table = self.client.create_table(table)
+                logger.info(f"Created table {table.project}.{table.dataset_id}.{table.table_id}")
 
     def create_dataset(self, dataset_id: str, location: str = "US") -> None:
         """
@@ -150,7 +168,7 @@ class BigQueryManager:
             logger.info(f"Table {table_id} does not exist, creating new table")
         except Exception as e:
             # Re-raise any other unexpected exceptions
-            logger.error(f"Unexpected error while checking table: {str(e)}")
+            logger.error(f"Unexpected error while checking table {table_id}: {str(e)}")
             raise
         
         # Update to use the correct schema based on table type

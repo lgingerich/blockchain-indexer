@@ -20,7 +20,7 @@ class BaseTransactionParser:
             'transaction_index': raw_tx['transactionIndex'],
             'type': raw_tx['type'],
             'v': raw_tx.get('v'),
-            'value': raw_tx['value']
+            'value': str(raw_tx['value'])
         }
 
 class EthereumTransactionParser(BaseTransactionParser):

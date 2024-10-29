@@ -29,7 +29,7 @@ class BaseTransaction(BaseModel):
     transaction_index: int
     type: int
     v: Optional[int] = None
-    value: int
+    value: str
 
 # Same as BaseTransaction — keep here for clarity and completeness
 class ArbitrumTransaction(BaseTransaction):
