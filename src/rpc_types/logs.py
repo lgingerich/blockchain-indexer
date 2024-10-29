@@ -1,8 +1,4 @@
 from typing import List, Optional
-from eth_typing import (
-    BlockNumber,
-    HexStr,
-)
 from pydantic import BaseModel
 
 class BaseLog(BaseModel):
@@ -11,13 +7,13 @@ class BaseLog(BaseModel):
     }
     
     address: str
-    block_hash: HexStr
-    block_number: BlockNumber
-    data: HexStr
+    block_hash: str
+    block_number: int
+    data: str
     log_index: int
     removed: bool
-    topics: List[HexStr]
-    transaction_hash: HexStr
+    topics: List[str]
+    transaction_hash: str
     transaction_index: int
 
 # Same as BaseTransaction — keep here for clarity and completeness
@@ -30,8 +26,6 @@ class EthereumLog(BaseLog):
 
 class ZKsyncLog(BaseLog):
     block_timestamp: Optional[int] = None
-    # block_time: str
-    # block_date: str
     l1_batch_number: Optional[int] = None
     log_type: Optional[str] = None
     transaction_log_index: Optional[int] = None

@@ -1,9 +1,5 @@
 from typing import List, Optional
-from eth_typing import (
-    BlockNumber,
-    HexStr,
-)
-from web3.types import Wei
+from datetime import datetime, date
 from pydantic import BaseModel
 
 class Withdrawal(BaseModel):
@@ -14,45 +10,45 @@ class Withdrawal(BaseModel):
 
 class BaseBlock(BaseModel):
     model_config = {
-        "arbitrary_types_allowed": False
+        "arbitrary_types_allowed": False,
     }
     
-    base_fee_per_gas: Optional[Wei] = None
+    base_fee_per_gas: Optional[int] = None
     difficulty: int
-    extra_data: Optional[HexStr] = None
-    gas_limit: Wei
-    gas_used: Wei
-    hash: HexStr
-    logs_bloom: HexStr
+    extra_data: Optional[str] = None
+    gas_limit: int
+    gas_used: int
+    hash: str
+    logs_bloom: str
     miner: str
-    mix_hash: HexStr
-    nonce: HexStr
-    number: BlockNumber
-    parent_hash: HexStr
-    receipts_root: HexStr
-    sha3_uncles: HexStr
+    mix_hash: str
+    nonce: str
+    number: int
+    parent_hash: str
+    receipts_root: str
+    sha3_uncles: str
     size: int
-    state_root: HexStr
-    block_time: str
-    block_date: str
+    state_root: str
+    block_time: datetime
+    block_date: date
     total_difficulty: int
-    transactions: List[HexStr] = []
-    transactions_root: HexStr
-    uncles: List[HexStr] = []
+    transactions: List[str] = []
+    transactions_root: str
+    uncles: List[str] = []
 
 class ArbitrumBlock(BaseBlock):
     l1_block_number: int
     send_count: Optional[int] = None
-    send_root: Optional[HexStr] = None
+    send_root: Optional[str] = None
 
 class EthereumBlock(BaseBlock):
     blob_gas_used: Optional[int] = None
     excess_blob_gas: Optional[int] = None
-    parent_beacon_block_root: Optional[HexStr] = None
+    parent_beacon_block_root: Optional[str] = None
     withdrawals: Optional[List[Withdrawal]] = []
-    withdrawals_root: Optional[HexStr] = None
+    withdrawals_root: Optional[str] = None
 
 class ZKsyncBlock(BaseBlock):
     l1_batch_number: Optional[int] = None
     l1_batch_timestamp: Optional[int] = None
-    seal_fields: List[HexStr] = []
+    seal_fields: List[str] = []

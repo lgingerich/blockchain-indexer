@@ -1,10 +1,9 @@
 from rpc_types import Block, EthereumBlock, ArbitrumBlock, ZKsyncBlock
-from web3.types import BlockData
 from utils import hex_to_str, unix_to_utc
 
 class BaseBlockParser:
     @staticmethod
-    def parse_raw(raw_block: BlockData) -> dict:
+    def parse_raw(raw_block: dict) -> dict:
         return {
             'base_fee_per_gas': raw_block.get('baseFeePerGas'),
             'difficulty': raw_block.get('difficulty'),
@@ -29,9 +28,10 @@ class BaseBlockParser:
             'transactions_root': hex_to_str(raw_block.get('transactionsRoot')),
             'uncles': [hex_to_str(uncle) for uncle in raw_block.get('uncles', [])]
         }
+
 class ArbitrumBlockParser(BaseBlockParser):
     @staticmethod
-    def parse_raw(raw_block: BlockData) -> ArbitrumBlock:
+    def parse_raw(raw_block: dict) -> ArbitrumBlock:
         parsed = BaseBlockParser.parse_raw(raw_block)
         parsed.update({
             'l1_block_number': int(raw_block['l1BlockNumber'], 16) if raw_block.get('l1BlockNumber') else None, # convert hex to int
@@ -42,7 +42,7 @@ class ArbitrumBlockParser(BaseBlockParser):
 
 class EthereumBlockParser(BaseBlockParser):
     @staticmethod
-    def parse_raw(raw_block: BlockData) -> EthereumBlock:
+    def parse_raw(raw_block: dict) -> EthereumBlock:
         parsed = BaseBlockParser.parse_raw(raw_block)
         parsed.update({
             'blob_gas_used': raw_block.get('blobGasUsed'),
@@ -55,7 +55,7 @@ class EthereumBlockParser(BaseBlockParser):
     
 class ZKsyncBlockParser(BaseBlockParser):
     @staticmethod
-    def parse_raw(raw_block: BlockData) -> ZKsyncBlock:
+    def parse_raw(raw_block: dict) -> ZKsyncBlock:
         parsed = BaseBlockParser.parse_raw(raw_block)
         parsed.update({
             'l1_batch_number': int(raw_block['l1BatchNumber'], 16) if raw_block.get('l1BatchNumber') else None, # convert hex to int

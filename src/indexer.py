@@ -1,11 +1,8 @@
 from loguru import logger
 from web3 import AsyncWeb3, AsyncHTTPProvider
-from eth_typing import BlockNumber
 from typing import Dict, Any, cast, List
 from utils import async_retry
 from web3.exceptions import Web3Exception, BlockNotFound
-
-from web3.types import LogReceipt, BlockData
 from rpc_types import (
     ChainType,
     Block,
@@ -28,7 +25,7 @@ class EVMIndexer:
         self.chain_type = chain_type
 
     @async_retry(retries=5, base_delay=1, exponential_backoff=True, jitter=True)
-    async def get_block_number(self) -> BlockNumber:
+    async def get_block_number(self) -> int:
         try:
             block_number = await self.w3.eth.get_block_number()
             logger.info(f"Retrieved block number: {block_number}")
@@ -38,7 +35,7 @@ class EVMIndexer:
             raise
 
     @async_retry(retries=5, base_delay=1, exponential_backoff=True, jitter=True)
-    async def get_block(self, block_number: BlockNumber) -> BlockData | None:
+    async def get_block(self, block_number: int) -> dict | None:
         try:
             logger.info(f"Fetching block with number: {block_number}")
             raw_block = await self.w3.eth.get_block(block_number, full_transactions=True)
@@ -51,7 +48,7 @@ class EVMIndexer:
             raise
 
     @async_retry(retries=5, base_delay=1, exponential_backoff=True, jitter=True)
-    async def get_logs(self, block_number: BlockNumber) -> List[LogReceipt] | None:
+    async def get_logs(self, block_number: int) -> List[dict] | None:
         try:
             raw_logs = await self.w3.eth.get_logs({'fromBlock': block_number, 'toBlock': block_number})
             if not raw_logs:
@@ -62,7 +59,7 @@ class EVMIndexer:
             raise
 
     @async_retry(retries=5, base_delay=1, exponential_backoff=True, jitter=True)
-    async def parse_block(self, raw_block: BlockData) -> Block | None:
+    async def parse_block(self, raw_block: int) -> Block | None:
         try:
             if not raw_block:
                 logger.warning("No block data to parse")
@@ -92,7 +89,7 @@ class EVMIndexer:
             raise
 
     @async_retry(retries=5, base_delay=1, exponential_backoff=True, jitter=True)
-    async def parse_logs(self, raw_logs: List[LogReceipt]) -> List[Log] | None:
+    async def parse_logs(self, raw_logs: List[dict]) -> List[Log] | None:
         try:
             if not raw_logs:
                 logger.info("No logs to parse")
