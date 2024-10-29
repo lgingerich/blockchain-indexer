@@ -1,10 +1,10 @@
 from hexbytes import HexBytes
 from loguru import logger
-from typing import Tuple
+from typing import Tuple, Union
 import asyncio
 import random
 from functools import wraps
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 
 def hex_to_str(hex_value: HexBytes) -> str:
     # Ensure input is HexBytes type
@@ -15,19 +15,19 @@ def hex_to_str(hex_value: HexBytes) -> str:
     return '0x' + hex_value.hex()
     
 
-def unix_to_utc(timestamp: int, date_only: bool = False) -> str:
-    """Convert Unix timestamp to UTC datetime/date string
+def unix_to_utc(timestamp: int, date_only: bool = False) -> Union[date, datetime]:
+    """Convert Unix timestamp to UTC datetime/date object
     
     Args:
         timestamp (int): Unix timestamp in seconds
-        date_only (bool): If True, returns date only (YYYY-MM-DD). 
-                         If False, returns full datetime (YYYY-MM-DD HH:MM:SS UTC)
+        date_only (bool): If True, returns date object. 
+                         If False, returns datetime object
         
     Returns:
-        str: Formatted UTC string
+        Union[date, datetime]: UTC datetime or date object
     """
     dt = datetime.fromtimestamp(timestamp, timezone.utc)
-    return dt.strftime('%Y-%m-%d') if date_only else dt.strftime('%Y-%m-%d %H:%M:%S UTC')
+    return dt.date() if date_only else dt
 
 # Decorator for implementing retry logic with exponential backoff for async functions
 def async_retry(
