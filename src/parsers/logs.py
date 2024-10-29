@@ -6,14 +6,14 @@ class BaseLogParser:
     def parse_raw(raw_log: dict) -> dict:
         return {
             'address': str(raw_log['address']),
-            'blockHash': hex_to_str(raw_log['blockHash']),
-            'blockNumber': raw_log['blockNumber'],
+            'block_hash': hex_to_str(raw_log['blockHash']),
+            'block_number': raw_log['blockNumber'],
             'data': hex_to_str(raw_log['data']),
-            'logIndex': raw_log['logIndex'],
+            'log_index': raw_log['logIndex'],
             'removed': raw_log['removed'],
             'topics': [hex_to_str(topic) for topic in raw_log['topics']],
-            'transactionHash': hex_to_str(raw_log['transactionHash']),
-            'transactionIndex': raw_log['transactionIndex']
+            'transaction_hash': hex_to_str(raw_log['transactionHash']),
+            'transaction_index': raw_log['transactionIndex']
         }
     
 class ArbitrumLogParser(BaseLogParser):
@@ -27,7 +27,7 @@ class EthereumLogParser(BaseLogParser):
     def parse_raw(raw_log: dict) -> EthereumLog:
         parsed = BaseLogParser.parse_raw(raw_log)
         parsed.update({
-            'blockTimestamp': int(raw_log['blockTimestamp'], 16) if raw_log.get('blockTimestamp') else None, # convert hex to int
+            'block_timestamp': int(raw_log['blockTimestamp'], 16) if raw_log.get('blockTimestamp') else None, # convert hex to int
         })
         return parsed
     
@@ -36,10 +36,10 @@ class ZKsyncLogParser(BaseLogParser):
     def parse_raw(raw_log: dict) -> ZKsyncLog:
         parsed = BaseLogParser.parse_raw(raw_log)
         parsed.update({
-            'blockTimestamp': int(raw_log['blockTimestamp'], 16) if raw_log.get('blockTimestamp') else None, # convert hex to int
-            'l1BatchNumber': int(raw_log['l1BatchNumber'], 16) if raw_log.get('l1BatchNumber') else None, # convert hex to int
-            'logType': raw_log['logType'],
-            'transactionLogIndex': int(raw_log['transactionLogIndex'], 16) if raw_log.get('transactionLogIndex') else None # convert hex to int
+            'block_timestamp': int(raw_log['blockTimestamp'], 16) if raw_log.get('blockTimestamp') else None, # convert hex to int
+            'l1_batch_number': int(raw_log['l1BatchNumber'], 16) if raw_log.get('l1BatchNumber') else None, # convert hex to int
+            'log_type': raw_log['logType'],
+            'transaction_log_index': int(raw_log['transactionLogIndex'], 16) if raw_log.get('transactionLogIndex') else None # convert hex to int
         })
         return parsed
     

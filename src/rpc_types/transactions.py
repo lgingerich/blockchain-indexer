@@ -9,30 +9,30 @@ from pydantic import BaseModel
 
 class AccessListEntry(BaseModel):
     model_config = {
-        "arbitrary_types_allowed": True
+        "arbitrary_types_allowed": False
     }
     
     address: str
-    storageKeys: List[HexStr]
+    storage_keys: List[HexStr]
 
 class BaseTransaction(BaseModel):
     model_config = {
-        "arbitrary_types_allowed": True
+        "arbitrary_types_allowed": False
     }
     
-    blockHash: HexStr
-    blockNumber: BlockNumber
-    chainId: Optional[ChainId] = None
+    block_hash: HexStr
+    block_number: BlockNumber
+    chain_id: Optional[ChainId] = None
     from_address: str
     gas: Wei
-    gasPrice: Wei
+    gas_price: Wei
     hash: HexStr
     input: HexStr
     nonce: int
     r: Optional[HexStr] = None
     s: Optional[HexStr] = None
     to_address: str
-    transactionIndex: int
+    transaction_index: int
     type: int
     v: Optional[int] = None
     value: Wei
@@ -42,15 +42,15 @@ class ArbitrumTransaction(BaseTransaction):
     pass
 
 class EthereumTransaction(BaseTransaction):
-    accessList: Optional[List[AccessListEntry]] = []
-    blobVersionedHashes: Optional[List[HexStr]] = []
-    maxFeePerBlobGas: Optional[Wei] = None # TO DO: Why should I use the Wei type?
-    maxFeePerGas: Optional[Wei] = None
-    maxPriorityFeePerGas: Optional[Wei] = None
-    yParity: Optional[int] = None
+    access_list: Optional[List[AccessListEntry]] = []
+    blob_versioned_hashes: Optional[List[HexStr]] = []
+    max_fee_per_blob_gas: Optional[Wei] = None # TO DO: Why should I use the Wei type?
+    max_fee_per_gas: Optional[Wei] = None
+    max_priority_fee_per_gas: Optional[Wei] = None
+    y_parity: Optional[int] = None
 
 class ZKsyncTransaction(BaseTransaction):
-    l1BatchNumber: Optional[int] = None
-    l1BatchTxIndex: Optional[int] = None
-    maxFeePerGas: Wei
-    maxPriorityFeePerGas: Wei
+    l1_batch_number: Optional[int] = None
+    l1_batch_tx_index: Optional[int] = None
+    max_fee_per_gas: Wei
+    max_priority_fee_per_gas: Wei

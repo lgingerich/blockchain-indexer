@@ -10,48 +10,49 @@ class Withdrawal(BaseModel):
     address: str
     amount: int
     index: int
-    validatorIndex: int
+    validator_index: int
 
 class BaseBlock(BaseModel):
     model_config = {
-        "arbitrary_types_allowed": True
+        "arbitrary_types_allowed": False
     }
     
-    baseFeePerGas: Optional[Wei] = None
+    base_fee_per_gas: Optional[Wei] = None
     difficulty: int
-    extraData: Optional[HexStr] = None
-    gasLimit: Wei
-    gasUsed: Wei
+    extra_data: Optional[HexStr] = None
+    gas_limit: Wei
+    gas_used: Wei
     hash: HexStr
-    logsBloom: HexStr
+    logs_bloom: HexStr
     miner: str
-    mixHash: HexStr
+    mix_hash: HexStr
     nonce: HexStr
     number: BlockNumber
-    parentHash: HexStr
-    receiptsRoot: HexStr
-    sha3Uncles: HexStr
+    parent_hash: HexStr
+    receipts_root: HexStr
+    sha3_uncles: HexStr
     size: int
-    stateRoot: HexStr
-    timestamp: int
-    totalDifficulty: int
+    state_root: HexStr
+    block_time: str
+    block_date: str
+    total_difficulty: int
     transactions: List[HexStr] = []
-    transactionsRoot: HexStr
+    transactions_root: HexStr
     uncles: List[HexStr] = []
 
 class ArbitrumBlock(BaseBlock):
-    l1BlockNumber: int
-    sendCount: Optional[int] = None
-    sendRoot: Optional[HexStr] = None
+    l1_block_number: int
+    send_count: Optional[int] = None
+    send_root: Optional[HexStr] = None
 
 class EthereumBlock(BaseBlock):
-    blobGasUsed: Optional[int] = None
-    excessBlobGas: Optional[int] = None
-    parentBeaconBlockRoot: Optional[HexStr] = None
+    blob_gas_used: Optional[int] = None
+    excess_blob_gas: Optional[int] = None
+    parent_beacon_block_root: Optional[HexStr] = None
     withdrawals: Optional[List[Withdrawal]] = []
-    withdrawalsRoot: Optional[HexStr] = None
+    withdrawals_root: Optional[HexStr] = None
 
 class ZKsyncBlock(BaseBlock):
-    l1BatchNumber: Optional[int] = None
-    l1BatchTimestamp: Optional[int] = None
-    sealFields: List[HexStr] = []
+    l1_batch_number: Optional[int] = None
+    l1_batch_timestamp: Optional[int] = None
+    seal_fields: List[HexStr] = []
