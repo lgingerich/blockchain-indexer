@@ -53,11 +53,21 @@ This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md
 
 ## Notes / To Do
 
-- Because L2 blocks are not immediately finalized on L1, must either:
-    - wait for L1 to finalize before indexing
-    - reindex ~24 hours later
-    - get data without the L1 specific fields
-
-- Need to use transaction receipts also
-
-- In some Ethereum transaction output, some transactions do not have an `access_list` field. Shouldn't this always be included?
+TO DO:
+- Add partioning on block date
+- Add transaction receipts
+- Add automatic Bigquery schema generation for all chains
+- Convert l1_batch_timestamp to utc time
+- Add upsert on zksync (and other chains) l1 block data that is missing from the indexer
+    - Track the missing data (by l2 block number)
+    - Run as separate "path" beside main indexer and check every 60 seconds if the data is available
+        - If the data is available, upsert it to Bigquery
+        - Run immediately for all blocks until I hit another missing one, then restart 60 second sleep period
+- Make data_manager more modular
+- Add config setup file
+- Add monitoring metrics
+- Fetch logs over a much larger block range
+    - Need to test what the optimal size is
+- Can web3.py fetch multiple blocks at the same time for get_blocks?
+    - If yes, can this also be done in Rust?
+- Add traces
