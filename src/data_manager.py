@@ -53,7 +53,7 @@ class BigQueryManager:
             bigquery.SchemaField('transactions_root', 'STRING', mode='REQUIRED'),
             bigquery.SchemaField('uncles', 'STRING', mode='REPEATED'),
             bigquery.SchemaField('l1_batch_number', 'INTEGER', mode='NULLABLE'),
-            bigquery.SchemaField('l1_batch_timestamp', 'INTEGER', mode='NULLABLE'),
+            bigquery.SchemaField('l1_batch_time', 'TIMESTAMP', mode='NULLABLE'),
             bigquery.SchemaField('seal_fields', 'STRING', mode='REPEATED')
         ]
         

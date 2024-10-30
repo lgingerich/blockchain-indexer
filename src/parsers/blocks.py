@@ -59,7 +59,7 @@ class ZKsyncBlockParser(BaseBlockParser):
         parsed = BaseBlockParser.parse_raw(raw_block)
         parsed.update({
             'l1_batch_number': int(raw_block['l1BatchNumber'], 16) if raw_block.get('l1BatchNumber') else None, # convert hex to int
-            'l1_batch_timestamp': int(raw_block['l1BatchTimestamp'], 16) if raw_block.get('l1BatchTimestamp') else None, # convert hex to int
+            'l1_batch_time': unix_to_utc(int(raw_block['l1BatchTimestamp'], 16), date_only=False) if raw_block.get('l1BatchTimestamp') else None, # convert hex to int to utc timestamp
             'seal_fields': [hex_to_str(sf) for sf in raw_block['sealFields']],
         })
         return parsed

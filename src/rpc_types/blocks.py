@@ -50,5 +50,5 @@ class EthereumBlock(BaseBlock):
 
 class ZKsyncBlock(BaseBlock):
     l1_batch_number: Optional[int] = None
-    l1_batch_timestamp: Optional[int] = None
+    l1_batch_time: Optional[datetime] = None
     seal_fields: List[str] = []
