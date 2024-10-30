@@ -1,5 +1,6 @@
 from typing import List, Optional
 from pydantic import BaseModel
+from datetime import datetime, date
 
 class BaseLog(BaseModel):
     model_config = {
@@ -9,6 +10,8 @@ class BaseLog(BaseModel):
     address: str
     block_hash: str
     block_number: int
+    block_time: datetime
+    block_date: date
     data: str
     log_index: int
     removed: bool
@@ -17,15 +20,14 @@ class BaseLog(BaseModel):
     transaction_index: int
 
 # Same as BaseTransaction — keep here for clarity and completeness
-# Note: Arbitrum does not return blockTimestamp in logs
 class ArbitrumLog(BaseLog):
     pass
 
+# Same as BaseTransaction — keep here for clarity and completeness
 class EthereumLog(BaseLog):
-    block_timestamp: Optional[int] = None
+    pass
 
 class ZKsyncLog(BaseLog):
-    block_timestamp: Optional[int] = None
     l1_batch_number: Optional[int] = None
     log_type: Optional[str] = None
     transaction_log_index: Optional[int] = None

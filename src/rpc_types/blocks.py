@@ -31,7 +31,6 @@ class BaseBlock(BaseModel):
     sha3_uncles: str
     size: int
     state_root: str
-
     total_difficulty: int
     transactions: List[str] = []
     transactions_root: str

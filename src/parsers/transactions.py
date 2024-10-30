@@ -1,12 +1,14 @@
 from rpc_types import EthereumTransaction, ArbitrumTransaction, ZKsyncTransaction
-from utils import hex_to_str
+from utils import hex_to_str, unix_to_utc
 
 class BaseTransactionParser:
     @staticmethod
-    def parse_raw(raw_tx: dict) -> dict:
+    def parse_raw(raw_tx: dict, block_timestamp: int) -> dict:
         return {
             'block_hash': hex_to_str(raw_tx['blockHash']),
             'block_number': raw_tx['blockNumber'],
+            'block_time': unix_to_utc(block_timestamp, date_only=False),
+            'block_date': unix_to_utc(block_timestamp, date_only=True),
             'chain_id': raw_tx.get('chainId'),
             'from_address': str(raw_tx['from']),
             'gas': raw_tx['gas'],
@@ -23,10 +25,17 @@ class BaseTransactionParser:
             'value': str(raw_tx['value'])
         }
 
+class ArbitrumTransactionParser(BaseTransactionParser):
+    @staticmethod
+    def parse_raw(raw_tx: dict, block_timestamp: int) -> ArbitrumTransaction:
+        # Since ArbitrumTransaction has no additional fields,
+        # we just return the base parsed transaction
+        return BaseTransactionParser.parse_raw(raw_tx, block_timestamp)
+
 class EthereumTransactionParser(BaseTransactionParser):
     @staticmethod
-    def parse_raw(raw_tx: dict) -> EthereumTransaction:
-        parsed = BaseTransactionParser.parse_raw(raw_tx)
+    def parse_raw(raw_tx: dict, block_timestamp: int) -> EthereumTransaction:
+        parsed = BaseTransactionParser.parse_raw(raw_tx, block_timestamp)
         parsed.update({
             'access_list': raw_tx.get('accessList'),
             'blob_versioned_hashes': raw_tx.get('blobVersionedHashes'),
@@ -37,17 +46,10 @@ class EthereumTransactionParser(BaseTransactionParser):
         })
         return parsed
 
-class ArbitrumTransactionParser(BaseTransactionParser):
-    @staticmethod
-    def parse_raw(raw_tx: dict) -> ArbitrumTransaction:
-        # Since ArbitrumTransaction has no additional fields,
-        # we just return the base parsed transaction
-        return BaseTransactionParser.parse_raw(raw_tx)
-
 class ZKsyncTransactionParser(BaseTransactionParser):
     @staticmethod
-    def parse_raw(raw_tx: dict) -> ZKsyncTransaction:
-        parsed = BaseTransactionParser.parse_raw(raw_tx)
+    def parse_raw(raw_tx: dict, block_timestamp: int) -> ZKsyncTransaction:
+        parsed = BaseTransactionParser.parse_raw(raw_tx, block_timestamp)
         parsed.update({
             'l1_batch_number': int(raw_tx['l1BatchNumber'], 16) if raw_tx.get('l1BatchNumber') else None, # convert hex to int
             'l1_batch_tx_index': int(raw_tx['l1BatchTxIndex'], 16) if raw_tx.get('l1BatchTxIndex') else None, # convert hex to int

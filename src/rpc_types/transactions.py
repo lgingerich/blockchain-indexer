@@ -1,5 +1,6 @@
 from typing import List, Optional
 from pydantic import BaseModel
+from datetime import datetime, date
 
 class AccessListEntry(BaseModel):
     model_config = {
@@ -16,6 +17,8 @@ class BaseTransaction(BaseModel):
     
     block_hash: str
     block_number: int
+    block_time: datetime
+    block_date: date
     chain_id: Optional[int] = None
     from_address: str
     gas: int

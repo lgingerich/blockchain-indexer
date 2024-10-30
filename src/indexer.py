@@ -74,7 +74,7 @@ class EVMIndexer:
             raise
 
     @async_retry(retries=5, base_delay=1, exponential_backoff=True, jitter=True)
-    async def parse_transactions(self, raw_transactions: List[Dict[str, Any]]) -> List[Transaction] | None:
+    async def parse_transactions(self, block_timestamp: int, raw_transactions: List[Dict[str, Any]]) -> List[Transaction] | None:
         try:
             if not raw_transactions:
                 logger.info("No transactions to parse")
@@ -82,14 +82,14 @@ class EVMIndexer:
             logger.info(f"Parsing transaction data")
             transaction_class = TRANSACTION_TYPE_MAPPING[self.chain_type]
             parser_class = TRANSACTION_PARSERS[transaction_class]
-            parsed_data = [parser_class.parse_raw(raw_tx) for raw_tx in raw_transactions]
+            parsed_data = [parser_class.parse_raw(raw_tx, block_timestamp) for raw_tx in raw_transactions]
             return cast(List[Transaction], [transaction_class(**parsed_tx) for parsed_tx in parsed_data])
         except Exception as e:
             logger.error(f"Failed to parse transaction data: {str(e)}")
             raise
 
     @async_retry(retries=5, base_delay=1, exponential_backoff=True, jitter=True)
-    async def parse_logs(self, raw_logs: List[dict]) -> List[Log] | None:
+    async def parse_logs(self, block_timestamp: int, raw_logs: List[dict]) -> List[Log] | None:
         try:
             if not raw_logs:
                 logger.info("No logs to parse")
@@ -97,7 +97,7 @@ class EVMIndexer:
             logger.info(f"Parsing log data")
             log_class = LOG_TYPE_MAPPING[self.chain_type]
             parser_class = LOG_PARSERS[log_class]
-            parsed_data = [parser_class.parse_raw(raw_log) for raw_log in raw_logs]
+            parsed_data = [parser_class.parse_raw(raw_log, block_timestamp) for raw_log in raw_logs]
             return cast(List[Log], [log_class(**parsed_log) for parsed_log in parsed_data])
         except Exception as e:
             logger.error(f"Failed to parse log data: {str(e)}")
