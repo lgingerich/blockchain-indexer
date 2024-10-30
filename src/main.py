@@ -1,30 +1,33 @@
 import asyncio
-import json
-import os
-from loguru import logger
-import sys
-import pandas as pd
 from dotenv import load_dotenv
+from loguru import logger
+import os
+import pandas as pd
+import sys
+import time
+
+from data_manager import BigQueryManager
 from indexer import EVMIndexer
 from rpc_types import ChainType
-from data_manager import BigQueryManager
-import time
+
+
+
+import json
 
 
 # Chain names must be lower case and use underscores instead of hyphens
 # TO DO: Once I move chain names to a config file, add automated checks on this
-
-# CHAIN_NAME = "arbitrum"
+CHAIN_NAME = "arbitrum"
 # CHAIN_NAME = "cronos_zkevm"
 # CHAIN_NAME = "ethereum"
 # CHAIN_NAME = "zksync"
-CHAIN_NAME = "zksync_sepolia"
+# CHAIN_NAME = "zksync_sepolia"
 
-# rpc_url = "https://arbitrum.llamarpc.com"
+rpc_url = "https://arbitrum.gateway.tenderly.co"
 # rpc_url = "https://mainnet.zkevm.cronos.org"
 # rpc_url = "https://eth.llamarpc.com"
 # rpc_url = "https://mainnet.era.zksync.io"
-rpc_url = "https://sepolia.era.zksync.dev"
+# rpc_url = "https://sepolia.era.zksync.dev"
 
 load_dotenv()
 
@@ -43,18 +46,11 @@ async def main():
         evm_indexer = EVMIndexer(rpc_url, chain_type)
 
         # Initialize BigQuery manager
-        bq_manager = BigQueryManager(
-            credentials_path=CREDS_FILE_PATH,
-            dataset_id=f"{CHAIN_NAME}"
-        )
+        bq_manager = BigQueryManager(CREDS_FILE_PATH, CHAIN_NAME)
 
         # Get current block number
         block_number = await evm_indexer.get_block_number()
         logger.info(f"Current block number: {block_number}")
-
-        block_number = 1
-        # block_number -= 100_000
-        # block_number = 100_000
 
         batch_size = 10
         blocks_list = []
@@ -81,6 +77,25 @@ async def main():
             parsed_block = await evm_indexer.parse_block(raw_block)
             parsed_transactions = await evm_indexer.parse_transactions(raw_block['timestamp'], raw_block['transactions'])
             parsed_logs = await evm_indexer.parse_logs(raw_block['timestamp'], raw_logs)
+
+
+
+            """
+            new
+
+            raw_block = get_block(block_number)
+            loop through all txs:
+                raw_receipts = get_receipts(raw_block['transactions'][i]['hash'])
+
+            txs_raw = raw_block['transactions]
+            
+            #### don't love this at it has multiple copies of raw_receipts
+            # will create issues in rust threading
+            parsed_txs = parse_transactions(txs_raw, raw_receipts)
+            parsed_logs = parse_logs(raw_receipts)
+            """
+
+
 
             # Add to batch lists
             blocks_list.append(parsed_block)
