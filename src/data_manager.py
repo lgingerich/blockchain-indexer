@@ -4,13 +4,20 @@ import pandas as pd
 from typing import Optional, Dict, List
 from loguru import logger
 import google.api_core.exceptions
+from utils import get_bigquery_schema
+from rpc_types import (
+    ChainType,
+    BLOCK_TYPE_MAPPING,
+    TRANSACTION_TYPE_MAPPING,
+    LOG_TYPE_MAPPING
+)
 
 class BigQueryManager:
     """
     A class to manage BigQuery operations for blockchain data
     """
     
-    def __init__(self, credentials_path: str, dataset_id: str):
+    def __init__(self, credentials_path: str, chain_name: str):
         """
         Initialize BigQuery client with credentials and dataset
         
@@ -26,81 +33,13 @@ class BigQueryManager:
             credentials=self.credentials,
             project=self.credentials.project_id
         )
-        self.dataset_id = dataset_id
+        self.dataset_id = chain_name
         
-        # Add new block schema for ZKSync
-        self.block_schema = [
-            bigquery.SchemaField('base_fee_per_gas', 'INTEGER', mode='NULLABLE'),
-            bigquery.SchemaField('difficulty', 'INTEGER', mode='REQUIRED'),
-            bigquery.SchemaField('extra_data', 'STRING', mode='NULLABLE'),
-            bigquery.SchemaField('gas_limit', 'INTEGER', mode='REQUIRED'),
-            bigquery.SchemaField('gas_used', 'INTEGER', mode='REQUIRED'),
-            bigquery.SchemaField('hash', 'STRING', mode='REQUIRED'),
-            bigquery.SchemaField('logs_bloom', 'STRING', mode='REQUIRED'),
-            bigquery.SchemaField('miner', 'STRING', mode='REQUIRED'),
-            bigquery.SchemaField('mix_hash', 'STRING', mode='REQUIRED'),
-            bigquery.SchemaField('nonce', 'STRING', mode='REQUIRED'),
-            bigquery.SchemaField('number', 'INTEGER', mode='REQUIRED'),
-            bigquery.SchemaField('parent_hash', 'STRING', mode='REQUIRED'),
-            bigquery.SchemaField('receipts_root', 'STRING', mode='REQUIRED'),
-            bigquery.SchemaField('sha3_uncles', 'STRING', mode='REQUIRED'),
-            bigquery.SchemaField('size', 'INTEGER', mode='REQUIRED'),
-            bigquery.SchemaField('state_root', 'STRING', mode='REQUIRED'),
-            bigquery.SchemaField('block_time', 'TIMESTAMP', mode='REQUIRED'),
-            bigquery.SchemaField('block_date', 'DATE', mode='REQUIRED'),
-            bigquery.SchemaField('total_difficulty', 'INTEGER', mode='REQUIRED'),
-            bigquery.SchemaField('transactions', 'STRING', mode='REPEATED'),
-            bigquery.SchemaField('transactions_root', 'STRING', mode='REQUIRED'),
-            bigquery.SchemaField('uncles', 'STRING', mode='REPEATED'),
-            bigquery.SchemaField('l1_batch_number', 'INTEGER', mode='NULLABLE'),
-            bigquery.SchemaField('l1_batch_time', 'TIMESTAMP', mode='NULLABLE'),
-            bigquery.SchemaField('seal_fields', 'STRING', mode='REPEATED')
-        ]
-        
-        # Add new transaction schema for ZKSync
-        self.transaction_schema = [
-            bigquery.SchemaField('block_hash', 'STRING', mode='REQUIRED'),
-            bigquery.SchemaField('block_number', 'INTEGER', mode='REQUIRED'),
-            bigquery.SchemaField('block_time', 'TIMESTAMP', mode='REQUIRED'),
-            bigquery.SchemaField('block_date', 'DATE', mode='REQUIRED'),
-            bigquery.SchemaField('chain_id', 'INTEGER', mode='NULLABLE'),
-            bigquery.SchemaField('from_address', 'STRING', mode='REQUIRED'),
-            bigquery.SchemaField('gas', 'INTEGER', mode='REQUIRED'),
-            bigquery.SchemaField('gas_price', 'INTEGER', mode='REQUIRED'),
-            bigquery.SchemaField('hash', 'STRING', mode='REQUIRED'),
-            bigquery.SchemaField('input', 'STRING', mode='REQUIRED'),
-            bigquery.SchemaField('nonce', 'INTEGER', mode='REQUIRED'),
-            bigquery.SchemaField('r', 'STRING', mode='NULLABLE'),
-            bigquery.SchemaField('s', 'STRING', mode='NULLABLE'),
-            bigquery.SchemaField('to_address', 'STRING', mode='REQUIRED'),
-            bigquery.SchemaField('transaction_index', 'INTEGER', mode='REQUIRED'),
-            bigquery.SchemaField('type', 'INTEGER', mode='REQUIRED'),
-            bigquery.SchemaField('v', 'INTEGER', mode='NULLABLE'),
-            bigquery.SchemaField('value', 'STRING', mode='REQUIRED'),
-            bigquery.SchemaField('l1_batch_number', 'INTEGER', mode='NULLABLE'),
-            bigquery.SchemaField('l1_batch_tx_index', 'INTEGER', mode='NULLABLE'),
-            bigquery.SchemaField('max_fee_per_gas', 'INTEGER', mode='REQUIRED'),
-            bigquery.SchemaField('max_priority_fee_per_gas', 'INTEGER', mode='REQUIRED'),
-        ]
+        # Generate schemas dynamically from Pydantic models
+        self.block_schema = get_bigquery_schema(BLOCK_TYPE_MAPPING[ChainType(chain_name)])
+        self.transaction_schema = get_bigquery_schema(TRANSACTION_TYPE_MAPPING[ChainType(chain_name)])
+        self.log_schema = get_bigquery_schema(LOG_TYPE_MAPPING[ChainType(chain_name)])
 
-        # Add new log schema for ZKSync
-        self.log_schema = [
-            bigquery.SchemaField('address', 'STRING', mode='REQUIRED'),
-            bigquery.SchemaField('block_hash', 'STRING', mode='REQUIRED'),
-            bigquery.SchemaField('block_number', 'INTEGER', mode='REQUIRED'),
-            bigquery.SchemaField('block_time', 'TIMESTAMP', mode='REQUIRED'),
-            bigquery.SchemaField('block_date', 'DATE', mode='REQUIRED'),
-            bigquery.SchemaField('data', 'STRING', mode='REQUIRED'),
-            bigquery.SchemaField('log_index', 'INTEGER', mode='REQUIRED'),
-            bigquery.SchemaField('removed', 'BOOLEAN', mode='REQUIRED'),
-            bigquery.SchemaField('topics', 'STRING', mode='REPEATED'),
-            bigquery.SchemaField('transaction_hash', 'STRING', mode='REQUIRED'),
-            bigquery.SchemaField('transaction_index', 'INTEGER', mode='REQUIRED'),
-            bigquery.SchemaField('l1_batch_number', 'INTEGER', mode='NULLABLE'),
-            bigquery.SchemaField('log_type', 'STRING', mode='NULLABLE'),
-            bigquery.SchemaField('transaction_log_index', 'INTEGER', mode='NULLABLE')
-        ]
-        
         # Create dataset if it doesn't exist on client initialization
         self.create_dataset(self.dataset_id, location="US")
         
