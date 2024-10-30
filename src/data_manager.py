@@ -104,22 +104,21 @@ class BigQueryManager:
         # Create dataset if it doesn't exist on client initialization
         self.create_dataset(self.dataset_id, location="US")
         
-        # Create tables if they don't exist
-        table_configs = {
-            'blocks': self.block_schema,
-            'transactions': self.transaction_schema,
-            'logs': self.log_schema
-        }
-        
-        for table_id, schema in table_configs.items():
-            table_ref = self.client.dataset(self.dataset_id).table(table_id)
-            try:
-                self.client.get_table(table_ref)
-                logger.info(f"Table {table_id} already exists")
-            except google.api_core.exceptions.NotFound:
-                table = bigquery.Table(table_ref, schema=schema)
-                table = self.client.create_table(table)
-                logger.info(f"Created table {table.project}.{table.dataset_id}.{table.table_id}")
+        # Create tables if they don't exist on client initialization
+        for table_id in ['blocks', 'transactions', 'logs']:
+            schema = self._get_schema_for_table(table_id)
+            self.create_table(table_id, schema)
+
+    def _get_schema_for_table(self, table_id: str) -> List[bigquery.SchemaField]:
+        """Helper method to get the appropriate schema for a table"""
+        if table_id == 'blocks':
+            return self.block_schema
+        elif table_id == 'transactions':
+            return self.transaction_schema
+        elif table_id == 'logs':
+            return self.log_schema
+        else:
+            raise ValueError(f"Unable to determine schema for table {table_id}")
 
     def create_dataset(self, dataset_id: str, location: str = "US") -> None:
         """
@@ -137,60 +136,69 @@ class BigQueryManager:
             dataset = self.client.create_dataset(dataset)
             logger.info(f"Created dataset {dataset_id} in location {location}")
 
-    def create_and_load_table(self, 
+    def create_table(self, table_id: str, schema: List[bigquery.SchemaField]) -> None:
+        """
+        Creates a table with the specified schema if it doesn't exist
+        
+        Args:
+            table_id (str): ID for the table
+            schema (List[bigquery.SchemaField]): Schema definition for the table
+        """
+        table_ref = self.client.dataset(self.dataset_id).table(table_id)
+        
+        try:
+            self.client.get_table(table_ref)
+            logger.info(f"Table {table_id} already exists")
+            return
+        except google.api_core.exceptions.NotFound:
+            table = bigquery.Table(table_ref, schema=schema)
+            
+            # Add date partitioning
+            partition_field = "block_date"
+            table.time_partitioning = bigquery.TimePartitioning(
+                type_=bigquery.TimePartitioningType.DAY,
+                field=partition_field
+            )
+            
+            table = self.client.create_table(table)
+            logger.info(f"Created table {table.project}.{table.dataset_id}.{table.table_id} with partitioning on {partition_field}")
+
+    def load_table(self, 
         df: pd.DataFrame, 
         table_id: str, 
         if_exists: str = 'append',
         chunk_size: int = 10000) -> None:
         """
-        Create a new table and load DataFrame data
+        Load table data into a BigQuery table with specified handling for existing tables
         
         Args:
-            df (pd.DataFrame): DataFrame containing the blockchain data
-            table_id (str): ID for the new table
-            if_exists (str): Action if table exists ('fail', 'replace', or 'append')
+            df (pd.DataFrame): DataFrame containing the data to load
+            table_id (str): ID of the target table
+            if_exists (str): How to handle existing tables:
+                - 'fail': Raise an error if table exists
+                - 'replace': Drop existing table and create new one
+                - 'append': Add data to existing table (default)
             chunk_size (int): Number of rows to load in each batch
         
         Raises:
-            ValueError: If table exists and if_exists='fail'
+            ValueError: If table exists and if_exists='fail' or if table_id is invalid
         """
         table_ref = self.client.dataset(self.dataset_id).table(table_id)
         
-        # Check if table exists
         try:
             existing_table = self.client.get_table(table_ref)
             if if_exists == 'fail':
                 raise ValueError(f"Table {table_id} already exists")
             elif if_exists == 'replace':
                 self.client.delete_table(table_ref)
-            elif if_exists == 'append':
-                self._load_dataframe(df, table_ref, chunk_size)
-                return
+                self.create_table(table_id, self._get_schema_for_table(table_id))
+            # For 'append', we just continue to data loading
         except google.api_core.exceptions.NotFound:
-            # Table doesn't exist, continue to create new one
-            logger.info(f"Table {table_id} does not exist, creating new table")
+            self.create_table(table_id, self._get_schema_for_table(table_id))
         except Exception as e:
-            # Re-raise any other unexpected exceptions
             logger.error(f"Unexpected error while checking table {table_id}: {str(e)}")
             raise
         
-        # Update to use the correct schema based on table type
-        schema = None
-        if table_id == 'blocks':
-            schema = self.block_schema
-        elif table_id == 'transactions':
-            schema = self.transaction_schema
-        elif table_id == 'logs':
-            schema = self.log_schema
-        else:
-            raise ValueError(f"Unable to determine schema for table {table_id}")
-        
-        # Create table with appropriate schema
-        table = bigquery.Table(table_ref, schema=schema)
-        table = self.client.create_table(table)
-        logger.info(f"Created table {table.project}.{table.dataset_id}.{table.table_id}")
-        
-        # Load data
         self._load_dataframe(df, table_ref, chunk_size)
 
     def _load_dataframe(self, df: pd.DataFrame, table_ref: str, chunk_size: int) -> None:

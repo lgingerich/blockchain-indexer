@@ -54,7 +54,6 @@ This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md
 ## Notes / To Do
 
 TO DO:
-- Add partioning on block date
 - Add transaction receipts
 - Add automatic Bigquery schema generation for all chains
 - Add upsert on zksync (and other chains) l1 block data that is missing from the indexer
