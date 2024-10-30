@@ -57,7 +57,6 @@ TO DO:
 - Add partioning on block date
 - Add transaction receipts
 - Add automatic Bigquery schema generation for all chains
-- Convert l1_batch_timestamp to utc time
 - Add upsert on zksync (and other chains) l1 block data that is missing from the indexer
     - Track the missing data (by l2 block number)
     - Run as separate "path" beside main indexer and check every 60 seconds if the data is available
