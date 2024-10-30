@@ -55,13 +55,11 @@ This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md
 
 TO DO:
 - Add transaction receipts
-- Add automatic Bigquery schema generation for all chains
 - Add upsert on zksync (and other chains) l1 block data that is missing from the indexer
     - Track the missing data (by l2 block number)
     - Run as separate "path" beside main indexer and check every 60 seconds if the data is available
         - If the data is available, upsert it to Bigquery
         - Run immediately for all blocks until I hit another missing one, then restart 60 second sleep period
-- Make data_manager more modular
 - Add config setup file
 - Add monitoring metrics
 - Fetch logs over a much larger block range

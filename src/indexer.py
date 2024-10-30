@@ -1,22 +1,20 @@
 from loguru import logger
-from web3 import AsyncWeb3, AsyncHTTPProvider
 from typing import Dict, Any, cast, List
-from utils import async_retry
-from web3.exceptions import Web3Exception, BlockNotFound
+from web3 import AsyncWeb3, AsyncHTTPProvider
+from web3.exceptions import Web3Exception, BlockNotFound, TransactionNotFound
+
+from parsers import BLOCK_PARSERS, TRANSACTION_PARSERS, LOG_PARSERS
 from rpc_types import (
     ChainType,
     Block,
-    BLOCK_TYPE_MAPPING,
     Transaction,
-    TRANSACTION_TYPE_MAPPING,
     Log,
+    BLOCK_TYPE_MAPPING,
+    TRANSACTION_TYPE_MAPPING,
     LOG_TYPE_MAPPING
 )
-from parsers import (
-    BLOCK_PARSERS, 
-    TRANSACTION_PARSERS,
-    LOG_PARSERS
-)
+from utils import async_retry
+
 
 class EVMIndexer:
     def __init__(self, rpc_url: str, chain_type: ChainType) -> None:
@@ -102,3 +100,39 @@ class EVMIndexer:
         except Exception as e:
             logger.error(f"Failed to parse log data: {str(e)}")
             raise
+
+
+    @async_retry(retries=5, base_delay=1, exponential_backoff=True, jitter=True)
+    async def get_receipts(self, transaction_hash: str) -> None:
+        try:
+            receipt = await self.w3.eth.get_transaction_receipt(transaction_hash)
+            return receipt
+        except TransactionNotFound:
+            logger.warning(f"Transaction {transaction_hash} not found")
+            return None
+
+
+    # web3.eth.get_transaction_receipt('0x5c504ed432cb51138bcf09aa5e8a410dd4a1e204ef84bfed1be16dfba1b22060')  # not yet mined
+    # Traceback # ... etc ...
+    # TransactionNotFound: Transaction with hash: 0x5c504ed432cb51138bcf09aa5e8a410dd4a1e204ef84bfed1be16dfba1b22060 not found.
+
+    # # wait for it to be mined....
+    # web3.eth.get_transaction_receipt('0x5c504ed432cb51138bcf09aa5e8a410dd4a1e204ef84bfed1be16dfba1b22060')
+    # AttributeDict({
+    #     'blockHash': '0x4e3a3754410177e6937ef1f84bba68ea139e8d1a2258c5f85db9f1cd715a1bdd',
+    #     'blockNumber': 46147,
+    #     'contractAddress': None,
+    #     'cumulativeGasUsed': 21000,
+    #     'from': '0xA1E4380A3B1f749673E270229993eE55F35663b4',
+    #     'gasUsed': 21000,
+    #     'logs': [],
+    #     'logsBloom': '0x000000000000000000000000000000000000000000000000...0000',
+    #     'status': 1, # 0 or 1
+    #     'to': '0x5DF9B87991262F6BA471F09758CDE1c0FC1De734',
+    #     'transactionHash': '0x5c504ed432cb51138bcf09aa5e8a410dd4a1e204ef84bfed1be16dfba1b22060',
+    #     'transactionIndex': 0,
+    # })
+
+
+    # nansen only adds in cumulative_gas_used, gas_used, contract_address, status
+        # does the contract_address go with the transaction or the log?

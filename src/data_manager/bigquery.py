@@ -1,16 +1,18 @@
+import google.api_core.exceptions
 from google.cloud import bigquery
 from google.oauth2 import service_account
-import pandas as pd
-from typing import Optional, Dict, List
 from loguru import logger
-import google.api_core.exceptions
-from utils import get_bigquery_schema
+import pandas as pd
+from typing import List
+
 from rpc_types import (
     ChainType,
     BLOCK_TYPE_MAPPING,
     TRANSACTION_TYPE_MAPPING,
     LOG_TYPE_MAPPING
 )
+from .utils import get_bigquery_schema
+
 
 class BigQueryManager:
     """

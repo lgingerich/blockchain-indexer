@@ -1,6 +1,7 @@
-from typing import List, Optional
 from datetime import datetime, date
 from pydantic import BaseModel
+from typing import List, Optional
+
 
 class Withdrawal(BaseModel):
     address: str
