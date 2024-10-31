@@ -3,8 +3,10 @@ from utils import hex_to_str, unix_to_utc
 
 class BaseTransactionParser:
     @staticmethod
-    def parse_raw(raw_tx: dict, block_timestamp: int) -> dict:
+    def parse_raw(raw_tx: dict, block_timestamp: int, receipt: dict) -> dict:
+        """Parse transaction data from both transaction and receipt"""
         return {
+            # Fields from transaction
             'block_hash': hex_to_str(raw_tx['blockHash']),
             'block_number': raw_tx['blockNumber'],
             'block_time': unix_to_utc(block_timestamp, date_only=False),
@@ -22,23 +24,36 @@ class BaseTransactionParser:
             'transaction_index': raw_tx['transactionIndex'],
             'type': raw_tx['type'],
             'v': raw_tx.get('v'),
-            'value': str(raw_tx['value'])
+            'value': str(raw_tx['value']),
+
+            # Fields from receipt
+            'status': receipt['status'],
+            'cumulative_gas_used': receipt['cumulativeGasUsed'],
+            'effective_gas_price': receipt['effectiveGasPrice'],
+            'gas_used': receipt['gasUsed'],
+            'logs_bloom': hex_to_str(receipt['logsBloom']),
+            'contract_address': receipt.get('contractAddress'),
         }
 
 class ArbitrumTransactionParser(BaseTransactionParser):
     @staticmethod
-    def parse_raw(raw_tx: dict, block_timestamp: int) -> ArbitrumTransaction:
-        # Since ArbitrumTransaction has no additional fields,
-        # we just return the base parsed transaction
-        return BaseTransactionParser.parse_raw(raw_tx, block_timestamp)
+    def parse_raw(raw_tx: dict, block_timestamp: int, receipt: dict) -> ArbitrumTransaction:
+        parsed = BaseTransactionParser.parse_raw(raw_tx, block_timestamp, receipt)
+        parsed.update({
+            # Additional receipt fields specific to Arbitrum
+            'blob_gas_used': receipt.get('blobGasUsed'),
+            'l1_block_number': receipt.get('l1BlockNumber'),
+            'gas_used_for_l1': receipt.get('gasUsedForL1'),
+        })
+        return parsed
 
 class EthereumTransactionParser(BaseTransactionParser):
     @staticmethod
-    def parse_raw(raw_tx: dict, block_timestamp: int) -> EthereumTransaction:
-        parsed = BaseTransactionParser.parse_raw(raw_tx, block_timestamp)
+    def parse_raw(raw_tx: dict, block_timestamp: int, receipt: dict) -> EthereumTransaction:
+        parsed = BaseTransactionParser.parse_raw(raw_tx, block_timestamp, receipt)
         parsed.update({
-            'access_list': raw_tx.get('accessList'),
-            'blob_versioned_hashes': raw_tx.get('blobVersionedHashes'),
+            'access_list': raw_tx.get('accessList', []),
+            'blob_versioned_hashes': raw_tx.get('blobVersionedHashes', []),
             'max_fee_per_blob_gas': raw_tx.get('maxFeePerBlobGas'),
             'max_fee_per_gas': raw_tx.get('maxFeePerGas'),
             'max_priority_fee_per_gas': raw_tx.get('maxPriorityFeePerGas'),
@@ -48,12 +63,16 @@ class EthereumTransactionParser(BaseTransactionParser):
 
 class ZKsyncTransactionParser(BaseTransactionParser):
     @staticmethod
-    def parse_raw(raw_tx: dict, block_timestamp: int) -> ZKsyncTransaction:
-        parsed = BaseTransactionParser.parse_raw(raw_tx, block_timestamp)
+    def parse_raw(raw_tx: dict, block_timestamp: int, receipt: dict) -> ZKsyncTransaction:
+        parsed = BaseTransactionParser.parse_raw(raw_tx, block_timestamp, receipt)
         parsed.update({
-            'l1_batch_number': int(raw_tx['l1BatchNumber'], 16) if raw_tx.get('l1BatchNumber') else None, # convert hex to int
-            'l1_batch_tx_index': int(raw_tx['l1BatchTxIndex'], 16) if raw_tx.get('l1BatchTxIndex') else None, # convert hex to int
+            # Fields from transaction
+            'l1_batch_number': int(raw_tx['l1BatchNumber'], 16) if raw_tx.get('l1BatchNumber') else None,
+            'l1_batch_tx_index': int(raw_tx['l1BatchTxIndex'], 16) if raw_tx.get('l1BatchTxIndex') else None,
             'max_fee_per_gas': raw_tx['maxFeePerGas'],
-            'max_priority_fee_per_gas': raw_tx['maxPriorityFeePerGas']
+            'max_priority_fee_per_gas': raw_tx['maxPriorityFeePerGas'],
+            
+            # Fields from receipt
+            'root': receipt.get('root', '')
         })
         return parsed
