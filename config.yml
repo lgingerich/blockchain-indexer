@@ -1,0 +1,26 @@
+chain:
+  name: "ethereum"
+  rpc_urls:
+    - "https://eth.llamarpc.com"
+
+# Commented options for reference
+# chain:
+#   name: "arbitrum"
+#   rpc_urls:
+#     - "https://arbitrum.gateway.tenderly.co"
+
+# chain:
+#   name: "cronos_zkevm"
+#   rpc_urls:
+#     - "https://mainnet.zksym.cronos.org"
+
+# chain:
+#   name: "zksync"
+#   rpc_urls:
+#     - "https://mainnet.era.zksync.io"
+#     - "https://zksync.meowrpc.com"
+
+# chain:
+#   name: "zksync_sepolia"
+#   rpc_urls:
+#     - "https://sepolia.era.zksync.dev"

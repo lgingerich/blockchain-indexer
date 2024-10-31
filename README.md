@@ -53,17 +53,31 @@ This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md
 
 ## Notes / To Do
 
-TO DO:
-- Add transaction receipts
-- Add upsert on zksync (and other chains) l1 block data that is missing from the indexer
-    - Track the missing data (by l2 block number)
-    - Run as separate "path" beside main indexer and check every 60 seconds if the data is available
-        - If the data is available, upsert it to Bigquery
-        - Run immediately for all blocks until I hit another missing one, then restart 60 second sleep period
-- Add config setup file
-- Add monitoring metrics
-- Fetch logs over a much larger block range
-    - Need to test what the optimal size is
-- Can web3.py fetch multiple blocks at the same time for get_blocks?
-    - If yes, can this also be done in Rust?
-- Add traces
+    - Handle when the indexer catches up to the current block
+
+    - Add upsert on zksync (and other chains) l1 block data that is missing from the indexer
+        - Track the missing data (by l2 block number)
+        - Run as separate "path" beside main indexer and check every 60 seconds if the data is available
+            - If the data is available, upsert it to Bigquery
+            - Run immediately for all blocks until I hit another missing one, then restart 60 second sleep period
+
+    - Add monitoring metrics
+        - Current number of blocks processed
+        - Current number of blocks behind chain tip
+        - Current number of blocks processed per second
+            - Historical number of blocks processed per second
+        - Current number of transactions processed per second
+            - Historical number of transactions processed per second
+        - MB processed per second?
+            - How hard is this?
+
+    - Add traces
+
+    - The llama rpc for Arbitrum has issues of not finding all transactions
+        - Implement RPC fallback mechanism:
+            - Maintain a list of backup RPC endpoints
+            - If BlockNotFound or TransactionNotFound:
+                - Retry with next RPC in the fallback list
+                - Log the failure for monitoring
+            - Add exponential backoff between retries
+            - Consider implementing circuit breaker if all RPCs fail

@@ -15,4 +15,5 @@ dependencies = [
     "pydantic>=2.9.2",
     "web3>=7.4.0",
     "python-dotenv>=1.0.1",
+    "dynaconf>=3.2.6",
 ]

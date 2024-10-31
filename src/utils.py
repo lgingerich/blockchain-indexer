@@ -1,8 +1,10 @@
 import asyncio
 from datetime import datetime, timezone, date
+from dynaconf import Dynaconf, Validator
 from functools import wraps
 from hexbytes import HexBytes
 from loguru import logger
+from pathlib import Path
 import random
 from typing import Union
 
@@ -28,6 +30,35 @@ def unix_to_utc(timestamp: int, date_only: bool = False) -> Union[date, datetime
     """
     dt = datetime.fromtimestamp(timestamp, timezone.utc)
     return dt.date() if date_only else dt
+
+def load_config() -> Dynaconf:
+    """Load and validate indexer configuration from config.yml
+    
+    Loads configuration from config.yml in project root directory and validates:
+    - chain.name: Required lowercase string with no whitespace
+    - chain.rpc_urls: Required list of RPC URLs
+    
+    Returns:
+        Dynaconf: Validated configuration object
+    """
+    # Initialize Dynaconf
+    project_root = Path(__file__).resolve().parent.parent
+    settings = Dynaconf(
+        settings_files=[project_root / "config.yml"],
+        validators=[
+            # Validate structure and types
+            Validator('chain.name', must_exist=True, 
+                     is_type_of=str,
+                     condition=lambda x: x.islower() and x == x.strip(),
+                     messages={"condition": "Chain name must be lowercase with no leading/trailing spaces"}
+            ),
+            Validator('chain.rpc_urls', must_exist=True, is_type_of=list),
+        ]
+    )
+    # Validate all settings at once
+    settings.validators.validate()
+    
+    return settings
 
 # Decorator for implementing retry logic with exponential backoff for async functions
 def async_retry(
@@ -72,5 +103,4 @@ def async_retry(
                     await asyncio.sleep(delay)
 
         return wrapper
-
     return decorator

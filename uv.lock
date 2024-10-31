@@ -143,6 +143,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "asyncio" },
+    { name = "dynaconf" },
     { name = "eth-typing" },
     { name = "google-cloud-bigquery" },
     { name = "hexbytes" },
@@ -157,6 +158,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "asyncio", specifier = ">=3.4.3" },
+    { name = "dynaconf", specifier = ">=3.2.6" },
     { name = "eth-typing", specifier = ">=5.0.1" },
     { name = "google-cloud-bigquery", specifier = ">=3.26.0" },
     { name = "hexbytes", specifier = ">=1.2.1" },
@@ -298,6 +300,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/5e/0f/eb40ff92073723f8e5d4ee0b76e2395f65e84c422c425021c8226af6a8a4/db_dtypes-1.3.0.tar.gz", hash = "sha256:7bcbc8858b07474dc85b77bb2f3ae488978d1336f5ea73b58c39d9118bc3e91b", size = 31390 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/89/d0/f746b7f88e3f6e6c6753fb7a078d7d2db2b8f969c7913d51b3a54f0abe53/db_dtypes-1.3.0-py2.py3-none-any.whl", hash = "sha256:7e65c59f849ccbe6f7bc4d0253edcc212a7907662906921caba3e4aadd0bc277", size = 17297 },
+]
+
+[[package]]
+name = "dynaconf"
+version = "3.2.6"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/56/1a/324f1bf234cc4f98445305fd8719245318466e310e05caea7ef052748ecd/dynaconf-3.2.6.tar.gz", hash = "sha256:74cc1897396380bb957730eb341cc0976ee9c38bbcb53d3307c50caed0aedfb8", size = 229209 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e2/14/c8a7d861262139688fa465d2e27ff7113764d6fa03b15b9c7b666729ea2e/dynaconf-3.2.6-py2.py3-none-any.whl", hash = "sha256:3911c740d717df4576ed55f616c7cbad6e06bc8ef23ffca444b6e2a12fb1c34c", size = 231063 },
 ]
 
 [[package]]

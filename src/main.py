@@ -10,34 +10,19 @@ import time
 from data_manager import BigQueryManager
 from indexer import EVMIndexer
 from rpc_types import ChainType
+from utils import load_config
 
-
-# Chain names must be lower case and use underscores instead of hyphens
-# TO DO: Once I move chain names to a config file, add automated checks on this
-# CHAIN_NAME = "arbitrum"
-# CHAIN_NAME = "cronos_zkevm"
-# CHAIN_NAME = "ethereum"
-CHAIN_NAME = "zksync"
-# CHAIN_NAME = "zksync_sepolia"
-
-# rpc_url = "https://arbitrum.gateway.tenderly.co"
-# rpc_url = "https://mainnet.zkevm.cronos.org"
-# rpc_url = "https://eth.llamarpc.com"
-rpc_url = "https://mainnet.era.zksync.io"
-# rpc_url = "https://sepolia.era.zksync.dev"
-
+# Load env var
 load_dotenv()
-
 CREDS_FILE_PATH = os.getenv("CREDS_FILE_PATH")
 if CREDS_FILE_PATH is None:
     raise ValueError("CREDS_FILE_PATH environment variable is not set")
 assert isinstance(CREDS_FILE_PATH, str)
 
-# @dataclass
-# class BlockData:
-#     block: dict
-#     transactions: List[dict]
-#     logs: List[dict]
+# Load indexer config
+config = load_config()
+CHAIN_NAME = config.chain.name
+RPC_URL = config.chain.rpc_urls[0]
 
 async def main():
     try:
@@ -47,7 +32,7 @@ async def main():
         # Setup indexer and BigQuery manager
         logger.info(f"Processing {CHAIN_NAME} chain")
         chain_type = ChainType(CHAIN_NAME)
-        evm_indexer = EVMIndexer(rpc_url, chain_type, max_connections=100)
+        evm_indexer = EVMIndexer(RPC_URL, chain_type, max_connections=100)
         bq_manager = BigQueryManager(CREDS_FILE_PATH, CHAIN_NAME)
 
         try:
