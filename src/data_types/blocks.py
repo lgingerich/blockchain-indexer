@@ -4,6 +4,11 @@ from typing import List, Optional
 
 
 class Withdrawal(BaseModel):
+    model_config = {
+        "arbitrary_types_allowed": False,
+        # "validate_all": False # Temporarily disable validation
+    }
+
     address: str
     amount: int
     index: int
@@ -12,6 +17,7 @@ class Withdrawal(BaseModel):
 class BaseBlock(BaseModel):
     model_config = {
         "arbitrary_types_allowed": False,
+        # "validate_all": False # Temporarily disable validation
     }
     
     base_fee_per_gas: Optional[int] = None

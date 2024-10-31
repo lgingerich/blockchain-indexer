@@ -9,7 +9,7 @@ import time
 
 from data_manager import BigQueryManager
 from indexer import EVMIndexer
-from rpc_types import ChainType
+from data_types import ChainType
 from utils import load_config
 
 # Load env var

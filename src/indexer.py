@@ -6,7 +6,7 @@ from web3.exceptions import Web3Exception, BlockNotFound, TransactionNotFound
 from aiohttp import ClientSession, TCPConnector
 
 from parsers import BLOCK_PARSERS, TRANSACTION_PARSERS, LOG_PARSERS
-from rpc_types import (
+from data_types import (
     ChainType,
     Block,
     Transaction,

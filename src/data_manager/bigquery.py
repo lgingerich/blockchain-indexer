@@ -5,7 +5,7 @@ from loguru import logger
 import pandas as pd
 from typing import List
 
-from rpc_types import (
+from data_types import (
     ChainType,
     BLOCK_TYPE_MAPPING,
     TRANSACTION_TYPE_MAPPING,

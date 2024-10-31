@@ -1,4 +1,4 @@
-from rpc_types import EthereumTransaction, ArbitrumTransaction, ZKsyncTransaction
+from data_types import EthereumTransaction, ArbitrumTransaction, ZKsyncTransaction
 from utils import hex_to_str, unix_to_utc
 
 class BaseTransactionParser:

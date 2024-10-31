@@ -1,4 +1,4 @@
-from rpc_types import EthereumBlock, ArbitrumBlock, ZKsyncBlock
+from data_types import EthereumBlock, ArbitrumBlock, ZKsyncBlock
 from utils import hex_to_str, unix_to_utc
 
 class BaseBlockParser:

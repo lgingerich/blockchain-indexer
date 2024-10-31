@@ -5,7 +5,8 @@ from typing import List, Optional
 
 class BaseLog(BaseModel):
     model_config = {
-        "arbitrary_types_allowed": False
+        "arbitrary_types_allowed": False,
+        # "validate_all": False # Temporarily disable validation
     }
     
     address: str

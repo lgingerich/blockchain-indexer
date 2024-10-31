@@ -13,7 +13,7 @@ from .transactions import (
     EthereumTransactionParser,
     ZKsyncTransactionParser
 )
-from rpc_types import (
+from data_types import (
     ArbitrumBlock,
     EthereumBlock,
     ZKsyncBlock,
