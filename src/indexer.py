@@ -24,19 +24,9 @@ class BlockData:
     logs: List[Log]
 
 class EVMIndexer:
-    def __init__(self, rpc_url: str, chain_type: ChainType, max_connections: int = 100) -> None:
+    def __init__(self, rpc_url: str, chain_type: ChainType) -> None:
         logger.info(f"Initializing EVMIndexer for chain {chain_type.value} with RPC URL: {rpc_url}")
-        # Create connection pool
-        self.session = ClientSession(
-            connector=TCPConnector(
-                limit=max_connections,
-                enable_cleanup_closed=True
-            )
-        )
-        self.w3 = AsyncWeb3(AsyncHTTPProvider(
-            rpc_url,
-            request_kwargs={'session': self.session}
-        ))
+        self.w3 = AsyncWeb3(AsyncHTTPProvider(rpc_url))
         self.chain_type = chain_type
 
     @async_retry(retries=5, base_delay=1, exponential_backoff=True, jitter=True)
@@ -123,8 +113,3 @@ class EVMIndexer:
         except Exception as e:
             logger.error(f"Failed to parse block data: {str(e)}")
             raise
-
-    async def close(self):
-        """Close the connection pool"""
-        if self.session and not self.session.closed:
-            await self.session.close()

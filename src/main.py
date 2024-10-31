@@ -32,7 +32,7 @@ async def main():
         # Setup indexer and BigQuery manager
         logger.info(f"Processing {CHAIN_NAME} chain")
         chain_type = ChainType(CHAIN_NAME)
-        evm_indexer = EVMIndexer(RPC_URL, chain_type, max_connections=100)
+        evm_indexer = EVMIndexer(RPC_URL, chain_type)
         bq_manager = BigQueryManager(CREDS_FILE_PATH, CHAIN_NAME)
 
         try:
