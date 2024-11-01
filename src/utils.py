@@ -34,17 +34,28 @@ def unix_to_utc(timestamp: int, date_only: bool = False) -> Union[date, datetime
 def load_config() -> Dynaconf:
     """Load and validate indexer configuration from config.yml
     
-    Loads configuration from config.yml in project root directory and validates:
-    - chain.name: Required lowercase string with no whitespace
-    - chain.rpc_urls: Required list of RPC URLs
-    
+    Ensures that only one chain configuration is active.
+
     Returns:
         Dynaconf: Validated configuration object
     """
     # Initialize Dynaconf
     project_root = Path(__file__).resolve().parent.parent
+    config_path = project_root / "config.yml"
+
+    # Validate that only one 'chain' section is active
+    active_chain_count = 0
+    with config_path.open('r') as f:
+        for line in f:
+            stripped_line = line.strip()
+            # Check if the line starts with 'chain:' and is not commented out
+            if stripped_line.startswith('chain:') and not line.lstrip().startswith('#'):
+                active_chain_count += 1
+                if active_chain_count > 1:
+                    raise ValueError("Configuration Error: Multiple active 'chain' sections found in config.yml. Please ensure only one 'chain' configuration is active.")
+
     settings = Dynaconf(
-        settings_files=[project_root / "config.yml"],
+        settings_files=[config_path],
         validators=[
             # Validate structure and types
             Validator('chain.name', must_exist=True, 
