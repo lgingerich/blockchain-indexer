@@ -35,7 +35,7 @@ class EVMIndexer:
     def _rotate_rpc(self) -> bool:
         """Rotate to the next RPC URL in the list
         Returns:
-            bool: True if there was another RPC to rotate to, False if we've tried all RPCs
+            bool: True if there is another RPC to rotate to, False if we've tried all RPCs
         """
         if len(self.rpc_urls) <= 1:
             return False
@@ -50,7 +50,7 @@ class EVMIndexer:
     async def get_block_number(self) -> int:
         try:
             block_number = await self.w3.eth.get_block_number()
-            logger.info(f"Retrieved block number: {block_number}")
+            # logger.info(f"Retrieved block number: {block_number}")
             return block_number
         except Web3Exception as e:
             logger.error(f"Failed to get block number: {str(e)}")

@@ -185,7 +185,7 @@ class BigQueryManager:
             
             logger.info(f"Loaded rows {i} to {min(i + chunk_size, total_rows)}")
         
-        logger.info(f"Successfully loaded {total_rows} total rows")
+        logger.info(f"Successfully loaded {total_rows} total rows to table {table_id}")
 
     def query_table(self, query: str) -> pd.DataFrame:
         """

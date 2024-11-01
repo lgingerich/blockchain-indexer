@@ -53,9 +53,8 @@ This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md
 
 ## Notes / To Do
 
-    - Handle when the indexer catches up to the current block
-
     - Add upsert on zksync (and other chains) l1 block data that is missing from the indexer
+        - This applies for both tx receipts and zksync l1 data
         - Track the missing data (by l2 block number)
         - Run as separate "path" beside main indexer and check every 60 seconds if the data is available
             - If the data is available, upsert it to Bigquery
@@ -73,11 +72,10 @@ This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md
 
     - Add traces
 
-    - The llama rpc for Arbitrum has issues of not finding all transactions
-        - Implement RPC fallback mechanism:
-            - Maintain a list of backup RPC endpoints
-            - If BlockNotFound or TransactionNotFound:
-                - Retry with next RPC in the fallback list
-                - Log the failure for monitoring
-            - Add exponential backoff between retries
-            - Consider implementing circuit breaker if all RPCs fail
+    - Add websocket support
+        - If only websockets is defined, use for everything
+        - If only http is defined, use for everything
+        - If both websockets and http are defined, use websockets to subscribe to new blocks
+            and use http to get data
+
+    - Add l2 to l1 logs dataset for zksync
