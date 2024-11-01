@@ -24,10 +24,27 @@ class BlockData:
     logs: List[Log]
 
 class EVMIndexer:
-    def __init__(self, rpc_url: str, chain_type: ChainType) -> None:
-        logger.info(f"Initializing EVMIndexer for chain {chain_type.value} with RPC URL: {rpc_url}")
-        self.w3 = AsyncWeb3(AsyncHTTPProvider(rpc_url))
+    def __init__(self, rpc_urls: List[str], chain_type: ChainType) -> None:
+        logger.info(f"Available RPC URLs: {rpc_urls}")
+        logger.info(f"Initializing EVMIndexer for chain {chain_type.value} with RPC URL: {rpc_urls[0]}")
+        self.rpc_urls = rpc_urls
+        self.current_rpc_index = 0
+        self.w3 = AsyncWeb3(AsyncHTTPProvider(self.rpc_urls[0]))
         self.chain_type = chain_type
+
+    def _rotate_rpc(self) -> bool:
+        """Rotate to the next RPC URL in the list
+        Returns:
+            bool: True if there was another RPC to rotate to, False if we've tried all RPCs
+        """
+        if len(self.rpc_urls) <= 1:
+            return False
+            
+        self.current_rpc_index = (self.current_rpc_index + 1) % len(self.rpc_urls)
+        new_url = self.rpc_urls[self.current_rpc_index]
+        logger.info(f"Switching to RPC URL: {new_url}")
+        self.w3 = AsyncWeb3(AsyncHTTPProvider(new_url))
+        return True
 
     @async_retry(retries=5, base_delay=1, exponential_backoff=True, jitter=True)
     async def get_block_number(self) -> int:
@@ -37,6 +54,13 @@ class EVMIndexer:
             return block_number
         except Web3Exception as e:
             logger.error(f"Failed to get block number: {str(e)}")
+            if self._rotate_rpc():
+                return await self.get_block_number()
+            raise
+        except Exception as e:
+            logger.error(f"Failed to get block number: {type(e).__name__}: {str(e)}")
+            if self._rotate_rpc():
+                return await self.get_block_number()
             raise
 
     @async_retry(retries=5, base_delay=1, exponential_backoff=True, jitter=True)
@@ -47,9 +71,18 @@ class EVMIndexer:
             return raw_block
         except BlockNotFound:
             logger.warning(f"Block {block_number} not found")
+            if self._rotate_rpc():
+                return await self.get_block(block_number)
             return None
         except Web3Exception as e:
             logger.error(f"Failed to get block {block_number}: {str(e)}")
+            if self._rotate_rpc():
+                return await self.get_block(block_number)
+            raise
+        except Exception as e:
+            logger.error(f"Failed to get block {block_number}: {type(e).__name__}: {str(e)}")
+            if self._rotate_rpc():
+                return await self.get_block(block_number)
             raise
 
     @async_retry(retries=5, base_delay=1, exponential_backoff=True, jitter=True)
@@ -59,9 +92,18 @@ class EVMIndexer:
             return receipt
         except TransactionNotFound:
             logger.warning(f"Transaction {transaction_hash} not found")
+            if self._rotate_rpc():
+                return await self.get_transaction_receipt(transaction_hash)
             return None
         except Web3Exception as e:
             logger.error(f"Failed to get receipt for transaction {transaction_hash}: {str(e)}")
+            if self._rotate_rpc():
+                return await self.get_transaction_receipt(transaction_hash)
+            raise
+        except Exception as e:
+            logger.error(f"Failed to get receipt for transaction {transaction_hash}: {type(e).__name__}: {str(e)}")
+            if self._rotate_rpc():
+                return await self.get_transaction_receipt(transaction_hash)
             raise
 
     @async_retry(retries=5, base_delay=1, exponential_backoff=True, jitter=True)
