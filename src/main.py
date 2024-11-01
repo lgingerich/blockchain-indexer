@@ -24,6 +24,10 @@ config = load_config()
 CHAIN_NAME = config.chain.name
 RPC_URLS = config.chain.rpc_urls
 
+
+buffer = 10 # blocks
+hard_limit = 100 # blocks
+
 async def main():
     try:
         start_time = time.time()
@@ -35,11 +39,10 @@ async def main():
         evm_indexer = EVMIndexer(RPC_URLS, chain_type)
         bq_manager = BigQueryManager(CREDS_FILE_PATH, CHAIN_NAME)
 
-        # Get current block number
-        block_number = await evm_indexer.get_block_number()
 
-        block_number = 0
-        # block_number = 4201
+
+        # block_number_to_process = 0
+        block_number_to_process = 269959526
 
         batch_size = 100
         blocks_list = []
@@ -47,17 +50,30 @@ async def main():
         logs_list = []
         
         while True:
+        # while block_number < 10:
         # while block_number < 100_001:
             loop_start = time.time()
             
+            # Get current block number
+            current_block_number = await evm_indexer.get_block_number()
+
+            # If indexer gets too close to tip, back off and retry
+            if block_number_to_process > (current_block_number - hard_limit - buffer):
+                logger.info(f"Next block ready to process is within {current_block_number - block_number_to_process} blocks of chain tip")
+                logger.info(f"Waiting for block {block_number_to_process} to be at least {hard_limit} blocks behind tip ({current_block_number})")
+                
+                time.sleep(1) # should configure this to be dynamic or based on chain block times
+                continue
+
             # Get and process block data
             try:
                 # Get raw block and transaction receipts
-                raw_block = await evm_indexer.get_block(block_number)
+                raw_block = await evm_indexer.get_block(block_number_to_process)
                 if raw_block is None:
-                    logger.error(f"Failed to fetch block data for block {block_number}")
-                    block_number += 1
+                    logger.error(f"Failed to fetch block data for block {block_number_to_process}")
+                    block_number_to_process += 1
                     continue
+                # print(raw_block)
 
                 # # Fetch receipts for all transactions
                 # receipts = []
@@ -122,11 +138,11 @@ async def main():
 
                 loop_duration = time.time() - loop_start
                 # logger.info(f"Processed block {block_number} in {loop_duration:.2f} seconds")
-                block_number += 1
+                block_number_to_process += 1
 
             except Exception as e:
-                logger.error(f"Error processing block {block_number}: {e}")
-                block_number += 1
+                logger.error(f"Error processing block {block_number_to_process}: {e}")
+                block_number_to_process += 1
                 continue
 
     except KeyError as e:
