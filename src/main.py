@@ -12,6 +12,9 @@ from indexer import EVMIndexer
 from data_types import ChainType
 from utils import load_config
 
+# Save logs to file
+logger.add("logs/indexer.log", rotation="100 MB", retention="10 days")
+
 # Load env var
 load_dotenv()
 CREDS_FILE_PATH = os.getenv("CREDS_FILE_PATH")

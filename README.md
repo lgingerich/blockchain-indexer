@@ -53,6 +53,15 @@ This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md
 
 ## Notes / To Do
 
+    - Convert to full cloud deployment (while keeping local functionality)
+        - Run Docker on Google Cloud Engine
+        - Save logs to GCP Logging
+        - Better credentials management
+
+    - Restart indexer from last block processed
+        - In V1, user needs to manually delete data if they want to restart
+        - In the future, can add a CLI with a flag to delete data from a specific block
+
     - Add upsert on zksync (and other chains) l1 block data that is missing from the indexer
         - This applies for both tx receipts and zksync l1 data
         - Track the missing data (by l2 block number)
@@ -79,3 +88,16 @@ This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md
             and use http to get data
 
     - Add l2 to l1 logs dataset for zksync
+
+    - Add proper RPC load balancer
+
+
+    - Check if RPC supports eth_getblockreceipts
+        - If yes, use it, otherwise use eth_get_transaction_receipts
+        
+        def get_block_receipts(block_number: int):
+            try:
+                res = w3.eth.get_block_receipts(block_number)
+                return res
+            except Exception as err:
+                logger.error(f"Error occurred while fetching block receipts: {err}")

@@ -163,3 +163,21 @@ cython_debug/
 /data
 
 *-plucky-sight-370020.json
+
+# Logs
+logs/
+*.log
+
+# Docker
+.docker/
+docker-compose.override.yml
+.env.docker
+docker-compose.override.yaml
+
+# Docker volumes
+docker_data/
+data/
+volumes/
+
+# Docker logs
+docker-compose.log

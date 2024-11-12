@@ -1,0 +1,16 @@
+services:
+  indexer:
+    build: .
+    container_name: blockchain-indexer
+    environment:
+      - CREDS_FILE_PATH=/app/credentials.json
+    volumes:
+      - ./analytics-admin-plucky-sight-370020.json:/app/credentials.json
+      - ./config.yml:/app/config.yml
+      - ./logs:/app/logs
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
