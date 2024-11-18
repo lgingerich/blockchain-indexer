@@ -13,12 +13,13 @@ services:
     environment:
       - CREDS_FILE_PATH=/app/credentials.json
     volumes:
-      - ./elastic-chain-indexing-bcd33673b025.json:/app/credentials.json
+      - ./elastic-chain-indexing-6cc8425b6447.json:/app/credentials.json
       - ./config.yml:/app/config.yml
       - ./logs:/app/logs
     restart: unless-stopped
     logging:
-      driver: "json-file"
+      driver: "gcplogs"
       options:
-        max-size: "100m"
-        max-file: "3"
+        gcp-project: "elastic-chain-indexing"
+        gcp-log-cmd: "true"
+        labels: "blockchain-indexer"
