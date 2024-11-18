@@ -2,10 +2,18 @@ services:
   indexer:
     build: .
     container_name: blockchain-indexer
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
     environment:
       - CREDS_FILE_PATH=/app/credentials.json
     volumes:
-      - ./analytics-admin-plucky-sight-370020.json:/app/credentials.json
+      - ./elastic-chain-indexing-bcd33673b025.json:/app/credentials.json
       - ./config.yml:/app/config.yml
       - ./logs:/app/logs
     restart: unless-stopped
