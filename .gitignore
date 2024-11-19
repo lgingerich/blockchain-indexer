@@ -165,6 +165,7 @@ cython_debug/
 
 *-plucky-sight-370020.json
 *-elastic-chain-indexing-6cc8425b6447.json
+credentials.json
 
 # Logs
 logs/

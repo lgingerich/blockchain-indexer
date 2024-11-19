@@ -17,10 +17,10 @@ logger.add("logs/indexer.log", rotation="100 MB", retention="10 days")
 
 # Load env var
 load_dotenv()
-CREDS_FILE_PATH = os.getenv("CREDS_FILE_PATH")
-if CREDS_FILE_PATH is None:
-    raise ValueError("CREDS_FILE_PATH environment variable is not set")
-assert isinstance(CREDS_FILE_PATH, str)
+# CREDS_FILE_PATH = os.getenv("CREDS_FILE_PATH")
+# if CREDS_FILE_PATH is None:
+#     raise ValueError("CREDS_FILE_PATH environment variable is not set")
+# assert isinstance(CREDS_FILE_PATH, str)
 
 # Load indexer config
 config = load_config()
@@ -40,7 +40,8 @@ async def main():
         logger.info(f"Processing {CHAIN_NAME} chain")
         chain_type = ChainType(CHAIN_NAME)
         evm_indexer = EVMIndexer(RPC_URLS, chain_type)
-        bq_manager = BigQueryManager(CREDS_FILE_PATH, CHAIN_NAME)
+        # bq_manager = BigQueryManager(CREDS_FILE_PATH, CHAIN_NAME)
+        bq_manager = BigQueryManager(CHAIN_NAME)
 
         block_number_to_process = 0
         batch_size = 100
