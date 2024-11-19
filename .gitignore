@@ -163,12 +163,6 @@ cython_debug/
 # Local data folder
 /data
 
-
-*-plucky-sight-370020.json
-*-elastic-chain-indexing-6cc8425b6447.json
-credentials.json
-*.json
-
 # Logs
 logs/
 *.log
@@ -186,8 +180,6 @@ volumes/
 
 # Docker logs
 docker-compose.log
-
-
 
 # Terraform-specific entries
 # Local .terraform directories
