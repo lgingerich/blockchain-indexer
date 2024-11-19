@@ -19,22 +19,15 @@ class BigQueryManager:
     A class to manage BigQuery operations for blockchain data
     """
     
-    # def __init__(self, credentials_path: str, chain_name: str):
     def __init__(self, chain_name: str):
         """
         Initialize BigQuery client with credentials and dataset
         
         Args:
-            credentials_path (str): Path to service account JSON credentials file
             dataset_id (str): ID of the dataset to work with
         """
-        # self.credentials = service_account.Credentials.from_service_account_file(
-        #     credentials_path,
-        #     scopes=["https://www.googleapis.com/auth/cloud-platform"]
-        # )
         self.client = bigquery.Client(
-            # credentials=self.credentials,
-            project=self.credentials.project_id
+            project='elastic-chain-indexing'
         )
         self.dataset_id = chain_name
         

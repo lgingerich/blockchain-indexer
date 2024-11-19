@@ -10,10 +10,7 @@ services:
         reservations:
           cpus: '0.5'
           memory: 1G
-    # environment:
-      # - CREDS_FILE_PATH=/app/credentials.json
     volumes:
-      # - ./elastic-chain-indexing-6cc8425b6447.json:/app/credentials.json
       - ./config.yml:/app/config.yml
       - ./logs:/app/logs
     restart: unless-stopped

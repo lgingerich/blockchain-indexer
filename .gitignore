@@ -25,6 +25,7 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+.DS_Store
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -166,6 +167,7 @@ cython_debug/
 *-plucky-sight-370020.json
 *-elastic-chain-indexing-6cc8425b6447.json
 credentials.json
+*.json
 
 # Logs
 logs/
