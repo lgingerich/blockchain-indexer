@@ -22,4 +22,4 @@ RUN pip install .
 COPY . .
 
 # Define the default command
-CMD ["python", "src/main.py"]
+CMD ["python", "app/main.py"]
