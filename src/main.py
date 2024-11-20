@@ -16,7 +16,8 @@ from utils import load_config
 logger.add("logs/indexer.log", rotation="100 MB", retention="10 days")
 
 # Load indexer config
-config = load_config()
+# config = load_config()
+config = load_config("zksync.yml")
 CHAIN_NAME = config.chain.name
 RPC_URLS = config.chain.rpc_urls
 

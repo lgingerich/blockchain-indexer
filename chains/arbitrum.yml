@@ -1,0 +1,6 @@
+chain:
+  name: "arbitrum"
+  rpc_urls:
+    - "https://arbitrum.llamarpc.com"
+    - "https://rpc.ankr.com/arbitrum"
+    - "https://arbitrum.gateway.tenderly.co"

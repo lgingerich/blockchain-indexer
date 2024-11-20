@@ -1,0 +1,4 @@
+chain:
+  name: "cronos_zkevm"
+  rpc_urls:
+    - "https://mainnet.zkevm.cronos.org"

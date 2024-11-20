@@ -1,0 +1,6 @@
+chain:
+  name: "ethereum"
+  rpc_urls:
+    - "https://eth.llamarpc.com"
+    - "https://rpc.ankr.com/eth"
+    - "https://eth.drpc.org"

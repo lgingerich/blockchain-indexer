@@ -31,17 +31,20 @@ def unix_to_utc(timestamp: int, date_only: bool = False) -> Union[date, datetime
     dt = datetime.fromtimestamp(timestamp, timezone.utc)
     return dt.date() if date_only else dt
 
-def load_config() -> Dynaconf:
-    """Load and validate indexer configuration from config.yml
+def load_config(file_name: str) -> Dynaconf:
+    """Load and validate indexer configuration from chain config file
     
     Ensures that only one chain configuration is active.
+
+    Params:
+        file_name (str): Name of the chain config file to load
 
     Returns:
         Dynaconf: Validated configuration object
     """
     # Initialize Dynaconf
     project_root = Path(__file__).resolve().parent.parent
-    config_path = project_root / "config.yml"
+    config_path = project_root / "chains" / file_name
 
     # Validate that only one 'chain' section is active
     active_chain_count = 0
