@@ -21,6 +21,12 @@ variable "machine_type" {
   default     = "e2-medium"
 }
 
+variable "create_service_account" {
+  description = "Whether to create a new service account or use existing one"
+  type        = bool
+  default     = false  # Default to using existing service account
+}
+
 variable "chain_name" {
   description = "Name of the chain"
   type        = string

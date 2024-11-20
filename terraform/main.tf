@@ -13,35 +13,58 @@ provider "google" {
   zone    = var.zone
 }
 
-# Service account for the VM
+# Try to get existing service account
+data "google_service_account" "existing_vm_sa" {
+  count      = var.create_service_account ? 0 : 1
+  account_id = "indexer-vm-sa"
+  project    = var.project_id
+}
+
+# Create service account if it doesn't exist
 resource "google_service_account" "vm_service_account" {
+  count        = var.create_service_account ? 1 : 0
   account_id   = "indexer-vm-sa"
   display_name = "Indexer VM Service Account"
+  project      = var.project_id
+}
+
+# Use a local to simplify the email reference
+locals {
+  service_account_email = var.create_service_account ? (
+    google_service_account.vm_service_account[0].email
+  ) : data.google_service_account.existing_vm_sa[0].email
 }
 
 # Grant BigQuery permissions to the service account
 resource "google_project_iam_member" "bigquery_access" {
   project = var.project_id
   role    = "roles/bigquery.dataEditor"
-  member  = "serviceAccount:${google_service_account.vm_service_account.email}"
+  member  = "serviceAccount:${local.service_account_email}"
+}
+
+# Grant BigQuery Job User permissions to the service account
+resource "google_project_iam_member" "bigquery_job_user" {
+  project = var.project_id
+  role    = "roles/bigquery.jobUser"
+  member  = "serviceAccount:${local.service_account_email}"
 }
 
 # Grant Cloud Logging permissions to the service account
 resource "google_project_iam_member" "logging_access" {
   project = var.project_id
   role    = "roles/logging.logWriter"
-  member  = "serviceAccount:${google_service_account.vm_service_account.email}"
+  member  = "serviceAccount:${local.service_account_email}"
 }
 
 # VPC network
 resource "google_compute_network" "vpc_network" {
-  name = "indexer-network"
+  name                    = "indexer-${var.chain_name}-network"
   auto_create_subnetworks = false
 }
 
 # Subnet
 resource "google_compute_subnetwork" "subnet" {
-  name          = "indexer-subnet"
+  name          = "indexer-${var.chain_name}-subnet"
   ip_cidr_range = "10.0.0.0/24"
   network       = google_compute_network.vpc_network.id
   region        = var.region
@@ -49,7 +72,7 @@ resource "google_compute_subnetwork" "subnet" {
 
 # IAP SSH firewall rule
 resource "google_compute_firewall" "iap_ssh" {
-  name    = "allow-iap-ssh"
+  name    = "allow-iap-ssh-${var.chain_name}"
   network = google_compute_network.vpc_network.name
   
   allow {
@@ -63,14 +86,14 @@ resource "google_compute_firewall" "iap_ssh" {
 
 # Add Cloud NAT router
 resource "google_compute_router" "router" {
-  name    = "indexer-router"
+  name    = "indexer-${var.chain_name}-router"
   region  = var.region
   network = google_compute_network.vpc_network.id
 }
 
 # Add Cloud NAT config
 resource "google_compute_router_nat" "nat" {
-  name                               = "indexer-nat"
+  name                               = "indexer-${var.chain_name}-nat"
   router                             = google_compute_router.router.name
   region                             = var.region
   nat_ip_allocate_option             = "AUTO_ONLY"
@@ -98,7 +121,7 @@ resource "google_compute_instance" "indexer_vm" {
   }
 
   service_account {
-    email  = google_service_account.vm_service_account.email
+    email  = local.service_account_email
     scopes = ["cloud-platform"]
   }
 
