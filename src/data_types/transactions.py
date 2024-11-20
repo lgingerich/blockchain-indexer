@@ -25,7 +25,7 @@ class BaseTransaction(BaseModel):
     block_date: date
     chain_id: Optional[int] = None
     from_address: str
-    gas: int
+    gas_limit: int
     gas_price: int
     hash: str
     input: str

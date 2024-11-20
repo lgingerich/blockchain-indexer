@@ -13,7 +13,7 @@ class BaseTransactionParser:
             'block_date': unix_to_utc(block_timestamp, date_only=True),
             'chain_id': raw_tx.get('chainId'),
             'from_address': str(raw_tx['from']),
-            'gas': raw_tx['gas'],
+            'gas_limit': raw_tx['gas'],
             'gas_price': raw_tx['gasPrice'],
             'hash': hex_to_str(raw_tx['hash']),
             'input': hex_to_str(raw_tx['input']),

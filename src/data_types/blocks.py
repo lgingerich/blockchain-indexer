@@ -21,18 +21,18 @@ class BaseBlock(BaseModel):
     }
     
     base_fee_per_gas: Optional[int] = None
-    block_time: datetime
+    block_hash: str
+    block_number: int
     block_date: date
+    block_time: datetime
     difficulty: int
     extra_data: Optional[str] = None
     gas_limit: int
     gas_used: int
-    hash: str
     logs_bloom: str
     miner: str
     mix_hash: str
     nonce: str
-    number: int
     parent_hash: str
     receipts_root: str
     sha3_uncles: str
