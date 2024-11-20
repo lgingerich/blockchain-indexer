@@ -1,9 +1,9 @@
-chain:
-  name: "ethereum"
-  rpc_urls:
-    - "https://eth.llamarpc.com"
-    - "https://rpc.ankr.com/eth"
-    - "https://eth.drpc.org"
+# chain:
+#   name: "ethereum"
+#   rpc_urls:
+#     - "https://eth.llamarpc.com"
+#     - "https://rpc.ankr.com/eth"
+#     - "https://eth.drpc.org"
 
 
 # chain:
@@ -18,12 +18,12 @@ chain:
 #   rpc_urls:
 #     - "https://mainnet.zkevm.cronos.org"
 
-# chain:
-#   name: "zksync"
-#   rpc_urls:
-#     - "https://mainnet.era.zksync.io"
-#     - "https://zksync.meowrpc.com"
-#     - "https://1rpc.io/zksync2-era"
+chain:
+  name: "zksync"
+  rpc_urls:
+    - "https://mainnet.era.zksync.io"
+    - "https://zksync.meowrpc.com"
+    - "https://1rpc.io/zksync2-era"
 
 # chain:
 #   name: "zksync_sepolia"
