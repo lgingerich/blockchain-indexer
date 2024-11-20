@@ -35,7 +35,12 @@ async def main():
         evm_indexer = EVMIndexer(RPC_URLS, chain_type)
         bq_manager = BigQueryManager(CHAIN_NAME)
 
-        block_number_to_process = 0
+        # Get the last processed block number and start indexing from there
+        last_processed_block = bq_manager.get_last_procesed_block()
+        block_number_to_process = last_processed_block + 1 if last_processed_block > 0 else 0
+        logger.info(f"Last processed block: {last_processed_block}")
+        logger.info(f"Starting indexer from block {block_number_to_process}")
+
         batch_size = 100
         blocks_list = []
         transactions_list = []

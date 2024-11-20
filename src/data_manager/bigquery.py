@@ -192,3 +192,30 @@ class BigQueryManager:
             pd.DataFrame: Query results
         """
         return self.client.query(query).to_dataframe()
+
+    def get_last_procesed_block(self) -> int:
+        """
+        Query the maximum block number from each table (blocks, transactions, logs)
+        and return the lowest value to ensure all tables are in sync
+        
+        Returns:
+            int: The lowest maximum block number across all tables
+        """
+        logger.info("Getting last processed block number")
+        min_block = None
+        for table_id in ['blocks', 'transactions', 'logs']:
+            # Bigquery maintains partition-level statistics so this query can get the 
+            # max block number from each table without scanning the entire table
+            query = f"""
+            SELECT MAX(block_number) as max_block
+            FROM `{self.client.project}.{self.dataset_id}.{table_id}`
+            """
+            try:
+                df = self.query_table(query)
+                max_block = int(df['max_block'].iloc[0]) if not df['max_block'].empty and not pd.isna(df['max_block'].iloc[0]) else 0
+                min_block = min(min_block, max_block) if min_block is not None else max_block
+            except Exception as e:
+                logger.warning(f"Failed to get max block number for table {table_id}: {str(e)}")
+                return 0
+                
+        return min_block or 0
