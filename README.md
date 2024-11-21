@@ -2,102 +2,113 @@
 
 ## Description
 
-The Blockchain Indexer is a tool designed to monitor and process Ethereum blockchain data in real-time. It supports multiple Ethereum-compatible chains, including Ethereum, Arbitrum, Optimism, and ZKSync. The indexer connects to these blockchains using Web3 and retrieves block data asynchronously.
+The Blockchain Indexer processes blockchain data from various EVM-compatible chains.
+Features include:
+- Continuous processing of blockchain data with configurable delay from chain head
+- Support for multiple EVM chains including Ethereum, Arbitrum, Optimism, and ZKSync
+- Flexible deployment options for local development and production environments
+- Customizable chain configurations
 
-## Features
+> ⚠️ **Note**: This project is in active development and may have frequent breaking changes. It is not recommended for production use yet.
 
-- Real-time monitoring of Ethereum-compatible blockchains.
-- Asynchronous operations using `asyncio` for efficient data retrieval.
-- Support for multiple chains: Ethereum, Arbitrum, Optimism, and ZKSync.
-- Customizable chain configurations.
 
-## Installation
+## Prerequisites
+- Python 3.12+
+- uv (for local Python setup)
+- Docker and Docker Compose (for local containerized setup)
+- Terraform (for cloud deployment)
 
-Clone the repository:
 
+## Indexer Configuration
+
+The indexer is configured through a single `config.yml` file. To get started:
+
+1. Copy the example configuration file:
 ```bash
+cp config.yml.example config.yml
+```
+
+2. Edit `config.yml` with your settings:
+- **Chain**: Specify a single chain to index (ethereum, arbitrum, or zksync) and its RPC URLs
+- **Datasets**: Choose which data types to index (blocks, transactions, and/or logs)
+- **Storage**: Configure your data storage settings (Note: Currently GCP Bigquery is the only supported storage option)
+
+The actual `config.yml` file is excluded from version control. See `config.yml.example` for a template with all supported options.
+
+
+## Deployment Options
+
+### 1. Local Python Setup
+Run directly on your machine using uv:
+```bash
+# Clone repository
 git clone https://github.com/lgingerich/blockchain-indexer.git
 cd blockchain-indexer
-```
 
-Set up a virtual environment and install dependencies using Astral UV:
-
-```bash
+# Setup Python environment
 uv venv
-uv install
+uv pip install -e .
+
+# Run indexer
+uv run src/main.py
 ```
 
-## Usage
-
-Run the indexer:
+### 2. Local Docker Setup
+Run the indexer using Docker Compose:
 
 ```bash
-python src/main.py
+# Clone repository
+git clone https://github.com/lgingerich/blockchain-indexer.git
+cd blockchain-indexer
+
+# Start the indexer
+docker compose up
 ```
 
-This will start the indexer, which will connect to the specified blockchain and begin retrieving block data.
+### 3. Cloud Deployment with Terraform
 
-## Configuration
+#### Authentication Setup
+Configure authentication before deploying:
 
-- **Chain Selection**: Modify the `CHAIN_NAME` and `rpc_url` in `src/main.py` to select the desired blockchain and RPC endpoint.
-- **Block Retrieval**: The indexer retrieves the current block number and block details using the `EVMIndexer` class.
+```bash
+# Login to Google Cloud
+gcloud auth login
+
+# Set up application default credentials
+gcloud auth application-default login
+```
+
+#### Configuration
+1. Copy the example variables file to create your own:
+```bash
+cp terraform/terraform.tfvars.example terraform/terraform.tfvars
+```
+
+2. Edit `terraform/terraform.tfvars` with your specific values:
+```terraform
+region                  = "us-central1"    # Required: GCP region for deployment
+zone                    = "us-central1-a"  # Required: GCP zone within the region
+machine_type            = "e2-medium"      # Required: GCP machine type for the VM
+create_service_account  = false
+```
+
+#### Deploy Infrastructure
+Deploy the indexer to Google Cloud Platform:
+
+```bash
+# Navigate to terraform directory
+cd terraform
+
+# Initialize Terraform
+terraform init
+
+# Review the deployment plan
+terraform plan
+
+# Deploy the infrastructure
+terraform apply
+```
 
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.
-
-
-
-
-
-
-## Notes / To Do
-
-    - Convert to full cloud deployment (while keeping local functionality)
-        - Run Docker on Google Cloud Engine
-        - Save logs to GCP Logging
-        - Better credentials management
-
-    - Restart indexer from last block processed
-        - In V1, user needs to manually delete data if they want to restart
-        - In the future, can add a CLI with a flag to delete data from a specific block
-
-    - Add upsert on zksync (and other chains) l1 block data that is missing from the indexer
-        - This applies for both tx receipts and zksync l1 data
-        - Track the missing data (by l2 block number)
-        - Run as separate "path" beside main indexer and check every 60 seconds if the data is available
-            - If the data is available, upsert it to Bigquery
-            - Run immediately for all blocks until I hit another missing one, then restart 60 second sleep period
-
-    - Add monitoring metrics
-        - Current number of blocks processed
-        - Current number of blocks behind chain tip
-        - Current number of blocks processed per second
-            - Historical number of blocks processed per second
-        - Current number of transactions processed per second
-            - Historical number of transactions processed per second
-        - MB processed per second?
-            - How hard is this?
-
-    - Add traces
-
-    - Add websocket support
-        - If only websockets is defined, use for everything
-        - If only http is defined, use for everything
-        - If both websockets and http are defined, use websockets to subscribe to new blocks
-            and use http to get data
-
-    - Add l2 to l1 logs dataset for zksync
-
-    - Add proper RPC load balancer
-
-
-    - Check if RPC supports eth_getblockreceipts
-        - If yes, use it, otherwise use eth_get_transaction_receipts
-        
-        def get_block_receipts(block_number: int):
-            try:
-                res = w3.eth.get_block_receipts(block_number)
-                return res
-            except Exception as err:
-                logger.error(f"Error occurred while fetching block receipts: {err}")
