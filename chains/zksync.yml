@@ -1,6 +1,0 @@
-chain:
-  name: "zksync"
-  rpc_urls:
-    - "https://mainnet.era.zksync.io"
-    - "https://zksync.meowrpc.com"
-    - "https://1rpc.io/zksync2-era"

@@ -7,8 +7,22 @@ terraform {
   }
 }
 
+# Use a local to simplify the email reference
+locals {
+  service_account_email = var.create_service_account ? (
+    google_service_account.vm_service_account[0].email
+  ) : data.google_service_account.existing_vm_sa[0].email
+}
+
+# Get variables from config file
+locals {
+ config = yamldecode(file("${path.module}/../config.yml"))
+ project_id = local.config.storage.project_id
+ chain_name = local.config.chain.name
+}
+
 provider "google" {
-  project = var.project_id
+  project = local.project_id
   region  = var.region
   zone    = var.zone
 }
@@ -17,7 +31,7 @@ provider "google" {
 data "google_service_account" "existing_vm_sa" {
   count      = var.create_service_account ? 0 : 1
   account_id = "indexer-vm-sa"
-  project    = var.project_id
+  project    = local.project_id
 }
 
 # Create service account if it doesn't exist
@@ -25,46 +39,39 @@ resource "google_service_account" "vm_service_account" {
   count        = var.create_service_account ? 1 : 0
   account_id   = "indexer-vm-sa"
   display_name = "Indexer VM Service Account"
-  project      = var.project_id
-}
-
-# Use a local to simplify the email reference
-locals {
-  service_account_email = var.create_service_account ? (
-    google_service_account.vm_service_account[0].email
-  ) : data.google_service_account.existing_vm_sa[0].email
+  project      = local.project_id
 }
 
 # Grant BigQuery permissions to the service account
 resource "google_project_iam_member" "bigquery_access" {
-  project = var.project_id
+  project = local.project_id
   role    = "roles/bigquery.dataEditor"
   member  = "serviceAccount:${local.service_account_email}"
 }
 
 # Grant BigQuery Job User permissions to the service account
 resource "google_project_iam_member" "bigquery_job_user" {
-  project = var.project_id
+  project = local.project_id
   role    = "roles/bigquery.jobUser"
   member  = "serviceAccount:${local.service_account_email}"
 }
 
 # Grant Cloud Logging permissions to the service account
 resource "google_project_iam_member" "logging_access" {
-  project = var.project_id
+  project = local.project_id
   role    = "roles/logging.logWriter"
   member  = "serviceAccount:${local.service_account_email}"
 }
 
 # VPC network
 resource "google_compute_network" "vpc_network" {
-  name                    = "indexer-${var.chain_name}-network"
+  name                    = "indexer-${local.chain_name}-network"
   auto_create_subnetworks = false
 }
 
 # Subnet
 resource "google_compute_subnetwork" "subnet" {
-  name          = "indexer-${var.chain_name}-subnet"
+  name          = "indexer-${local.chain_name}-subnet"
   ip_cidr_range = "10.0.0.0/24"
   network       = google_compute_network.vpc_network.id
   region        = var.region
@@ -72,7 +79,7 @@ resource "google_compute_subnetwork" "subnet" {
 
 # IAP SSH firewall rule
 resource "google_compute_firewall" "iap_ssh" {
-  name    = "allow-iap-ssh-${var.chain_name}"
+  name    = "allow-iap-ssh-${local.chain_name}"
   network = google_compute_network.vpc_network.name
   
   allow {
@@ -86,14 +93,14 @@ resource "google_compute_firewall" "iap_ssh" {
 
 # Add Cloud NAT router
 resource "google_compute_router" "router" {
-  name    = "indexer-${var.chain_name}-router"
+  name    = "indexer-${local.chain_name}-router"
   region  = var.region
   network = google_compute_network.vpc_network.id
 }
 
 # Add Cloud NAT config
 resource "google_compute_router_nat" "nat" {
-  name                               = "indexer-${var.chain_name}-nat"
+  name                               = "indexer-${local.chain_name}-nat"
   router                             = google_compute_router.router.name
   region                             = var.region
   nat_ip_allocate_option             = "AUTO_ONLY"
@@ -102,7 +109,7 @@ resource "google_compute_router_nat" "nat" {
 
 # VM Instance
 resource "google_compute_instance" "indexer_vm" {
-  name         = "indexer-${var.chain_name}"
+  name         = "indexer-${local.chain_name}"
   machine_type = var.machine_type
   zone         = var.zone
   
@@ -161,7 +168,7 @@ resource "google_compute_instance" "indexer_vm" {
     # Create app directory and clone repo
     echo "Cloning repository..."
     mkdir -p /app
-    git clone ${var.git_repo_url} /app
+    git clone https://github.com/lgingerich/blockchain-indexer.git /app
     cd /app
 
     # Start Docker service

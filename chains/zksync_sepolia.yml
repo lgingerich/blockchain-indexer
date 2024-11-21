@@ -1,5 +1,0 @@
-chain:
-  name: "zksync_sepolia"
-  rpc_urls:
-    - "https://zksync-sepolia.drpc.org"
-    - "https://sepolia.era.zksync.dev"

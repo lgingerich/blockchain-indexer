@@ -1,7 +1,4 @@
-project_id              = "your-actual-project-id"
-region                  = "us-central1"
-zone                    = "us-central1-a"
+region                  = "region"
+zone                    = "zone"
+machine_type            = "machine-type"
 create_service_account  = false
-machine_type            = "e2-medium"
-chain_name              = "chain-name"
-git_repo_url            = "https://github.com/{owner}/{repo}.git"

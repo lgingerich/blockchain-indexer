@@ -215,3 +215,6 @@ terraform.rc
 *.key
 
 # End of Terraform-specific entries
+
+# Ignore config file
+config.yml

@@ -1,8 +1,3 @@
-variable "project_id" {
-  description = "GCP Project ID"
-  type        = string
-}
-
 variable "region" {
   description = "GCP Region"
   type        = string
@@ -25,14 +20,4 @@ variable "create_service_account" {
   description = "Whether to create a new service account or use existing one"
   type        = bool
   default     = false  # Default to using existing service account
-}
-
-variable "chain_name" {
-  description = "Name of the chain"
-  type        = string
-}
-
-variable "git_repo_url" {
-  description = "URL of the git repository to clone"
-  type        = string
 }

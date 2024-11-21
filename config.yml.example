@@ -1,0 +1,31 @@
+# Chain configuration
+chain:
+  name: "arbitrum"
+  rpc_urls:
+    - "https://arbitrum.llamarpc.com"
+    - "https://rpc.ankr.com/arbitrum"
+    - "https://arbitrum.gateway.tenderly.co"
+
+  name: "ethereum"
+  rpc_urls:
+    - "https://eth.llamarpc.com"
+    - "https://rpc.ankr.com/eth"
+    - "https://eth.drpc.org"
+
+  name: "zksync"
+  rpc_urls:
+    - "https://mainnet.era.zksync.io"
+    - "https://zksync.meowrpc.com"
+    - "https://1rpc.io/zksync2-era"
+
+# Active datasets to index and save
+datasets:
+  - "blocks"
+  - "transactions"
+  - "logs"
+
+# Storage configuration
+storage:
+  type: "bigquery"
+  project_id: "your-cloud-provider-project-id"
+  location: "US"
