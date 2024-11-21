@@ -40,7 +40,7 @@ class DataManagerFactory:
             if not manager_class:
                 raise ValueError(f"Unsupported storage type: {storage_type}")
             
-            return manager_class(chain_name)
+            return manager_class(chain_name, location=config.location)
         except ValueError as e:
             raise ValueError(f"Invalid storage type: {storage_type}. Supported types: {[t.value for t in StorageType]}")
 

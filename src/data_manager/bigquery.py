@@ -20,17 +20,19 @@ class BigQueryDataManager(BaseDataManager):
     A class to manage BigQuery operations for blockchain data
     """
     
-    def __init__(self, chain_name: str):
+    def __init__(self, chain_name: str, location: str = "US"):
         """
         Initialize BigQuery client with credentials and dataset
         
         Args:
-            dataset_id (str): ID of the dataset to work with
+            chain_name (str): Name of the chain to work with
+            location (str): Geographic location for the dataset (default: "US")
         """
         self.client = bigquery.Client(
             project='elastic-chain-indexing'
         )
         self.dataset_id = chain_name
+        self.location = location
         
         # Generate schemas dynamically from Pydantic models
         self.block_schema = get_bigquery_schema(BLOCK_TYPE_MAPPING[ChainType(chain_name)])
@@ -38,7 +40,7 @@ class BigQueryDataManager(BaseDataManager):
         self.log_schema = get_bigquery_schema(LOG_TYPE_MAPPING[ChainType(chain_name)])
 
         # Create dataset if it doesn't exist on client initialization
-        self.create_dataset(self.dataset_id, location="US")
+        self.create_dataset(self.dataset_id, location=self.location)
         
         # Create tables if they don't exist on client initialization
         for table_id in ['blocks', 'transactions', 'logs']:
