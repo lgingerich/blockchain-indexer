@@ -14,16 +14,14 @@ logger.add("logs/indexer.log", rotation="100 MB", retention="10 days")
 
 # Load indexer config
 config = load_config("config.yml")
-CHAIN_NAME = config.chain.name
-RPC_URLS = config.chain.rpc_urls
 
 # Initialize core components
-chain_type = ChainType(CHAIN_NAME)
-evm_indexer = EVMIndexer(RPC_URLS, chain_type)
+chain_type = ChainType(config.chain.name)
+evm_indexer = EVMIndexer(config.chain.rpc_urls, chain_type)
 storage_config = config.storage
 data_manager = get_data_manager(
     storage_type=storage_config.type,
-    chain_name=CHAIN_NAME,
+    chain_name=config.chain.name,
     config=storage_config,
     active_datasets=config.datasets
 )
@@ -32,7 +30,7 @@ async def main():
     try:
         start_time = time.time()
         logger.info("Starting indexing process")
-        logger.info(f"Processing {CHAIN_NAME} chain")
+        logger.info(f"Processing {config.chain.name} chain")
         
         # Config for how far behind tip to process
         buffer = 10 # blocks

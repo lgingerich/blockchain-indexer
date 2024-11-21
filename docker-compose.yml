@@ -13,10 +13,5 @@ services:
     volumes:
       - ./config.yml:/app/config.yml
       - ./logs:/app/logs
+      - ~/.config/gcloud/application_default_credentials.json:/root/.config/gcloud/application_default_credentials.json
     restart: unless-stopped
-    logging:
-      driver: "gcplogs"
-      options:
-        gcp-project: "elastic-chain-indexing"
-        gcp-log-cmd: "true"
-        labels: "blockchain-indexer"
