@@ -7,7 +7,7 @@ import pandas as pd
 import sys
 import time
 
-from data_manager import BigQueryManager
+from data_manager import get_data_manager
 from indexer import EVMIndexer
 from data_types import ChainType
 from utils import load_config
@@ -17,7 +17,7 @@ logger.add("logs/indexer.log", rotation="100 MB", retention="10 days")
 
 # Load indexer config
 # config = load_config()
-config = load_config("zksync.yml")
+config = load_config("config.yml")
 CHAIN_NAME = config.chain.name
 RPC_URLS = config.chain.rpc_urls
 
@@ -34,10 +34,15 @@ async def main():
         logger.info(f"Processing {CHAIN_NAME} chain")
         chain_type = ChainType(CHAIN_NAME)
         evm_indexer = EVMIndexer(RPC_URLS, chain_type)
-        bq_manager = BigQueryManager(CHAIN_NAME)
+        storage_config = config.storage
+        data_manager = get_data_manager(
+            storage_type=storage_config.type,
+            chain_name=CHAIN_NAME,
+            config=storage_config
+        )
 
         # Get the last processed block number and start indexing from there
-        last_processed_block = bq_manager.get_last_procesed_block()
+        last_processed_block = data_manager.get_last_processed_block()
         block_number_to_process = last_processed_block + 1 if last_processed_block > 0 else 0
         logger.info(f"Last processed block: {last_processed_block}")
         logger.info(f"Starting indexer from block {block_number_to_process}")
@@ -103,21 +108,21 @@ async def main():
 
                     # Load data to BigQuery
                     if not blocks_df.empty:
-                        bq_manager.load_table(
+                        data_manager.load_table(
                             df=blocks_df,
                             table_id="blocks",
                             if_exists='append'
                         )
                 
                     if not transactions_df.empty:
-                        bq_manager.load_table(
+                        data_manager.load_table(
                             df=transactions_df,
                             table_id="transactions",
                             if_exists='append'
                         )
                 
                     if not logs_df.empty:
-                        bq_manager.load_table(
+                        data_manager.load_table(
                             df=logs_df,
                             table_id="logs",
                             if_exists='append'

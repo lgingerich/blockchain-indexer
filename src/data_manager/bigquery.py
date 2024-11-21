@@ -5,6 +5,7 @@ from loguru import logger
 import pandas as pd
 from typing import List
 
+from .base import BaseDataManager
 from data_types import (
     ChainType,
     BLOCK_TYPE_MAPPING,
@@ -14,7 +15,7 @@ from data_types import (
 from .utils import get_bigquery_schema
 
 
-class BigQueryManager:
+class BigQueryDataManager(BaseDataManager):
     """
     A class to manage BigQuery operations for blockchain data
     """
@@ -193,7 +194,7 @@ class BigQueryManager:
         """
         return self.client.query(query).to_dataframe()
 
-    def get_last_procesed_block(self) -> int:
+    def get_last_processed_block(self) -> int:
         """
         Query the maximum block number from each table (blocks, transactions, logs)
         and return the lowest value to ensure all tables are in sync
