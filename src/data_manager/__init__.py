@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Type
+from typing import Type, List
 from .base import BaseDataManager
 from .bigquery import BigQueryDataManager
 # Future imports for other data managers:
@@ -22,7 +22,7 @@ class DataManagerFactory:
     }
     
     @classmethod
-    def get_manager(cls, storage_type: str, chain_name: str, config: dict) -> BaseDataManager:
+    def get_manager(cls, storage_type: str, chain_name: str, config: dict, active_datasets: List[str] | None = None) -> BaseDataManager:
         """
         Factory method to get the appropriate data manager instance
         
@@ -30,7 +30,7 @@ class DataManagerFactory:
             storage_type (str): Type of storage from config
             chain_name (str): Name of the chain
             config (dict): Storage-specific configuration
-            
+            active_datasets (List[str]): List of active datasets to manage
         Returns:
             BaseDataManager: Instance of the appropriate data manager
         """
@@ -40,10 +40,10 @@ class DataManagerFactory:
             if not manager_class:
                 raise ValueError(f"Unsupported storage type: {storage_type}")
             
-            return manager_class(chain_name, location=config.location)
+            return manager_class(chain_name, location=config.location, active_datasets=active_datasets)
         except ValueError as e:
             raise ValueError(f"Invalid storage type: {storage_type}. Supported types: {[t.value for t in StorageType]}")
 
 # For backwards compatibility and easier imports
-def get_data_manager(storage_type: str, chain_name: str, config: dict) -> BaseDataManager:
-    return DataManagerFactory.get_manager(storage_type, chain_name, config)
+def get_data_manager(storage_type: str, chain_name: str, config: dict, active_datasets: List[str] | None = None) -> BaseDataManager:
+    return DataManagerFactory.get_manager(storage_type, chain_name, config, active_datasets)

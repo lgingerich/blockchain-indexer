@@ -20,19 +20,21 @@ class BigQueryDataManager(BaseDataManager):
     A class to manage BigQuery operations for blockchain data
     """
     
-    def __init__(self, chain_name: str, location: str = "US"):
+    def __init__(self, chain_name: str, location: str = "US", active_datasets: List[str] | None = None):
         """
         Initialize BigQuery client with credentials and dataset
         
         Args:
             chain_name (str): Name of the chain to work with
             location (str): Geographic location for the dataset (default: "US")
+            active_datasets (List[str]): List of active datasets to manage
         """
         self.client = bigquery.Client(
             project='elastic-chain-indexing'
         )
         self.dataset_id = chain_name
         self.location = location
+        self.active_datasets = active_datasets or ["blocks", "transactions", "logs"]
         
         # Generate schemas dynamically from Pydantic models
         self.block_schema = get_bigquery_schema(BLOCK_TYPE_MAPPING[ChainType(chain_name)])
@@ -42,8 +44,8 @@ class BigQueryDataManager(BaseDataManager):
         # Create dataset if it doesn't exist on client initialization
         self.create_dataset(self.dataset_id, location=self.location)
         
-        # Create tables if they don't exist on client initialization
-        for table_id in ['blocks', 'transactions', 'logs']:
+        # Create tables if they don't exist on client initialization (only for active datasets)
+        for table_id in self.active_datasets:
             schema = self._get_schema_for_table(table_id)
             self.create_table(table_id, schema)
 
@@ -198,15 +200,15 @@ class BigQueryDataManager(BaseDataManager):
 
     def get_last_processed_block(self) -> int:
         """
-        Query the maximum block number from each table (blocks, transactions, logs)
-        and return the lowest value to ensure all tables are in sync
+        Query the maximum block number from active tables and return the lowest value
+        to ensure all tables are in sync
         
         Returns:
-            int: The lowest maximum block number across all tables
+            int: The lowest maximum block number across all active tables
         """
         logger.info("Getting last processed block number")
         min_block = None
-        for table_id in ['blocks', 'transactions', 'logs']:
+        for table_id in self.active_datasets:
             # Bigquery maintains partition-level statistics so this query can get the 
             # max block number from each table without scanning the entire table
             query = f"""

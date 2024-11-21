@@ -6,7 +6,7 @@ class BaseDataManager(ABC):
     """Abstract base class for all data managers"""
     
     @abstractmethod
-    def __init__(self, chain_name: str, location: str = "US"):
+    def __init__(self, chain_name: str, location: str = "US", active_datasets: List[str] | None = None):
         pass
     
     @abstractmethod
