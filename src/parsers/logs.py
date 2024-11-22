@@ -1,5 +1,5 @@
 from data_types import EthereumLog, ArbitrumLog, ZKsyncLog
-from utils.utils import hex_to_str, unix_to_utc
+from utils import hex_to_str, unix_to_utc
 
 class BaseLogParser:
     @staticmethod

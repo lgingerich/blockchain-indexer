@@ -7,8 +7,7 @@ import sys
 from data_manager import get_data_manager
 from indexer import EVMIndexer
 from data_types import ChainType
-from utils.utils import load_config
-from utils.state_tracker import MissingBlockTracker
+from utils import load_config
 
 # Save logs to file
 logger.add("logs/indexer.log", rotation="100 MB", retention="10 days")
@@ -27,28 +26,21 @@ data_manager = get_data_manager(
     active_datasets=config.datasets
 )
 
-# Initialize MissingBlockTracker
-missing_block_tracker = MissingBlockTracker(filepath="missing_blocks.json")
-
-async def main_indexing_loop():
+async def main():
     try:
-        start_time = time.time()
         logger.info("Starting indexing process")
         logger.info(f"Processing {config.chain.name} chain")
         
         # Config
         buffer = 10  # blocks
         hard_limit = 100  # blocks
-        retry_interval = 10  # seconds
         batch_size = 100
         
         # Initialize
-        # last_processed_block = data_manager.get_last_processed_block()
-        last_processed_block = 49558000
+        last_processed_block = data_manager.get_last_processed_block()
         block_number_to_process = last_processed_block + 1 if last_processed_block > 0 else 0
         logger.info(f"Last processed block: {last_processed_block}")
         logger.info(f"Starting indexer from block {block_number_to_process}")
-        last_retry_time = 0
         
         blocks_list = []
         transactions_list = []
@@ -56,32 +48,7 @@ async def main_indexing_loop():
         
         is_saving_batch = False  # Flag to track when we're saving data. This acts as a lock to prevent race conditions
 
-        while True:
-            current_time = time.time()
-            
-            # Only check for retries if we're not currently saving a batch
-            if current_time - last_retry_time > retry_interval and not is_saving_batch:
-                retry_block = missing_block_tracker.get_first_block()
-                if retry_block is not None:
-                    logger.info(f"Attempting to retry block {retry_block}")
-                    
-                    # Attempt to process the retry block
-                    raw_block = await evm_indexer.get_block(retry_block)
-                    if raw_block is None:
-                        logger.error(f"Failed to fetch retry block {retry_block}")
-                        last_retry_time = current_time
-                        continue
-                        
-                    # Check if critical fields are still missing
-                    if raw_block.get('l1_batch_number') is None or raw_block.get('l1_batch_time') is None:
-                        logger.warning(f"Retry block {retry_block} still has missing data, will retry again in {retry_interval} seconds")
-                    else:
-                        # Data is now complete, remove from retry tracker
-                        missing_block_tracker.remove_block(retry_block)
-                        logger.info(f"Successfully found complete data for block {retry_block}")
-                            
-                last_retry_time = current_time
-
+        while True:           
             # Normal block processing
             current_block_number = await evm_indexer.get_block_number()
 
@@ -89,8 +56,7 @@ async def main_indexing_loop():
             if block_number_to_process > (current_block_number - hard_limit - buffer):
                 logger.info(f"Next block ready to process is within {current_block_number - block_number_to_process} blocks of chain tip")
                 logger.info(f"Waiting for block {block_number_to_process} to be at least {hard_limit} blocks behind tip ({current_block_number})")
-                
-                await asyncio.sleep(1) # Changed to asyncio.sleep for non-blocking
+                await asyncio.sleep(1)
                 continue
                 
             # Process next block in sequence
@@ -100,12 +66,18 @@ async def main_indexing_loop():
                 block_number_to_process += 1
                 continue
             
-            # Check for missing data and add to retry tracker if needed
-            if raw_block.get('l1BatchNumber') is None or raw_block.get('l1BatchTimestamp') is None:
-                logger.warning(f"Block {block_number_to_process} has missing data, adding to retry tracker")
-                missing_block_tracker.add_block(block_number_to_process)
-                
-            # Always process the block regardless of missing data
+            # Check for required fields - block here until they're available
+            # The blocking fields only apply for L2s sending data to L1
+            # These fields are different for each L2
+            if chain_type == ChainType.ZKSYNC and (raw_block.get('l1BatchNumber') is None or raw_block.get('l1BatchTimestamp') is None):
+                logger.warning(f"Block {block_number_to_process} has missing required data, waiting...")
+                await asyncio.sleep(1)
+                continue
+            elif chain_type == ChainType.ARBITRUM and raw_block.get('l1BlockNumber') is None:
+                logger.warning(f"Block {block_number_to_process} has missing required data, waiting...")
+                await asyncio.sleep(1)
+                continue
+
             try:
                 # Process block data (receipts, etc.)
                 receipts = []
@@ -186,14 +158,6 @@ async def main_indexing_loop():
     except Exception as e:
         logger.exception(f"An unexpected error occurred: {e}")
         sys.exit(1)
-
-async def main():
-    """
-    Main entry point for the indexer.
-    """
-    await asyncio.gather(
-        main_indexing_loop()
-    )
 
 if __name__ == "__main__":
     try:

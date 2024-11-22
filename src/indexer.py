@@ -15,7 +15,7 @@ from data_types import (
     TRANSACTION_TYPE_MAPPING,
     LOG_TYPE_MAPPING
 )
-from utils.utils import async_retry
+from utils import async_retry
 
 @dataclass
 class BlockData:
