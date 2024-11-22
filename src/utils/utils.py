@@ -43,7 +43,7 @@ def load_config(file_name: str) -> Dynaconf:
         Dynaconf: Validated configuration object
     """
     # Initialize Dynaconf
-    project_root = Path(__file__).resolve().parent.parent
+    project_root = Path(__file__).resolve().parent.parent.parent
     config_path = project_root / file_name
 
     # Validate that only one 'chain' section is active
