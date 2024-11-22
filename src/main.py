@@ -106,38 +106,31 @@ async def main():
                 if len(blocks_list) >= batch_size:
                     batch_start = time.time()
                     is_saving_batch = True  # Set flag before saving
-                    logger.info(f"is_saving_batch: {is_saving_batch}")
+
                     try:
                         blocks_df = pd.DataFrame([dict(block) for block in blocks_list])
                         transactions_df = pd.DataFrame([dict(tx) for tx in transactions_list]) if transactions_list else pd.DataFrame()
                         logs_df = pd.DataFrame([dict(log) for log in logs_list]) if logs_list else pd.DataFrame()
 
-                        # Load data to BigQuery based on active datasets
-                        if not blocks_df.empty and "blocks" in config.datasets:
-                            data_manager.load_table(
-                                df=blocks_df,
-                                table_id="blocks",
-                                if_exists='append'
-                            )
-                
-                        if not transactions_df.empty and "transactions" in config.datasets:
-                            data_manager.load_table(
-                                df=transactions_df,
-                                table_id="transactions",
-                                if_exists='append'
-                            )
-                
-                        if not logs_df.empty and "logs" in config.datasets:
-                            data_manager.load_table(
-                                df=logs_df,
-                                table_id="logs",
-                                if_exists='append'
-                            )
+                        # Save data based on active datasets
+                        df_mapping = {
+                            "blocks": blocks_df,
+                            "transactions": transactions_df,
+                            "logs": logs_df
+                        }
+                        
+                        for table_id, df in df_mapping.items():
+                            if not df.empty and table_id in config.datasets:
+                                data_manager.load_table(
+                                    df=df,
+                                    table_id=table_id,
+                                    if_exists='append'
+                                )
                         batch_duration = time.time() - batch_start
                         logger.info(f"Saved batch of {batch_size} blocks to BigQuery in {batch_duration:.2f} seconds")
                     finally:
                         is_saving_batch = False  # Always reset flag after saving
-                        logger.info(f"is_saving_batch: {is_saving_batch}")
+
                     blocks_list = []
                     transactions_list = []
                     logs_list = []
