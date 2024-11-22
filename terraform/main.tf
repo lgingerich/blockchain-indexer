@@ -63,6 +63,13 @@ resource "google_project_iam_member" "logging_access" {
   member  = "serviceAccount:${local.service_account_email}"
 }
 
+# Grant Monitoring Viewer permissions to the service account
+resource "google_project_iam_member" "monitoring_access" {
+  project = local.project_id
+  role    = "roles/monitoring.metricWriter"
+  member  = "serviceAccount:${local.service_account_email}"
+}
+
 # VPC network
 resource "google_compute_network" "vpc_network" {
   name                    = "indexer-${local.chain_name}-network"
@@ -142,6 +149,11 @@ resource "google_compute_instance" "indexer_vm" {
     # Set up logging
     exec 1> >(logger -s -t $(basename $0)) 2>&1
     echo "Starting startup script execution..."
+
+    # Install Google Cloud Ops Agent
+    echo "Installing Google Cloud Ops Agent..."
+    curl -sSO https://dl.google.com/cloudagents/add-google-cloud-ops-agent-repo.sh
+    sudo bash add-google-cloud-ops-agent-repo.sh --also-install
 
     # Update and install basic dependencies
     echo "Installing basic dependencies..."
