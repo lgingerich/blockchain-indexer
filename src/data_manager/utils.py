@@ -2,7 +2,6 @@ from typing import List
 from google.cloud import bigquery
 from datetime import datetime, date
 
-
 def get_bigquery_schema(model_class) -> List[bigquery.SchemaField]:
     # Dictionary to map Python/Pydantic types to BigQuery types
     TYPE_MAPPING = {

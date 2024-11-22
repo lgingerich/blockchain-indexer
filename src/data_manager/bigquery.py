@@ -20,20 +20,25 @@ class BigQueryDataManager(BaseDataManager):
     A class to manage BigQuery operations for blockchain data
     """
     
-    def __init__(self, chain_name: str, location: str = "US", active_datasets: List[str] | None = None):
+    def __init__(self, chain_name: str, active_datasets: List[str] | None = None, **kwargs):
         """
         Initialize BigQuery client with credentials and dataset
         
         Args:
             chain_name (str): Name of the chain to work with
-            location (str): Geographic location for the dataset (default: "US")
             active_datasets (List[str]): List of active datasets to manage
+            **kwargs: Configuration parameters
+                - gcp_region (str): Geographic location for BigQuery dataset (required)
+                - project_id (str): Google Cloud project ID (required)
         """
-        self.client = bigquery.Client(
-            project='elastic-chain-indexing'
-        )
+        if 'project_id' not in kwargs:
+            raise ValueError("project_id is required for BigQuery configuration")
+        if 'gcp_region' not in kwargs:
+            raise ValueError("gcp_region is required for BigQuery configuration")
+        
+        self.client = bigquery.Client(project=kwargs['project_id'])
         self.dataset_id = chain_name
-        self.location = location
+        self.gcp_region = kwargs['gcp_region']
         self.active_datasets = active_datasets or ["blocks", "transactions", "logs"]
         
         # Generate schemas dynamically from Pydantic models
@@ -41,10 +46,10 @@ class BigQueryDataManager(BaseDataManager):
         self.transaction_schema = get_bigquery_schema(TRANSACTION_TYPE_MAPPING[ChainType(chain_name)])
         self.log_schema = get_bigquery_schema(LOG_TYPE_MAPPING[ChainType(chain_name)])
 
-        # Create dataset if it doesn't exist on client initialization
-        self.create_dataset(self.dataset_id, location=self.location)
+        # Create dataset if it doesn't exist
+        self.create_dataset(self.dataset_id)
         
-        # Create tables if they don't exist on client initialization (only for active datasets)
+        # Create tables if they don't exist
         for table_id in self.active_datasets:
             schema = self._get_schema_for_table(table_id)
             self.create_table(table_id, schema)
@@ -60,21 +65,22 @@ class BigQueryDataManager(BaseDataManager):
         else:
             raise ValueError(f"Unable to determine schema for table {table_id}")
 
-    def create_dataset(self, dataset_id: str, location: str = "US") -> None:
-        """
-        Creates the dataset if it doesn't already exist
-        """
+    def create_dataset(self, dataset_id: str, **kwargs) -> None:
+        """Creates the dataset if it doesn't already exist"""
         dataset_ref = self.client.dataset(dataset_id)
         
         try:
-            self.client.get_dataset(dataset_ref)
-            logger.info(f"Dataset {dataset_id} already exists")
+            dataset = self.client.get_dataset(dataset_ref)
+            if dataset.location != self.gcp_region:
+                logger.warning(f"Dataset {dataset_id} exists but in different location: {dataset.location} (expected {self.gcp_region})")
+            else:
+                logger.info(f"Dataset {dataset_id} already exists in {self.gcp_region}")
         except Exception:
             # Dataset does not exist, create it
             dataset = bigquery.Dataset(dataset_ref)
-            dataset.location = location
+            dataset.location = self.gcp_region
             dataset = self.client.create_dataset(dataset)
-            logger.info(f"Created dataset {dataset_id} in location {location}")
+            logger.info(f"Created dataset {dataset_id} in location {self.gcp_region}")
 
     def create_table(self, table_id: str, schema: List[bigquery.SchemaField]) -> None:
         """

@@ -102,7 +102,7 @@ async def main():
                 if block_data.logs:
                     logs_list.extend(block_data.logs)
 
-                # When batch size is reached, save to BigQuery
+                # When batch size is reached, save to storage
                 if len(blocks_list) >= batch_size:
                     batch_start = time.time()
                     is_saving_batch = True  # Set flag before saving
@@ -111,6 +111,10 @@ async def main():
                         blocks_df = pd.DataFrame([dict(block) for block in blocks_list])
                         transactions_df = pd.DataFrame([dict(tx) for tx in transactions_list]) if transactions_list else pd.DataFrame()
                         logs_df = pd.DataFrame([dict(log) for log in logs_list]) if logs_list else pd.DataFrame()
+
+                        # Calculate block range for this batch
+                        start_block = blocks_df['block_number'].min()
+                        end_block = blocks_df['block_number'].max()
 
                         # Save data based on active datasets
                         df_mapping = {
@@ -124,10 +128,12 @@ async def main():
                                 data_manager.load_table(
                                     df=df,
                                     table_id=table_id,
-                                    if_exists='append'
+                                    if_exists='append',
+                                    start_block=start_block,
+                                    end_block=end_block
                                 )
                         batch_duration = time.time() - batch_start
-                        logger.info(f"Saved batch of {batch_size} blocks to BigQuery in {batch_duration:.2f} seconds")
+                        logger.info(f"Saved batch from block {start_block} to {end_block} in {batch_duration:.2f} seconds")
                     finally:
                         is_saving_batch = False  # Always reset flag after saving
 

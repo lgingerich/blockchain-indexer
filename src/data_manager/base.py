@@ -1,16 +1,24 @@
 from abc import ABC, abstractmethod
 import pandas as pd
-from typing import List
+from typing import List, Dict, Any
 
 class BaseDataManager(ABC):
     """Abstract base class for all data managers"""
     
     @abstractmethod
-    def __init__(self, chain_name: str, location: str = "US", active_datasets: List[str] | None = None):
+    def __init__(self, chain_name: str, active_datasets: List[str] | None = None, **kwargs):
+        """
+        Initialize data manager
+        
+        Args:
+            chain_name (str): Name of the chain to work with
+            active_datasets (List[str] | None): List of active datasets to manage
+            **kwargs: Implementation-specific configuration parameters
+        """
         pass
     
     @abstractmethod
-    def create_dataset(self, dataset_id: str, location: str) -> None:
+    def create_dataset(self, dataset_id: str, **kwargs) -> None:
         pass
     
     @abstractmethod

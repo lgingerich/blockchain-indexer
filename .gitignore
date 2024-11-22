@@ -161,6 +161,7 @@ cython_debug/
 #.idea/
 
 # Local data folder
+/rpc_data
 /data
 
 # Logs

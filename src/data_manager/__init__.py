@@ -2,23 +2,16 @@ from enum import Enum
 from typing import Type, List
 from .base import BaseDataManager
 from .bigquery import BigQueryDataManager
-# Future imports for other data managers:
-# from .postgres import PostgresDataManager
-# from .snowflake import SnowflakeDataManager
-# from .cloud_storage import CloudStorageDataManager
+from .parquet import ParquetDataManager
 
 class StorageType(Enum):
+    PARQUET = "parquet"
     BIGQUERY = "bigquery"
-    # POSTGRES = "postgres"
-    # SNOWFLAKE = "snowflake"
-    # CLOUD_STORAGE = "cloud_storage"
 
 class DataManagerFactory:
     _managers = {
+        StorageType.PARQUET: ParquetDataManager,
         StorageType.BIGQUERY: BigQueryDataManager,
-        # StorageType.POSTGRES: PostgresDataManager,
-        # StorageType.SNOWFLAKE: SnowflakeDataManager,
-        # StorageType.CLOUD_STORAGE: CloudStorageDataManager,
     }
     
     @classmethod
@@ -40,7 +33,14 @@ class DataManagerFactory:
             if not manager_class:
                 raise ValueError(f"Unsupported storage type: {storage_type}")
             
-            return manager_class(chain_name, location=config.location, active_datasets=active_datasets)
+            if not config:
+                raise ValueError("Configuration dictionary is required")
+            
+            return manager_class(
+                chain_name=chain_name,
+                active_datasets=active_datasets,
+                **config
+            )
         except ValueError as e:
             raise ValueError(f"Invalid storage type: {storage_type}. Supported types: {[t.value for t in StorageType]}")
 
