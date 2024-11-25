@@ -72,13 +72,13 @@ resource "google_project_iam_member" "monitoring_access" {
 
 # VPC network
 resource "google_compute_network" "vpc_network" {
-  name                    = "indexer-${local.chain_name}-network"
+  name                    = "indexer-${replace(local.chain_name, "_", "-")}-network"
   auto_create_subnetworks = false
 }
 
 # Subnet
 resource "google_compute_subnetwork" "subnet" {
-  name          = "indexer-${local.chain_name}-subnet"
+  name          = "indexer-${replace(local.chain_name, "_", "-")}-subnet"
   ip_cidr_range = "10.0.0.0/24"
   network       = google_compute_network.vpc_network.id
   region        = var.region
@@ -86,7 +86,7 @@ resource "google_compute_subnetwork" "subnet" {
 
 # IAP SSH firewall rule
 resource "google_compute_firewall" "iap_ssh" {
-  name    = "allow-iap-ssh-${local.chain_name}"
+  name    = "allow-iap-ssh-${replace(local.chain_name, "_", "-")}"
   network = google_compute_network.vpc_network.name
   
   allow {
@@ -100,14 +100,14 @@ resource "google_compute_firewall" "iap_ssh" {
 
 # Add Cloud NAT router
 resource "google_compute_router" "router" {
-  name    = "indexer-${local.chain_name}-router"
+  name    = "indexer-${replace(local.chain_name, "_", "-")}-router"
   region  = var.region
   network = google_compute_network.vpc_network.id
 }
 
 # Add Cloud NAT config
 resource "google_compute_router_nat" "nat" {
-  name                               = "indexer-${local.chain_name}-nat"
+  name                               = "indexer-${replace(local.chain_name, "_", "-")}-nat"
   router                             = google_compute_router.router.name
   region                             = var.region
   nat_ip_allocate_option             = "AUTO_ONLY"
@@ -116,7 +116,7 @@ resource "google_compute_router_nat" "nat" {
 
 # VM Instance
 resource "google_compute_instance" "indexer_vm" {
-  name         = "indexer-${local.chain_name}"
+  name         = "indexer-${replace(local.chain_name, "_", "-")}"
   machine_type = var.machine_type
   zone         = var.zone
   
