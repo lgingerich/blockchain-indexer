@@ -114,6 +114,28 @@ resource "google_compute_router_nat" "nat" {
   source_subnetwork_ip_ranges_to_nat = "ALL_SUBNETWORKS_ALL_IP_RANGES"
 }
 
+# Create the secret
+resource "google_secret_manager_secret" "indexer_config" {
+  secret_id = "indexer-${replace(local.chain_name, "_", "-")}-config"
+  
+  replication {
+    auto {}
+  }
+}
+
+# Upload the local config to the secret
+resource "google_secret_manager_secret_version" "indexer_config" {
+  secret = google_secret_manager_secret.indexer_config.id
+  secret_data = file("${path.module}/../config.yml")
+}
+
+# Grant the VM's service account access to read the secret
+resource "google_secret_manager_secret_iam_member" "secret_access" {
+  secret_id = google_secret_manager_secret.indexer_config.id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${local.service_account_email}"
+}
+
 # VM Instance
 resource "google_compute_instance" "indexer_vm" {
   name         = "indexer-${replace(local.chain_name, "_", "-")}"
@@ -182,6 +204,10 @@ resource "google_compute_instance" "indexer_vm" {
     mkdir -p /app
     git clone https://github.com/lgingerich/blockchain-indexer.git /app
     cd /app
+
+    # Fetch config from Secret Manager and save it
+    echo "Fetching config from Secret Manager..."
+    gcloud secrets versions access latest --secret="indexer-${replace(local.chain_name, "_", "-")}-config" > /app/config.yml
 
     # Start Docker service
     echo "Starting Docker service..."
