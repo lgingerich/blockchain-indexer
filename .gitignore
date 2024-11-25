@@ -219,3 +219,6 @@ terraform.rc
 
 # Ignore config file
 config.yml
+
+
+*.txt
