@@ -46,7 +46,7 @@ class EVMIndexer:
         self.w3 = AsyncWeb3(AsyncHTTPProvider(new_url))
         return True
 
-    @async_retry(retries=5, base_delay=1, exponential_backoff=True, jitter=True)
+    @async_retry(retries=5, base_delay=2, exponential_backoff=True, jitter=True)
     async def get_block_number(self) -> int:
         try:
             block_number = await self.w3.eth.get_block_number()
@@ -63,7 +63,7 @@ class EVMIndexer:
                 return await self.get_block_number()
             raise
 
-    @async_retry(retries=5, base_delay=1, exponential_backoff=True, jitter=True)
+    @async_retry(retries=5, base_delay=2, exponential_backoff=True, jitter=True)
     async def get_block(self, block_number: int) -> dict | None:
         try:
             logger.info(f"Fetching block with number: {block_number}")
@@ -85,7 +85,7 @@ class EVMIndexer:
                 return await self.get_block(block_number)
             raise
 
-    @async_retry(retries=5, base_delay=1, exponential_backoff=True, jitter=True)
+    @async_retry(retries=5, base_delay=2, exponential_backoff=True, jitter=True)
     async def get_transaction_receipt(self, transaction_hash: str) -> dict | None:
         try:
             receipt = await self.w3.eth.get_transaction_receipt(transaction_hash)
@@ -106,7 +106,7 @@ class EVMIndexer:
                 return await self.get_transaction_receipt(transaction_hash)
             raise
 
-    @async_retry(retries=5, base_delay=1, exponential_backoff=True, jitter=True)
+    @async_retry(retries=5, base_delay=2, exponential_backoff=True, jitter=True)
     async def parse_block_data(
         self,
         timestamp: int,

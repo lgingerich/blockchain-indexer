@@ -26,7 +26,21 @@ class BaseDataManager(ABC):
         pass
     
     @abstractmethod
-    def load_table(self, df: pd.DataFrame, table_id: str, if_exists: str = 'append') -> None:
+    def load_table(self, 
+        df: pd.DataFrame, 
+        table_id: str, 
+        if_exists: str = 'append',
+        **kwargs
+    ) -> None:
+        """
+        Load DataFrame into storage
+        
+        Args:
+            df (pd.DataFrame): DataFrame to save
+            table_id (str): Name of the table
+            if_exists (str): How to handle existing data ('fail', 'replace', 'append')
+            **kwargs: Implementation-specific parameters
+        """
         pass
     
     @abstractmethod

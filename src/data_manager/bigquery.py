@@ -28,17 +28,17 @@ class BigQueryDataManager(BaseDataManager):
             chain_name (str): Name of the chain to work with
             active_datasets (List[str]): List of active datasets to manage
             **kwargs: Configuration parameters
-                - gcp_region (str): Geographic location for BigQuery dataset (required)
+                - location (str): Geographic location for BigQuery dataset (required)
                 - project_id (str): Google Cloud project ID (required)
         """
         if 'project_id' not in kwargs:
             raise ValueError("project_id is required for BigQuery configuration")
-        if 'gcp_region' not in kwargs:
-            raise ValueError("gcp_region is required for BigQuery configuration")
+        if 'location' not in kwargs:
+            raise ValueError("location is required for BigQuery configuration")
         
         self.client = bigquery.Client(project=kwargs['project_id'])
         self.dataset_id = chain_name
-        self.gcp_region = kwargs['gcp_region']
+        self.location = kwargs['location']
         self.active_datasets = active_datasets or ["blocks", "transactions", "logs"]
         
         # Generate schemas dynamically from Pydantic models
@@ -71,16 +71,16 @@ class BigQueryDataManager(BaseDataManager):
         
         try:
             dataset = self.client.get_dataset(dataset_ref)
-            if dataset.location != self.gcp_region:
-                logger.warning(f"Dataset {dataset_id} exists but in different location: {dataset.location} (expected {self.gcp_region})")
+            if dataset.location != self.location:
+                logger.warning(f"Dataset {dataset_id} exists but in different location: {dataset.location} (expected {self.location})")
             else:
-                logger.info(f"Dataset {dataset_id} already exists in {self.gcp_region}")
+                logger.info(f"Dataset {dataset_id} already exists in {self.location}")
         except Exception:
             # Dataset does not exist, create it
             dataset = bigquery.Dataset(dataset_ref)
-            dataset.location = self.gcp_region
+            dataset.location = self.location
             dataset = self.client.create_dataset(dataset)
-            logger.info(f"Created dataset {dataset_id} in location {self.gcp_region}")
+            logger.info(f"Created dataset {dataset_id} in location {self.location}")
 
     def create_table(self, table_id: str, schema: List[bigquery.SchemaField]) -> None:
         """
@@ -113,21 +113,18 @@ class BigQueryDataManager(BaseDataManager):
         df: pd.DataFrame, 
         table_id: str, 
         if_exists: str = 'append',
-        chunk_size: int = 10000) -> None:
+        chunk_size: int = 100,
+        **kwargs
+    ) -> None:
         """
         Load table data into a BigQuery table with specified handling for existing tables
         
         Args:
             df (pd.DataFrame): DataFrame containing the data to load
             table_id (str): ID of the target table
-            if_exists (str): How to handle existing tables:
-                - 'fail': Raise an error if table exists
-                - 'replace': Drop existing table and create new one
-                - 'append': Add data to existing table (default)
+            if_exists (str): How to handle existing tables
             chunk_size (int): Number of rows to load in each batch
-        
-        Raises:
-            ValueError: If table exists and if_exists='fail' or if table_id is invalid
+            **kwargs: Additional parameters
         """
         table_ref = self.client.dataset(self.dataset_id).table(table_id)
         

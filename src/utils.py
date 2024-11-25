@@ -45,7 +45,16 @@ def load_config(file_name: str) -> Dynaconf:
     # Initialize Dynaconf
     project_root = Path(__file__).resolve().parent.parent
     config_path = project_root / file_name
-
+    
+    # Add debug logging
+    logger.debug(f"Attempting to load config from: {config_path}")
+    
+    # Check if path exists and is a file
+    if not config_path.exists():
+        raise FileNotFoundError(f"Configuration file not found at: {config_path}")
+    if not config_path.is_file():
+        raise IsADirectoryError(f"Expected {config_path} to be a file, but it is a directory")
+        
     # Validate that only one 'chain' section is active
     active_chain_count = 0
     with config_path.open('r') as f:
@@ -76,7 +85,7 @@ def load_config(file_name: str) -> Dynaconf:
 
 # Decorator for implementing retry logic with exponential backoff for async functions
 def async_retry(
-    retries: int = 3,
+    retries: int = 5,
     base_delay: int = 1,
     exponential_backoff: bool = True,
     jitter: bool = True,
