@@ -12,11 +12,14 @@ from metrics import (
     start_metrics_server,
     BLOCKS_PROCESSED,
     BLOCK_PROCESSING_TIME,
-    TRANSACTIONS_PROCESSED,
     CURRENT_BLOCK,
     CHAIN_HEAD_BLOCK,
     RPC_REQUESTS,
-    RPC_ERRORS
+    RPC_ERRORS,
+    RPC_LATENCY,
+    SYNC_LAG,
+    STORAGE_OPERATIONS,
+    STORAGE_LATENCY
 )
 
 # Save logs to file
@@ -39,6 +42,30 @@ data_manager = get_data_manager(
 async def main():
     # Start metrics server
     start_metrics_server(8000, addr='0.0.0.0')
+    
+    # Initialize metrics with the chain label
+    chain_name = config.chain.name
+
+    # Initialize all storage operation metrics
+    for operation in ['save_blocks', 'save_transactions', 'save_logs']:
+        for status in ['success', 'error']:
+            STORAGE_OPERATIONS.labels(chain=chain_name, operation=operation, status=status).inc(0)
+        STORAGE_LATENCY.labels(chain=chain_name, operation=operation).observe(0)
+
+    # Initialize RPC metrics
+    for method in ['get_block', 'get_block_number', 'get_transaction_receipt']:
+        RPC_REQUESTS.labels(chain=chain_name, method=method).inc(0)
+        RPC_ERRORS.labels(chain=chain_name, method=method).inc(0)
+        RPC_LATENCY.labels(chain=chain_name, method=method).observe(0)
+
+    # Initialize other metrics
+    BLOCKS_PROCESSED.labels(chain=chain_name).inc(0)
+    BLOCK_PROCESSING_TIME.labels(chain=chain_name).observe(0)
+    CURRENT_BLOCK.labels(chain=chain_name).set(0)
+    CHAIN_HEAD_BLOCK.labels(chain=chain_name).set(0)
+    SYNC_LAG.labels(chain=chain_name).set(0)
+
+    logger.info(f"Initialized metrics for chain: {chain_name}")
     
     try:
         logger.info("Starting indexing process")
@@ -119,10 +146,14 @@ async def main():
                 if block_data.logs:
                     logs_list.extend(block_data.logs)
 
+                # Update current block and sync lag metrics
+                CURRENT_BLOCK.labels(chain=config.chain.name).set(block_number_to_process)
+                SYNC_LAG.labels(chain=config.chain.name).set(current_block_number - block_number_to_process)
+                
                 # When batch size is reached, save to storage
                 if len(blocks_list) >= batch_size:
                     batch_start = time.time()
-                    is_saving_batch = True  # Set flag before saving
+                    is_saving_batch = True
 
                     try:
                         blocks_df = pd.DataFrame([dict(block) for block in blocks_list])
@@ -142,13 +173,32 @@ async def main():
                         
                         for table_id, df in df_mapping.items():
                             if not df.empty and table_id in config.datasets:
-                                data_manager.load_table(
-                                    df=df,
-                                    table_id=table_id,
-                                    if_exists='append',
-                                    start_block=start_block,
-                                    end_block=end_block
-                                )
+                                storage_start = time.time()
+                                try:
+                                    data_manager.load_table(
+                                        df=df,
+                                        table_id=table_id,
+                                        if_exists='append',
+                                        start_block=start_block,
+                                        end_block=end_block
+                                    )
+                                    STORAGE_OPERATIONS.labels(
+                                        chain=config.chain.name,
+                                        operation=f'save_{table_id}',
+                                        status='success'
+                                    ).inc()
+                                except Exception as e:
+                                    STORAGE_OPERATIONS.labels(
+                                        chain=config.chain.name,
+                                        operation=f'save_{table_id}',
+                                        status='error'
+                                    ).inc()
+                                    raise
+                                finally:
+                                    STORAGE_LATENCY.labels(
+                                        chain=config.chain.name,
+                                        operation=f'save_{table_id}'
+                                    ).observe(time.time() - storage_start)
                         batch_duration = time.time() - batch_start
                         logger.info(f"Saved batch from block {start_block} to {end_block} in {batch_duration:.2f} seconds")
                     finally:

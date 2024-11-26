@@ -1,5 +1,6 @@
 from prometheus_client import Counter, Gauge, Histogram, Summary, start_http_server
 from typing import Dict
+from loguru import logger
 
 # Block processing metrics
 BLOCKS_PROCESSED = Counter(
@@ -13,19 +14,6 @@ BLOCK_PROCESSING_TIME = Histogram(
     'Time spent processing blocks',
     ['chain'],
     buckets=[.005, .01, .025, .05, .075, .1, .25, .5, .75, 1.0, 2.5, 5.0]
-)
-
-# Transaction metrics
-TRANSACTIONS_PROCESSED = Counter(
-    'indexer_transactions_processed_total',
-    'Total number of transactions processed',
-    ['chain']
-)
-
-TRANSACTION_VALUE = Summary(
-    'indexer_transaction_value_eth',
-    'Transaction values in ETH',
-    ['chain']
 )
 
 # Chain metrics
@@ -60,11 +48,11 @@ RPC_ERRORS = Counter(
     ['chain', 'method']
 )
 
-RPC_LATENCY = Histogram(
+RPC_LATENCY = Summary(
     'indexer_rpc_latency_seconds',
     'RPC request latency',
     ['chain', 'method'],
-    buckets=[.005, .01, .025, .05, .075, .1, .25, .5, .75, 1.0, 2.5, 5.0]
+    quantiles=(0.5, 0.75, 0.90, 0.95, 0.99)
 )
 
 # Storage metrics
@@ -74,11 +62,11 @@ STORAGE_OPERATIONS = Counter(
     ['chain', 'operation', 'status']
 )
 
-STORAGE_LATENCY = Histogram(
+STORAGE_LATENCY = Summary(
     'indexer_storage_latency_seconds',
     'Storage operation latency',
     ['chain', 'operation'],
-    buckets=[.005, .01, .025, .05, .075, .1, .25, .5, .75, 1.0, 2.5, 5.0]
+    quantiles=(0.5, 0.75, 0.90, 0.95, 0.99)
 )
 
 def start_metrics_server(port: int = 8000, addr: str = ''):
@@ -88,4 +76,11 @@ def start_metrics_server(port: int = 8000, addr: str = ''):
         port (int): Port to listen on
         addr (str): Address to bind to (default: all interfaces)
     """
+    # Add debug logging
+    logger.info(f"Starting metrics server on {addr}:{port}")
     start_http_server(port, addr)
+    
+    # Initialize metrics with default values
+    CURRENT_BLOCK._metrics.clear()  # Clear any existing metrics
+    CHAIN_HEAD_BLOCK._metrics.clear()
+    logger.info("Metrics initialized")
