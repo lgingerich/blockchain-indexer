@@ -2,16 +2,17 @@ services:
   indexer:
     build: .
     container_name: blockchain-indexer
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: 2G
-        reservations:
-          cpus: '0.5'
-          memory: 1G
+    ports:
+      - "8000:8000"
     volumes:
       - ./config.yml:/app/config.yml
       - ./logs:/app/logs
       - ~/.config/gcloud/application_default_credentials.json:/root/.config/gcloud/application_default_credentials.json
+    networks:
+      - monitoring
     restart: unless-stopped
+
+networks:
+  monitoring:
+    external: true
+    name: monitoring

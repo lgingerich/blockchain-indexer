@@ -8,6 +8,16 @@ from data_manager import get_data_manager
 from indexer import EVMIndexer
 from data_types import ChainType
 from utils import load_config
+from metrics import (
+    start_metrics_server,
+    BLOCKS_PROCESSED,
+    BLOCK_PROCESSING_TIME,
+    TRANSACTIONS_PROCESSED,
+    CURRENT_BLOCK,
+    CHAIN_HEAD_BLOCK,
+    RPC_REQUESTS,
+    RPC_ERRORS
+)
 
 # Save logs to file
 logger.add("logs/indexer.log", rotation="100 MB", retention="10 days")
@@ -27,6 +37,9 @@ data_manager = get_data_manager(
 )
 
 async def main():
+    # Start metrics server
+    start_metrics_server(8000, addr='0.0.0.0')
+    
     try:
         logger.info("Starting indexing process")
         logger.info(f"Processing {config.chain.name} chain")
@@ -51,7 +64,8 @@ async def main():
         while True:           
             # Normal block processing
             current_block_number = await evm_indexer.get_block_number()
-
+            CHAIN_HEAD_BLOCK.labels(chain=config.chain.name).set(current_block_number)
+            
             # If indexer gets too close to tip, back off and retry
             if block_number_to_process > (current_block_number - hard_limit - buffer):
                 logger.info(f"Next block ready to process is within {current_block_number - block_number_to_process} blocks of chain tip")
@@ -94,6 +108,9 @@ async def main():
                     block=raw_block,
                     receipts=receipts
                 )
+
+                # Increment blocks processed counter
+                BLOCKS_PROCESSED.labels(chain=config.chain.name).inc()
 
                 # Add to batch lists
                 blocks_list.append(block_data.block)
