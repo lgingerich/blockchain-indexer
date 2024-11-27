@@ -8,6 +8,17 @@ from data_manager import get_data_manager
 from indexer import EVMIndexer
 from data_types import ChainType
 from utils import load_config
+from metrics import (
+    start_metrics_server,
+    BLOCKS_PROCESSED,
+    LATEST_BLOCK_PROCESSING_TIME,
+    LATEST_PROCESSED_BLOCK,
+    CHAIN_TIP_BLOCK,
+    CHAIN_TIP_LAG,
+    RPC_REQUESTS,
+    RPC_ERRORS,
+    RPC_LATENCY
+)
 
 # Save logs to file
 logger.add("logs/indexer.log", rotation="100 MB", retention="10 days")
@@ -27,6 +38,27 @@ data_manager = get_data_manager(
 )
 
 async def main():
+    # Start metrics server
+    start_metrics_server(8000, addr='0.0.0.0')
+    
+    # Initialize metrics with the chain label
+    chain_name = config.chain.name
+
+    # Initialize RPC metrics
+    for method in ['eth_blockNumber', 'eth_getBlockByNumber', 'eth_getTransactionReceipt']:
+        RPC_REQUESTS.labels(chain=chain_name, method=method).inc(0)
+        RPC_ERRORS.labels(chain=chain_name, method=method).inc(0)
+        RPC_LATENCY.labels(chain=chain_name, method=method).observe(0)
+
+    # Initialize other metrics
+    BLOCKS_PROCESSED.labels(chain=chain_name).inc(0)
+    LATEST_BLOCK_PROCESSING_TIME.labels(chain=chain_name).set(0)
+    LATEST_PROCESSED_BLOCK.labels(chain=chain_name).set(0)
+    CHAIN_TIP_BLOCK.labels(chain=chain_name).set(0)
+    CHAIN_TIP_LAG.labels(chain=chain_name).set(0)
+
+    logger.info(f"Initialized metrics for chain: {chain_name}")
+    
     try:
         logger.info("Starting indexing process")
         logger.info(f"Processing {config.chain.name} chain")
@@ -51,7 +83,8 @@ async def main():
         while True:           
             # Normal block processing
             current_block_number = await evm_indexer.get_block_number()
-
+            CHAIN_TIP_BLOCK.labels(chain=config.chain.name).set(current_block_number)
+            
             # If indexer gets too close to tip, back off and retry
             if block_number_to_process > (current_block_number - hard_limit - buffer):
                 logger.info(f"Next block ready to process is within {current_block_number - block_number_to_process} blocks of chain tip")
@@ -59,6 +92,9 @@ async def main():
                 await asyncio.sleep(1)
                 continue
                 
+            # Start timing the block processing
+            block_start_time = time.time()
+
             # Process next block in sequence
             raw_block = await evm_indexer.get_block(block_number_to_process)
             if raw_block is None:
@@ -95,6 +131,13 @@ async def main():
                     receipts=receipts
                 )
 
+                # Record the time taken to process the block
+                block_processing_duration = time.time() - block_start_time
+                LATEST_BLOCK_PROCESSING_TIME.labels(chain=config.chain.name).set(block_processing_duration)
+
+                # Increment blocks processed counter
+                BLOCKS_PROCESSED.labels(chain=config.chain.name).inc()
+
                 # Add to batch lists
                 blocks_list.append(block_data.block)
                 if block_data.transactions:
@@ -102,10 +145,14 @@ async def main():
                 if block_data.logs:
                     logs_list.extend(block_data.logs)
 
+                # Update current block and sync lag metrics
+                LATEST_PROCESSED_BLOCK.labels(chain=config.chain.name).set(block_number_to_process)
+                CHAIN_TIP_LAG.labels(chain=config.chain.name).set(current_block_number - block_number_to_process)
+                
                 # When batch size is reached, save to storage
                 if len(blocks_list) >= batch_size:
                     batch_start = time.time()
-                    is_saving_batch = True  # Set flag before saving
+                    is_saving_batch = True
 
                     try:
                         blocks_df = pd.DataFrame([dict(block) for block in blocks_list])
@@ -125,13 +172,16 @@ async def main():
                         
                         for table_id, df in df_mapping.items():
                             if not df.empty and table_id in config.datasets:
-                                data_manager.load_table(
-                                    df=df,
-                                    table_id=table_id,
-                                    if_exists='append',
-                                    start_block=start_block,
-                                    end_block=end_block
-                                )
+                                try:
+                                    data_manager.load_table(
+                                        df=df,
+                                        table_id=table_id,
+                                        if_exists='append',
+                                        start_block=start_block,
+                                        end_block=end_block
+                                    )
+                                except Exception as e:
+                                    raise
                         batch_duration = time.time() - batch_start
                         logger.info(f"Saved batch from block {start_block} to {end_block} in {batch_duration:.2f} seconds")
                     finally:

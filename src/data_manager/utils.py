@@ -13,6 +13,9 @@ def get_bigquery_schema(model_class) -> List[bigquery.SchemaField]:
         date: 'DATE',
     }
 
+    # Special column names that should use NUMERIC type
+    NUMERIC_COLUMNS = {'difficulty', 'total_difficulty'}
+
     schema = []
     
     # Get all fields including from parent classes
@@ -26,36 +29,36 @@ def get_bigquery_schema(model_class) -> List[bigquery.SchemaField]:
         if field_name.startswith('_') or field_name == 'model_config':
             continue
             
-        # Check if field is a generic type (e.g. List, Optional, Union, Dict, Tuple, etc.)
+        # Override type for specific column names
+        if field_name in NUMERIC_COLUMNS:
+            bq_type = 'NUMERIC'
+        else:
+            # Check if field is a generic type (e.g. List, Optional, Union, Dict, Tuple, etc.)
+            if hasattr(field, "__origin__"):
+                if field.__origin__ == list:
+                    inner_type = field.__args__[0]
+                    bq_type = TYPE_MAPPING.get(inner_type, 'STRING')
+                else:
+                    field_type = field.__args__[0]
+                    bq_type = TYPE_MAPPING.get(field_type, 'STRING')
+            else:
+                field_type = field
+                bq_type = TYPE_MAPPING.get(field_type, 'STRING')
+
+        # Create schema field with appropriate mode
         if hasattr(field, "__origin__"):
             if field.__origin__ == list:
-                # Get the type of the list elements
-                inner_type = field.__args__[0]
-                bq_type = TYPE_MAPPING.get(inner_type, 'STRING') # Default to STRING if type is not found
-                schema_field = bigquery.SchemaField(
-                    name=field_name,
-                    field_type=bq_type,
-                    mode='REPEATED'
-                )
+                mode = 'REPEATED'
             else:
-                field_type = field.__args__[0]
-                bq_type = TYPE_MAPPING.get(field_type, 'STRING') # Default to STRING if type is not found
-                schema_field = bigquery.SchemaField(
-                    name=field_name,
-                    field_type=bq_type,
-                    mode='NULLABLE'
-                )
-        # If field is not a generic type, just use the type directly
-        # All optional fields are defined with the type Optional[type]. Any optional
-        # fields are handled above with the generic type check.
+                mode = 'NULLABLE'
         else:
-            field_type = field
-            bq_type = TYPE_MAPPING.get(field_type, 'STRING') # Default to STRING if type is not found
-            schema_field = bigquery.SchemaField(
-                name=field_name,
-                field_type=bq_type,
-                mode='REQUIRED'
-            )
+            mode = 'REQUIRED'
+
+        schema_field = bigquery.SchemaField(
+            name=field_name,
+            field_type=bq_type,
+            mode=mode
+        )
         
         schema.append(schema_field)
     
