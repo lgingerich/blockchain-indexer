@@ -1,5 +1,4 @@
-from prometheus_client import Counter, Gauge, Histogram, Summary, start_http_server
-from typing import Dict
+from prometheus_client import Counter, Gauge, Histogram, start_http_server
 from loguru import logger
 
 # Block processing metrics
@@ -9,29 +8,29 @@ BLOCKS_PROCESSED = Counter(
     ['chain']
 )
 
-BLOCK_PROCESSING_TIME = Histogram(
-    'indexer_block_processing_seconds',
-    'Time spent processing blocks',
-    ['chain'],
-    buckets=[.005, .01, .025, .05, .075, .1, .25, .5, .75, 1.0, 2.5, 5.0]
-)
-
-# Chain metrics
-CURRENT_BLOCK = Gauge(
-    'indexer_current_block_number',
-    'Current block number being processed',
+LATEST_PROCESSED_BLOCK = Gauge(
+    'indexer_latest_processed_block_number',
+    'Latest block number processed',
     ['chain']
 )
 
-CHAIN_HEAD_BLOCK = Gauge(
-    'indexer_chain_head_block_number',
+# Gauge for the latest block processing time
+LATEST_BLOCK_PROCESSING_TIME = Gauge(
+    'indexer_latest_block_processing_seconds',
+    'Time spent processing the latest block',
+    ['chain']
+)
+
+# Chain metrics
+CHAIN_TIP_BLOCK = Gauge(
+    'indexer_chain_tip_block_number',
     'Latest block number on chain',
     ['chain']
 )
 
-SYNC_LAG = Gauge(
-    'indexer_sync_lag_blocks',
-    'Number of blocks behind chain head',
+CHAIN_TIP_LAG = Gauge(
+    'indexer_chain_tip_lag',
+    'Number of blocks behind chain tip',
     ['chain']
 )
 
@@ -48,25 +47,12 @@ RPC_ERRORS = Counter(
     ['chain', 'method']
 )
 
-RPC_LATENCY = Summary(
+# Define a Histogram metric
+RPC_LATENCY = Histogram(
     'indexer_rpc_latency_seconds',
     'RPC request latency',
     ['chain', 'method'],
-    quantiles=(0.5, 0.75, 0.90, 0.95, 0.99)
-)
-
-# Storage metrics
-STORAGE_OPERATIONS = Counter(
-    'indexer_storage_operations_total',
-    'Total number of storage operations',
-    ['chain', 'operation', 'status']
-)
-
-STORAGE_LATENCY = Summary(
-    'indexer_storage_latency_seconds',
-    'Storage operation latency',
-    ['chain', 'operation'],
-    quantiles=(0.5, 0.75, 0.90, 0.95, 0.99)
+    buckets=[0.025, 0.05, 0.075, 0.1, 0.15, 0.2, 0.3, 0.5, 1.0, 5.0, 10.0]
 )
 
 def start_metrics_server(port: int = 8000, addr: str = ''):
@@ -81,6 +67,12 @@ def start_metrics_server(port: int = 8000, addr: str = ''):
     start_http_server(port, addr)
     
     # Initialize metrics with default values
-    CURRENT_BLOCK._metrics.clear()  # Clear any existing metrics
-    CHAIN_HEAD_BLOCK._metrics.clear()
+    BLOCKS_PROCESSED._metrics.clear()  # Clear any existing metrics
+    LATEST_PROCESSED_BLOCK._metrics.clear()
+    LATEST_BLOCK_PROCESSING_TIME._metrics.clear()
+    CHAIN_TIP_BLOCK._metrics.clear()
+    CHAIN_TIP_LAG._metrics.clear()
+    RPC_REQUESTS._metrics.clear()
+    RPC_ERRORS._metrics.clear()
+    RPC_LATENCY._metrics.clear()
     logger.info("Metrics initialized")

@@ -29,3 +29,5 @@ storage:
   type: "bigquery"
   project_id: "your-cloud-provider-project-id"
   location: "US"
+
+# TO DO: Add monitoring configuration

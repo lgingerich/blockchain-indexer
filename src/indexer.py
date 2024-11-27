@@ -1,11 +1,10 @@
 from dataclasses import dataclass
 from loguru import logger
-from typing import Dict, Any, cast, List, Optional
+import time
+from typing import cast, List
 from web3 import AsyncWeb3, AsyncHTTPProvider
 from web3.exceptions import Web3Exception, BlockNotFound, TransactionNotFound
-from aiohttp import ClientSession, TCPConnector
 
-from parsers import BLOCK_PARSERS, TRANSACTION_PARSERS, LOG_PARSERS
 from data_types import (
     ChainType,
     Block,
@@ -15,14 +14,13 @@ from data_types import (
     TRANSACTION_TYPE_MAPPING,
     LOG_TYPE_MAPPING
 )
-from utils import async_retry
 from metrics import (
     RPC_REQUESTS,
     RPC_ERRORS,
-    RPC_LATENCY,
-    BLOCK_PROCESSING_TIME,
+    RPC_LATENCY
 )
-import time
+from parsers import BLOCK_PARSERS, TRANSACTION_PARSERS, LOG_PARSERS
+from utils import async_retry
 
 @dataclass
 class BlockData:
@@ -39,15 +37,6 @@ class EVMIndexer:
         self.w3 = AsyncWeb3(AsyncHTTPProvider(self.rpc_urls[0]))
         self.chain_type = chain_type
         
-        # Initialize all metrics with initial values
-        BLOCK_PROCESSING_TIME.labels(chain=self.chain_type.value).observe(0)
-        
-        # Initialize RPC metrics
-        for method in ['get_block', 'get_block_number', 'get_transaction_receipt']:
-            RPC_REQUESTS.labels(chain=self.chain_type.value, method=method).inc(0)
-            RPC_ERRORS.labels(chain=self.chain_type.value, method=method).inc(0)
-            RPC_LATENCY.labels(chain=self.chain_type.value, method=method).observe(0)
-
     def _rotate_rpc(self) -> bool:
         """Rotate to the next RPC URL in the list
         Returns:
@@ -64,20 +53,20 @@ class EVMIndexer:
 
     @async_retry(retries=5, base_delay=2, exponential_backoff=True, jitter=True)
     async def get_block_number(self) -> int:
-        start_time = time.time()
         try:
+            start_time = time.time()
             block_number = await self.w3.eth.get_block_number()
-            RPC_REQUESTS.labels(chain=self.chain_type.value, method='get_block_number').inc()
-            RPC_LATENCY.labels(chain=self.chain_type.value, method='get_block_number').observe(time.time() - start_time)
+            RPC_REQUESTS.labels(chain=self.chain_type.value, method='eth_blockNumber').inc()
+            RPC_LATENCY.labels(chain=self.chain_type.value, method='eth_blockNumber').observe(time.time() - start_time)
             return block_number
         except Web3Exception as e:
-            RPC_ERRORS.labels(chain=self.chain_type.value, method='get_block_number').inc()
+            RPC_ERRORS.labels(chain=self.chain_type.value, method='eth_blockNumber').inc()
             logger.error(f"Failed to get block number: {str(e)}")
             if self._rotate_rpc():
                 return await self.get_block_number()
             raise
         except Exception as e:
-            RPC_ERRORS.labels(chain=self.chain_type.value, method='get_block_number').inc()
+            RPC_ERRORS.labels(chain=self.chain_type.value, method='eth_blockNumber').inc()
             logger.error(f"Failed to get block number: {type(e).__name__}: {str(e)}")
             if self._rotate_rpc():
                 return await self.get_block_number()
@@ -85,27 +74,27 @@ class EVMIndexer:
 
     @async_retry(retries=5, base_delay=2, exponential_backoff=True, jitter=True)
     async def get_block(self, block_number: int) -> dict | None:
-        start_time = time.time()
         try:
             logger.info(f"Fetching block with number: {block_number}")
+            start_time = time.time()
             raw_block = await self.w3.eth.get_block(block_number, full_transactions=True)
-            RPC_REQUESTS.labels(chain=self.chain_type.value, method='get_block').inc()
-            RPC_LATENCY.labels(chain=self.chain_type.value, method='get_block').observe(time.time() - start_time)
+            RPC_LATENCY.labels(chain=self.chain_type.value, method='eth_getBlockByNumber').observe(time.time() - start_time)
+            RPC_REQUESTS.labels(chain=self.chain_type.value, method='eth_getBlockByNumber').inc()        
             return raw_block
         except BlockNotFound:
-            RPC_ERRORS.labels(chain=self.chain_type.value, method='get_block').inc()
+            RPC_ERRORS.labels(chain=self.chain_type.value, method='eth_getBlockByNumber').inc()
             logger.warning(f"Block {block_number} not found")
             if self._rotate_rpc():
                 return await self.get_block(block_number)
             return None
         except Web3Exception as e:
-            RPC_ERRORS.labels(chain=self.chain_type.value, method='get_block').inc()
+            RPC_ERRORS.labels(chain=self.chain_type.value, method='eth_getBlockByNumber').inc()
             logger.error(f"Failed to get block {block_number}: {str(e)}")
             if self._rotate_rpc():
                 return await self.get_block(block_number)
             raise
         except Exception as e:
-            RPC_ERRORS.labels(chain=self.chain_type.value, method='get_block').inc()
+            RPC_ERRORS.labels(chain=self.chain_type.value, method='eth_getBlockByNumber').inc()
             logger.error(f"Failed to get block {block_number}: {type(e).__name__}: {str(e)}")
             if self._rotate_rpc():
                 return await self.get_block(block_number)
@@ -113,26 +102,26 @@ class EVMIndexer:
 
     @async_retry(retries=5, base_delay=2, exponential_backoff=True, jitter=True)
     async def get_transaction_receipt(self, transaction_hash: str) -> dict | None:
-        start_time = time.time()
         try:
+            start_time = time.time()
             receipt = await self.w3.eth.get_transaction_receipt(transaction_hash)
-            RPC_REQUESTS.labels(chain=self.chain_type.value, method='get_transaction_receipt').inc()
-            RPC_LATENCY.labels(chain=self.chain_type.value, method='get_transaction_receipt').observe(time.time() - start_time)
+            RPC_LATENCY.labels(chain=self.chain_type.value, method='eth_getTransactionReceipt').observe(time.time() - start_time)
+            RPC_REQUESTS.labels(chain=self.chain_type.value, method='eth_getTransactionReceipt').inc()
             return receipt
         except TransactionNotFound:
-            RPC_ERRORS.labels(chain=self.chain_type.value, method='get_transaction_receipt').inc()
+            RPC_ERRORS.labels(chain=self.chain_type.value, method='eth_getTransactionReceipt').inc()
             logger.warning(f"Transaction {transaction_hash} not found")
             if self._rotate_rpc():
                 return await self.get_transaction_receipt(transaction_hash)
             return None
         except Web3Exception as e:
-            RPC_ERRORS.labels(chain=self.chain_type.value, method='get_transaction_receipt').inc()
+            RPC_ERRORS.labels(chain=self.chain_type.value, method='eth_getTransactionReceipt').inc()
             logger.error(f"Failed to get receipt for transaction {transaction_hash}: {str(e)}")
             if self._rotate_rpc():
                 return await self.get_transaction_receipt(transaction_hash)
             raise
         except Exception as e:
-            RPC_ERRORS.labels(chain=self.chain_type.value, method='get_transaction_receipt').inc()
+            RPC_ERRORS.labels(chain=self.chain_type.value, method='eth_getTransactionReceipt').inc()
             logger.error(f"Failed to get receipt for transaction {transaction_hash}: {type(e).__name__}: {str(e)}")
             if self._rotate_rpc():
                 return await self.get_transaction_receipt(transaction_hash)
@@ -178,7 +167,6 @@ class EVMIndexer:
                     parsed_log = cast(Log, log_class(**parsed_log_data))
                     parsed_logs.append(parsed_log)
 
-            BLOCK_PROCESSING_TIME.labels(chain=self.chain_type.value).observe(time.time() - start_time)
             return BlockData(
                 block=parsed_block,
                 transactions=parsed_transactions,

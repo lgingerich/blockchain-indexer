@@ -6,7 +6,7 @@ services:
       - "9090:9090"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-      - /tmp/prometheus:/prometheus  # Data will be cleared on system restart
+      - /tmp/prometheus:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
@@ -22,9 +22,8 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - ./grafana/provisioning:/etc/grafana/provisioning
-      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
-      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - /tmp/grafana:/var/lib/grafana
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_SECURITY_ADMIN_USER=admin
@@ -37,7 +36,3 @@ networks:
   monitoring:
     name: monitoring
     driver: bridge
-
-volumes:
-  prometheus_data:
-  grafana_data:
