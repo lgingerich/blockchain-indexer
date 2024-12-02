@@ -24,6 +24,7 @@ class ChainType(Enum):
     ARBITRUM = "arbitrum"
     CRONOS_ZKEVM = "cronos_zkevm"
     ETHEREUM = "ethereum"
+    ZERO = "zero"
     ZKSYNC = "zksync"
     ZKSYNC_SEPOLIA = "zksync_sepolia"
 
@@ -38,6 +39,7 @@ BLOCK_TYPE_MAPPING: dict[ChainType, Type[BaseBlock]] = {
     ChainType.ARBITRUM: ArbitrumBlock,
     ChainType.CRONOS_ZKEVM: ZKsyncBlock,
     ChainType.ETHEREUM: EthereumBlock,
+    ChainType.ZERO: ZKsyncBlock,
     ChainType.ZKSYNC: ZKsyncBlock,
     ChainType.ZKSYNC_SEPOLIA: ZKsyncBlock,
 }
@@ -49,6 +51,7 @@ LOG_TYPE_MAPPING: dict[ChainType, Type[BaseLog]] = {
     ChainType.ARBITRUM: ArbitrumLog,
     ChainType.CRONOS_ZKEVM: ZKsyncLog,
     ChainType.ETHEREUM: EthereumLog,
+    ChainType.ZERO: ZKsyncLog,
     ChainType.ZKSYNC: ZKsyncLog,
     ChainType.ZKSYNC_SEPOLIA: ZKsyncLog,
 }
@@ -60,6 +63,7 @@ TRANSACTION_TYPE_MAPPING: dict[ChainType, Type[BaseTransaction]] = {
     ChainType.ARBITRUM: ArbitrumTransaction,
     ChainType.CRONOS_ZKEVM: ZKsyncTransaction,
     ChainType.ETHEREUM: EthereumTransaction,
+    ChainType.ZERO: ZKsyncTransaction,
     ChainType.ZKSYNC: ZKsyncTransaction,
     ChainType.ZKSYNC_SEPOLIA: ZKsyncTransaction,
 }
