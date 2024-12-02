@@ -38,8 +38,9 @@ data_manager = get_data_manager(
 )
 
 async def main():
-    # Start metrics server
-    start_metrics_server(8000, addr='0.0.0.0')
+    # Start metrics server if a port is specified
+    if config.monitoring.port:
+        start_metrics_server(config.monitoring.port)
     
     # Initialize metrics with the chain label
     chain_name = config.chain.name

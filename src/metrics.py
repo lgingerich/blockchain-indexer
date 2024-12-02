@@ -14,7 +14,6 @@ LATEST_PROCESSED_BLOCK = Gauge(
     ['chain']
 )
 
-# Gauge for the latest block processing time
 LATEST_BLOCK_PROCESSING_TIME = Gauge(
     'indexer_latest_block_processing_seconds',
     'Time spent processing the latest block',
@@ -47,7 +46,6 @@ RPC_ERRORS = Counter(
     ['chain', 'method']
 )
 
-# Define a Histogram metric
 RPC_LATENCY = Histogram(
     'indexer_rpc_latency_seconds',
     'RPC request latency',
@@ -55,24 +53,30 @@ RPC_LATENCY = Histogram(
     buckets=[0.025, 0.05, 0.075, 0.1, 0.15, 0.2, 0.3, 0.5, 1.0, 5.0, 10.0]
 )
 
-def start_metrics_server(port: int = 8000, addr: str = ''):
+def start_metrics_server(port: int = 9100, addr: str = '0.0.0.1'):
     """Start Prometheus metrics server
     
     Args:
         port (int): Port to listen on
         addr (str): Address to bind to (default: all interfaces)
     """
-    # Add debug logging
-    logger.info(f"Starting metrics server on {addr}:{port}")
+    # Start the metrics HTTP server
+    logger.info(f"Starting Prometheus metrics server on {addr}:{port}")
     start_http_server(port, addr)
     
-    # Initialize metrics with default values
-    BLOCKS_PROCESSED._metrics.clear()  # Clear any existing metrics
-    LATEST_PROCESSED_BLOCK._metrics.clear()
-    LATEST_BLOCK_PROCESSING_TIME._metrics.clear()
-    CHAIN_TIP_BLOCK._metrics.clear()
-    CHAIN_TIP_LAG._metrics.clear()
-    RPC_REQUESTS._metrics.clear()
-    RPC_ERRORS._metrics.clear()
-    RPC_LATENCY._metrics.clear()
-    logger.info("Metrics initialized")
+    # Reset all metrics to clear any stale values
+    metrics_to_clear = [
+        BLOCKS_PROCESSED,
+        LATEST_PROCESSED_BLOCK, 
+        LATEST_BLOCK_PROCESSING_TIME,
+        CHAIN_TIP_BLOCK,
+        CHAIN_TIP_LAG,
+        RPC_REQUESTS,
+        RPC_ERRORS,
+        RPC_LATENCY
+    ]
+    
+    for metric in metrics_to_clear:
+        metric._metrics.clear()
+        
+    logger.info("All metrics initialized to clean state")

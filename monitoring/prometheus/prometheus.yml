@@ -7,6 +7,6 @@ scrape_configs:
     metrics_path: /metrics
     scheme: http
     static_configs:
-      - targets: ['blockchain-indexer:8000']
+      - targets: ['blockchain-indexer:9100'] # TODO: Make this dynamic
         labels:
           environment: 'development'

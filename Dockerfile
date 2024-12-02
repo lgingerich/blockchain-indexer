@@ -8,8 +8,9 @@ ENV PYTHONUNBUFFERED=1
 # Set the working directory
 WORKDIR /app
 
-# Expose port 8000 for Prometheus metrics
-EXPOSE 8000
+# Expose port for Prometheus metrics
+# TODO: Make this dynamic
+EXPOSE 9100
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \

@@ -19,6 +19,7 @@ locals {
  config = yamldecode(file("${path.module}/../config.yml"))
  project_id = local.config.storage.project_id
  chain_name = local.config.chain.name
+ metrics_public = try(local.config.monitoring.exposure.type, "local") == "public"
 }
 
 provider "google" {
@@ -68,6 +69,15 @@ resource "google_project_iam_member" "monitoring_access" {
   project = local.project_id
   role    = "roles/monitoring.metricWriter"
   member  = "serviceAccount:${local.service_account_email}"
+}
+
+# Static IP for Prometheus metrics endpoint
+resource "google_compute_address" "metrics_ip" {
+  # Only create if metrics should be public
+  count        = local.metrics_public ? 1 : 0
+  name         = "indexer-${replace(local.chain_name, "_", "-")}-metrics-ip"
+  region       = var.region
+  description  = "Static IP for Prometheus metrics endpoint"
 }
 
 # VPC network
@@ -153,7 +163,13 @@ resource "google_compute_instance" "indexer_vm" {
 
   network_interface {
     subnetwork = google_compute_subnetwork.subnet.id
-    # No external IP
+    # Conditionally assign external IP
+    dynamic "access_config" {
+      for_each = local.metrics_public ? [1] : []
+      content {
+        nat_ip = google_compute_address.metrics_ip[0].address
+      }
+    }
   }
 
   service_account {
@@ -171,6 +187,14 @@ resource "google_compute_instance" "indexer_vm" {
     # Set up logging
     exec 1> >(logger -s -t $(basename $0)) 2>&1
     echo "Starting startup script execution..."
+
+    # Log metrics configuration
+    echo "Metrics endpoint configuration:"
+    %{if local.metrics_public}
+    echo "Public metrics enabled. Endpoint IP: ${google_compute_address.metrics_ip[0].address}"
+    %{else}
+    echo "Metrics endpoint: local only"
+    %{endif}
 
     # Install Google Cloud Ops Agent
     echo "Installing Google Cloud Ops Agent..."
