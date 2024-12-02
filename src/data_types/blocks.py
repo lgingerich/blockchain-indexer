@@ -1,4 +1,5 @@
 from datetime import datetime, date
+from decimal import Decimal
 from pydantic import BaseModel
 from typing import List, Optional
 
@@ -25,7 +26,7 @@ class BaseBlock(BaseModel):
     block_number: int
     block_date: date
     block_time: datetime
-    difficulty: int
+    difficulty: Decimal # Must be Decimal for BigQuery NUMERIC type
     extra_data: Optional[str] = None
     gas_limit: int
     gas_used: int
@@ -38,7 +39,7 @@ class BaseBlock(BaseModel):
     sha3_uncles: str
     size: int
     state_root: str
-    total_difficulty: int
+    total_difficulty: Decimal # Must be Decimal for BigQuery NUMERIC type
     transactions: List[str] = []
     transactions_root: str
     uncles: List[str] = []

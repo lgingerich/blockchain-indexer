@@ -7,7 +7,7 @@ import sys
 from data_manager import get_data_manager
 from indexer import EVMIndexer
 from data_types import ChainType
-from utils import load_config
+from utils import load_config, hex_to_str
 from metrics import (
     start_metrics_server,
     BLOCKS_PROCESSED,
@@ -120,7 +120,7 @@ async def main():
                 for tx in raw_block['transactions']:
                     receipt = await evm_indexer.get_transaction_receipt(tx['hash'])
                     if receipt is None:
-                        logger.error(f"Failed to fetch receipt for transaction {tx['hash']}")
+                        logger.error(f"Failed to fetch receipt for transaction {hex_to_str(tx['hash'])}")
                         continue
                     receipts.append(receipt)
 
@@ -194,7 +194,7 @@ async def main():
                 block_number_to_process += 1
 
             except Exception as e:
-                logger.error(f"Error processing block {block_number_to_process}: {e}")
+                logger.error(f"Error processing block {block_number_to_process}")
                 block_number_to_process += 1
                 continue
 
