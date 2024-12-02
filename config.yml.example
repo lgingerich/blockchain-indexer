@@ -12,6 +12,10 @@ chain:
     - "https://rpc.ankr.com/eth"
     - "https://eth.drpc.org"
 
+  name: "zero" # Zero Network by Zerion
+  rpc_urls:
+    - "https://rpc.zerion.io/v1/zero"
+
   name: "zksync"
   rpc_urls:
     - "https://mainnet.era.zksync.io"
