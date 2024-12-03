@@ -1,3 +1,7 @@
+// Temporary disable warnings for development
+#![allow(unused_imports)]
+#![allow(unused_variables)]
+
 mod indexer;
 
 use alloy_eips::{BlockId, BlockNumberOrTag};
@@ -27,7 +31,7 @@ async fn main() -> Result<()> {
     // Get receipts by block number
     let block_id = BlockId::Number(latest_block);
     let receipts = indexer::get_block_receipts(&provider, block_id).await?;
-    
+
     println!("Latest block number: {:?}", latest_block);
     println!("Block: {:?}", block);
     println!("Receipts: {:?}", receipts);

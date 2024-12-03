@@ -63,5 +63,3 @@ where
     let receipts = provider.get_block_receipts(block).await?;
     Ok(receipts)
 }
-
-
