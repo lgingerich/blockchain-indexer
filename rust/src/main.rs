@@ -1,22 +1,14 @@
 mod indexer;
 
-use alloy::{
-    eips::{BlockId, BlockNumberOrTag},
-    network::primitives::BlockTransactionsKind,
-    providers::ProviderBuilder,
-};
+use alloy_eips::{BlockId, BlockNumberOrTag};
+use alloy_network::primitives::BlockTransactionsKind;
+use alloy_provider::ProviderBuilder;
+use alloy_rpc_types_trace::geth::GethDebugTracingOptions;
+
 use eyre::Result;
 
-// Alloy
-    // Crate: `primitives`
-        // Good for data types
-    // Crate: `providers`
-        // Has all the standard rpc methods
-
-
-
 // RPC URL
-const RPC_URL: &str = "https://eth.llamarpc.com";
+const RPC_URL: &str = "https://eth.drpc.org";
 
 #[tokio::main]
 async fn main() -> Result<()> {

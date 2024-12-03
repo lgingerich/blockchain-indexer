@@ -1,9 +1,13 @@
-use alloy::{
-    eips::{BlockId, BlockNumberOrTag},
-    network::{Network, primitives::BlockTransactionsKind},
-    providers::{Provider, ReqwestProvider},
-    transports::Transport
-};
+// Temporary disable warnings for development
+#![allow(unused_imports)]
+#![allow(unused_variables)]
+
+use alloy_eips::{BlockId, BlockNumberOrTag};
+use alloy_network::{Network, primitives::BlockTransactionsKind};
+use alloy_provider::{ext::DebugApi, Provider, ReqwestProvider};
+use alloy_transport::{RpcError, Transport};
+use alloy_rpc_types_trace::{common::TraceResult, geth::{GethDebugTracingOptions, GethTrace}};
+
 use eyre::Result;
 
 /// Retrieves the latest block number from the blockchain
@@ -59,3 +63,5 @@ where
     let receipts = provider.get_block_receipts(block).await?;
     Ok(receipts)
 }
+
+

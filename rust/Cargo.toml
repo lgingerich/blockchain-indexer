@@ -4,6 +4,15 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-alloy = { version = "0.7.2", features = ["providers"] }
+# alloy
+alloy-eips = "0.7.2"
+alloy-network = "0.7.2"
+alloy-provider = { version = "0.7.2", features = ["debug-api"] }
+alloy-rpc-types-debug = "0.7.2"
+alloy-rpc-types-eth = "0.7.2"
+alloy-rpc-types-trace = "0.7.2"
+alloy-transport = "0.7.2"
+
+chrono = "0.4.38"
 eyre = "0.6.12"
 tokio = { version = "1.41.0", features = ["full"] }
