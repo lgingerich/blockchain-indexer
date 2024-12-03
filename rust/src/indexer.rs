@@ -1,7 +1,7 @@
 use alloy::{
     eips::{BlockId, BlockNumberOrTag},
     network::{Network, primitives::BlockTransactionsKind},
-    providers::Provider,
+    providers::{Provider, ReqwestProvider},
     transports::Transport
 };
 use eyre::Result;
@@ -13,11 +13,7 @@ use eyre::Result;
 ///
 /// # Returns
 /// * `Result<BlockNumberOrTag>` - The latest block number wrapped in BlockNumberOrTag enum
-pub async fn get_latest_block_number<T, N>(provider: &dyn Provider<T, N>) -> Result<BlockNumberOrTag> 
-where
-    T: Transport + Clone,
-    N: Network,
-{
+pub async fn get_latest_block_number(provider: &ReqwestProvider) -> Result<BlockNumberOrTag> {
     let latest_block = provider.get_block_number().await?;
     Ok(BlockNumberOrTag::Number(latest_block))
 }

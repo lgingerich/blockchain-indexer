@@ -29,7 +29,7 @@ async fn main() -> Result<()> {
     // let latest_block: BlockNumberOrTag = BlockNumberOrTag::Number(1000000);
 
     // Get block by number
-    let kind = BlockTransactionsKind::Full;
+    let kind = BlockTransactionsKind::Full; // Hashes: only include tx hashes, Full: include full tx objects
     let block = indexer::get_block_by_number(&provider, latest_block, kind).await?;
 
     // Get receipts by block number
