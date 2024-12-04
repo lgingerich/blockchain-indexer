@@ -1,54 +1,46 @@
-use chrono::{NaiveDate, NaiveDateTime};
-use Transaction, Withdrawal; // TODO: Add these — idk if alloy has traits or I need to define them
+use alloy_rpc_types_eth::{Block, Header, Withdrawal};
+use eyre::Result;
 
-#[derive(Debug)]
-pub struct BaseBlock {
-    base_fee_per_gas: Option<u64>,
-    block_hash: BlockHash,
-    block_number: BlockNumber,
-    block_date: NaiveDate,
-    block_time: NaiveDateTime,
-    difficulty: U256,
-    extra_data: Option<String>,
-    gas_limit: u64,
-    gas_used: u64,
-    logs_bloom: String,
-    miner: String,
-    mix_hash: String,
-    nonce: String,
-    parent_hash: String,
-    receipts_root: String,
-    sha3_uncles: String,
-    size: u64,
-    state_root: String,
-    total_difficulty: U256,
-    transactions: Vec<Transaction>, // Transaction trait/type needs to handle full tx objects or only hashes
-    transactions_root: String,
-    uncles: Vec<String>,
+pub trait BlockParser {
+    fn parse_raw(self) -> Result<Block>;
 }
 
-#[derive(Debug)]
-pub struct ArbitrumBlock {
-    base: BaseBlock,
-    l1_block_number: u64,
-    send_count: Option<u64>,
-    send_root: Option<String>,
+impl BlockParser for Block {
+    fn parse_raw(self) -> Result<Block> {
+        Ok(self)
+    }
 }
 
-#[derive(Debug)]
-pub struct EthereumBlock {
-    base: BaseBlock,
-    blob_gas_used: Option<u64>,
-    excess_blob_gas: Option<u64>,
-    parent_beacon_block_root: Option<String>,
-    withdrawals: Option<Vec<Withdrawal>>, // TODO: Add Withdrawal trait
-    withdrawals_root: Option<String>,
-}
 
-#[derive(Debug)]
-pub struct ZkSyncBlock {
-    base: BaseBlock,
-    l1_batch_number: Option<u64>,
-    l1_batch_time: Option<NaiveDateTime>,
-    seal_fields: Vec<String>,
-}
+// pub trait BlockParser {
+//     // fn parse_header(self) -> Result<Header>;
+//     // fn parse_uncles(self) -> Result<Vec<String>>;
+//     // fn parse_withdrawals(self) -> Result<Option<Vec<Withdrawal>>>;
+//     fn parse_raw(self) -> Result<Block>;
+// }
+
+// impl BlockParser for Block {
+//     fn parse_raw(self) -> Result<Block> {
+//         Ok(self)
+//     }
+    
+//     // fn parse_header(self) -> Result<Header> {
+//     //     Ok(Header {
+//     //         hash: self.hash.unwrap_or_default(),
+//     //         inner: self,
+//     //         total_difficulty: self.total_difficulty,
+//     //         size: self.size,
+//     //     })
+//     // }
+
+//     // fn parse_uncles(self) -> Result<Vec<String>> {
+//     //     Ok(self.uncles
+//     //         .into_iter()
+//     //         .map(|u| format!("{:?}", u))
+//     //         .collect())
+//     // }
+
+//     // fn parse_withdrawals(self) -> Result<Option<Vec<Withdrawal>>> {
+//     //     Ok(self.withdrawals.map(|w| w.into_iter().collect()))
+//     // }
+// }

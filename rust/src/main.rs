@@ -3,16 +3,22 @@
 #![allow(unused_variables)]
 
 mod indexer;
+mod parsers;
 
 use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_network::primitives::BlockTransactionsKind;
 use alloy_provider::ProviderBuilder;
+use alloy_rpc_types_eth::{Block, TransactionReceipt};
 use alloy_rpc_types_trace::geth::GethDebugTracingOptions;
 
 use eyre::Result;
+use std::collections::HashMap;
 
-// RPC URL
+use crate::parsers::blocks::BlockParser;
+
+
 const RPC_URL: &str = "https://eth.drpc.org";
+
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -21,19 +27,36 @@ async fn main() -> Result<()> {
     let provider = ProviderBuilder::new().on_http(rpc_url);
 
     // Get latest block number
-    let latest_block: BlockNumberOrTag = indexer::get_latest_block_number(&provider).await?;
+    let latest_block: BlockNumberOrTag = indexer::get_latest_block_number(&provider)
+        .await?;
     // let latest_block: BlockNumberOrTag = BlockNumberOrTag::Number(1000000);
 
     // Get block by number
     let kind = BlockTransactionsKind::Full; // Hashes: only include tx hashes, Full: include full tx objects
-    let block = indexer::get_block_by_number(&provider, latest_block, kind).await?;
+    let block = indexer::get_block_by_number(&provider, latest_block, kind)
+        .await?
+        .ok_or_else(|| eyre::eyre!("Provider returned no block"))?;
 
     // Get receipts by block number
     let block_id = BlockId::Number(latest_block);
-    let receipts = indexer::get_block_receipts(&provider, block_id).await?;
+    let receipts = indexer::get_block_receipts(&provider, block_id)
+        .await?
+        .ok_or_else(|| eyre::eyre!("Provider returned no receipts"))?;
+
+
+    // Parse block
+    let parsed_block = indexer::parse_block(block).await?;
+
+
+    // let parsed_block = Block::parse_block(block).unwrap();
+    // let parsed_block = block.parse_uncles()?;
+    // let parsed_block = block.parse_raw()?;
+
+
 
     println!("Latest block number: {:?}", latest_block);
-    println!("Block: {:?}", block);
-    println!("Receipts: {:?}", receipts);
+    // println!("Block: {:?}", block);
+    println!("Parsed block: {:?}", parsed_block);
+    // println!("Receipts: {:?}", receipts);
     Ok(())
 }

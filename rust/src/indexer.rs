@@ -6,9 +6,29 @@ use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_network::{Network, primitives::BlockTransactionsKind};
 use alloy_provider::{ext::DebugApi, Provider, ReqwestProvider};
 use alloy_transport::{RpcError, Transport};
+use alloy_rpc_types_eth::{Block, TransactionReceipt, Header, Withdrawals};
 use alloy_rpc_types_trace::{common::TraceResult, geth::{GethDebugTracingOptions, GethTrace}};
 
 use eyre::Result;
+use std::collections::HashMap;
+
+
+#[derive(Debug)]
+pub struct ParsedBlock {
+    header: Header,
+    withdrawals: Option<Withdrawals>,
+}
+
+
+// // https://docs.rs/alloy/latest/alloy/rpc/types/struct.Block.html#
+// pub struct Block<T = Transaction, H = Header> {
+//     pub header: H,
+//     pub uncles: Vec<FixedBytes<32>>,
+//     pub transactions: BlockTransactions<T>,
+//     pub withdrawals: Option<Withdrawals>,
+// }
+
+
 
 /// Retrieves the latest block number from the blockchain
 ///
@@ -17,9 +37,9 @@ use eyre::Result;
 ///
 /// # Returns
 /// * `Result<BlockNumberOrTag>` - The latest block number wrapped in BlockNumberOrTag enum
-pub async fn get_latest_block_number(provider: &ReqwestProvider) -> Result<BlockNumberOrTag> {
+pub async fn get_latest_block_number(provider: &ReqwestProvider) -> Result<BlockNumberOrTag> { // TODO: Why do I use ReqwestProvider here?
     let latest_block = provider.get_block_number().await?;
-    Ok(BlockNumberOrTag::Number(latest_block))
+    Ok(BlockNumberOrTag::Number(latest_block)) // TODO: Why do I wrap this but not other results?
 }
 
 /// Fetches a block by its block number
@@ -62,4 +82,25 @@ where
 {
     let receipts = provider.get_block_receipts(block).await?;
     Ok(receipts)
+}
+
+
+
+
+// pub async fn parse_block(block: Block) -> Result<ParsedBlock> {
+pub async fn parse_block(block: Block) -> Result<String> {
+    let block_header = block.header;
+    let uncles = block.uncles;
+    let transactions = block.transactions;
+    let withdrawals = block.withdrawals;
+    let total_difficulty = block.header.total_difficulty;
+    let size = block.header.size;
+
+    // // This just repacks the block data — not useful
+    // Ok(ParsedBlock {
+    //     header: block_data,
+    //     withdrawals: withdrawals,
+    // })
+
+    Ok(total_difficulty.expect("Total difficulty is None").to_string())
 }
