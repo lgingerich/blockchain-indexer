@@ -53,7 +53,7 @@ RPC_LATENCY = Histogram(
     buckets=[0.025, 0.05, 0.075, 0.1, 0.15, 0.2, 0.3, 0.5, 1.0, 5.0, 10.0]
 )
 
-def start_metrics_server(port: int = 9100, addr: str = '0.0.0.1'):
+def start_metrics_server(port: int = 9100, addr: str = '0.0.0.0'):
     """Start Prometheus metrics server
     
     Args:
