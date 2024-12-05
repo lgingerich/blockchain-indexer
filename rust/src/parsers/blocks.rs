@@ -3,22 +3,19 @@
 #![allow(unused_variables)]
 #![allow(dead_code)]
 
-use alloy_primitives::FixedBytes;
+use alloy_consensus::TxEnvelope;
 use alloy_network::primitives::BlockTransactions;
-use alloy_rpc_types_eth::{Block, Transaction, Withdrawal, Withdrawals, Header};
+use alloy_primitives::{Bytes, FixedBytes, Uint};
+use alloy_rpc_types_eth::{Block, Header};
+
 use eyre::Result;
 use chrono::DateTime;
-use alloy_consensus::TxEnvelope;
-use alloy_primitives::{Uint, Bytes};
 
 use crate::types::blocks::{HeaderData, TransactionData};
-
 
 pub trait BlockParser {
     fn parse_header(self) -> Result<HeaderData>;
     fn parse_transactions(self) -> Result<Vec<TransactionData>>;
-    // fn parse_uncles(self) -> Result<Vec<String>>;
-    // fn parse_withdrawals(self) -> Result<Option<Vec<Withdrawal>>>;
 }
 
 impl BlockParser for Block {
@@ -39,7 +36,6 @@ impl BlockParser for Block {
             number: inner.number,
             gas_limit: inner.gas_limit,
             gas_used: inner.gas_used,
-            // timestamp: inner.timestamp,
             timestamp: DateTime::from_timestamp(inner.timestamp as i64, 0).expect("invalid timestamp"),
             date: DateTime::from_timestamp(inner.timestamp as i64, 0).expect("invalid timestamp").date_naive(),
             extra_data: inner.extra_data,
@@ -57,18 +53,11 @@ impl BlockParser for Block {
         })
     }
 
-    // fn parse_transactions(self) -> Result<Vec<TransactionData>> {
-    //     println!("transactions: {:?}", self.transactions);
-    //     Ok(vec![])
-    // }
-
-
     fn parse_transactions(self) -> Result<Vec<TransactionData>> {
         match self.transactions {
             BlockTransactions::Full(_) => Ok(self.transactions.txns().map(|transaction| {
                 let inner: TxEnvelope = transaction.inner.clone(); // TODO: Remove clone
-                // let inner: TxEnvelope = transaction.inner;
-
+                
                 match &inner {
                     TxEnvelope::Legacy(signed) => {
                         let tx = signed.tx();
@@ -88,38 +77,6 @@ impl BlockParser for Block {
                         }
                     }, // TODO: Use better default values for undefined TxEnvelope types
                 }
-                
-                // // Extract common fields based on envelope type
-                // let (chain_id, nonce, gas_limit, value, input) = match &inner {
-                //     TxEnvelope::Legacy(signed) => {
-                //         let tx = signed.tx();
-                //         (tx.chain_id, tx.nonce, tx.gas_limit, 
-                //         tx.value, tx.input.clone())
-                //     },
-                //     TxEnvelope::Eip2930(signed) => {
-                //         let tx = signed.tx();
-                //         (Some(tx.chain_id), tx.nonce, tx.gas_limit, 
-                //         tx.value, tx.input.clone())
-                //     },
-                //     TxEnvelope::Eip1559(signed) => {
-                //         let tx = signed.tx();
-                //         (Some(tx.chain_id), tx.nonce, tx.gas_limit, 
-                //         tx.value, tx.input.clone())
-                //     },
-                //     // TxEnvelope::Eip4844(signed) => {
-                //     //     let tx = signed.tx();
-                //     //     (Some(tx.chain_id), tx.nonce, tx.gas_limit, 
-                //     //     tx.value, tx.input.clone())
-                //     // },
-                //     TxEnvelope::Eip7702(signed) => {
-                //         let tx = signed.tx();
-                //         (Some(tx.chain_id), tx.nonce, tx.gas_limit, 
-                //         tx.value, tx.input.clone())
-                //     },
-                //     _ => {
-                //         (None, 0, 0, Uint::<256, 4>::ZERO, Bytes::new())
-                //     }, // TODO: Use better default values for undefined TxEnvelope types
-                // }
             }).collect()),
             BlockTransactions::Hashes(_) => {
                 Err(eyre::eyre!("Block contains only transaction hashes, full transaction data required")) // Throw error if full tx objects are not included
@@ -129,10 +86,5 @@ impl BlockParser for Block {
             }
         }
     }
-
-
-    // fn parse_withdrawals(self) -> Result<Option<Vec<Withdrawal>>> {
-    //     Ok(self.withdrawals.map(|w| w.into_iter().collect()))
-    // }
 
 }

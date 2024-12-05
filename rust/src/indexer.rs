@@ -79,18 +79,10 @@ where
 }
 
 
-
-
-
-
-
-// pub async fn parse_block(block: Block) -> Result<ParsedBlock> {
 pub async fn parse_data(block: Block, receipts: Vec<TransactionReceipt>) -> Result<ParsedBlock> {
 
     let header = block.clone().parse_header()?; //TODO: Remove clone
     let transactions = block.clone().parse_transactions()?;
-    // let uncles = BlockParser::parse_uncles(block)?;
-    // let withdrawals = block.parse_withdrawals()?;
     
     Ok(ParsedBlock { 
         header: header,

@@ -21,7 +21,6 @@ pub struct HeaderData {
     pub number: u64,
     pub gas_limit: u64,
     pub gas_used: u64,
-    // pub timestamp: u64,
     pub timestamp: DateTime<Utc>,
     pub date: NaiveDate,
     pub extra_data: Bytes,
@@ -40,19 +39,9 @@ pub struct HeaderData {
 
 #[derive(Debug)]
 pub struct TransactionData {
-    // pub chain_id: u64,
     pub nonce: u64,
     pub gas_limit: u64,
     pub value: Uint<256, 4>,
     pub input: Bytes,
 
-}
-
-
-#[derive(Debug)]
-pub struct WithdrawalData {
-    pub index: u64,
-    pub validator_index: u64,
-    pub address: Address,
-    pub amount: u64,
 }
