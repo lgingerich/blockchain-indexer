@@ -3,9 +3,17 @@
 #![allow(unused_variables)]
 #![allow(dead_code)]
 
-use chrono::{DateTime, NaiveDate,Utc};
-use alloy_primitives::{Address, Bloom, Bytes, FixedBytes, Uint};
 use alloy_eips::eip2930::AccessList;
+use alloy_eips::eip7702::SignedAuthorization;
+use alloy_primitives::{Address, Bloom, Bytes, FixedBytes, TxKind, Uint};
+
+use chrono::{DateTime, NaiveDate,Utc};
+
+#[derive(Debug)]
+pub enum ChainId {
+    Legacy(Option<u64>),  // For TxLegacy where chain_id is Option<u64>
+    Other(u64)           // For all other tx types where chain_id is u64
+}
 
 #[derive(Debug)]
 pub struct HeaderData {
@@ -39,9 +47,24 @@ pub struct HeaderData {
 
 #[derive(Debug)]
 pub struct TransactionData {
+    pub chain_id: ChainId,
     pub nonce: u64,
     pub gas_limit: u64,
+    pub max_fee_per_gas: u128,
+    pub max_priority_fee_per_gas: u128,
+    // pub to: TxKind,
     pub value: Uint<256, 4>,
+    pub access_list: AccessList,
+    pub authorization_list: Vec<SignedAuthorization>,
     pub input: Bytes,
+    pub r: Uint<256, 4>,
+    pub s: Uint<256, 4>,
+    // pub v: bool,
+    pub hash: FixedBytes<32>,
 
+    pub block_hash: Option<FixedBytes<32>>,
+    pub block_number: Option<u64>,
+    pub transaction_index: Option<u64>,
+    pub effective_gas_price: Option<u128>,
+    pub from: Address,
 }
