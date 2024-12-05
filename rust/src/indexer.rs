@@ -1,33 +1,27 @@
 // Temporary disable warnings for development
 #![allow(unused_imports)]
 #![allow(unused_variables)]
+#![allow(dead_code)]
 
 use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_network::{Network, primitives::BlockTransactionsKind};
 use alloy_provider::{ext::DebugApi, Provider, ReqwestProvider};
 use alloy_transport::{RpcError, Transport};
-use alloy_rpc_types_eth::{Block, TransactionReceipt, Header, Withdrawals};
+use alloy_rpc_types_eth::{Block, TransactionReceipt, Withdrawal};
 use alloy_rpc_types_trace::{common::TraceResult, geth::{GethDebugTracingOptions, GethTrace}};
 
 use eyre::Result;
-use std::collections::HashMap;
+
+use crate::parsers::blocks::BlockParser;
+use crate::types::blocks::{HeaderData, TransactionData};
 
 
 #[derive(Debug)]
 pub struct ParsedBlock {
-    header: Header,
-    withdrawals: Option<Withdrawals>,
+    pub header: HeaderData,
+    pub transactions: Vec<TransactionData>,
+    // pub withdrawals: Option<Vec<Withdrawal>>,
 }
-
-
-// // https://docs.rs/alloy/latest/alloy/rpc/types/struct.Block.html#
-// pub struct Block<T = Transaction, H = Header> {
-//     pub header: H,
-//     pub uncles: Vec<FixedBytes<32>>,
-//     pub transactions: BlockTransactions<T>,
-//     pub withdrawals: Option<Withdrawals>,
-// }
-
 
 
 /// Retrieves the latest block number from the blockchain
@@ -87,20 +81,20 @@ where
 
 
 
+
+
+
 // pub async fn parse_block(block: Block) -> Result<ParsedBlock> {
-pub async fn parse_block(block: Block) -> Result<String> {
-    let block_header = block.header;
-    let uncles = block.uncles;
-    let transactions = block.transactions;
-    let withdrawals = block.withdrawals;
-    let total_difficulty = block.header.total_difficulty;
-    let size = block.header.size;
+pub async fn parse_data(block: Block, receipts: Vec<TransactionReceipt>) -> Result<ParsedBlock> {
 
-    // // This just repacks the block data — not useful
-    // Ok(ParsedBlock {
-    //     header: block_data,
-    //     withdrawals: withdrawals,
-    // })
-
-    Ok(total_difficulty.expect("Total difficulty is None").to_string())
+    let header = block.clone().parse_header()?; //TODO: Remove clone
+    let transactions = block.clone().parse_transactions()?;
+    // let uncles = BlockParser::parse_uncles(block)?;
+    // let withdrawals = block.parse_withdrawals()?;
+    
+    Ok(ParsedBlock { 
+        header: header,
+        transactions: transactions,
+        // withdrawals: withdrawals 
+    })
 }

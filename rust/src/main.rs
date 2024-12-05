@@ -1,9 +1,11 @@
 // Temporary disable warnings for development
 #![allow(unused_imports)]
 #![allow(unused_variables)]
+#![allow(dead_code)]
 
 mod indexer;
 mod parsers;
+mod types;
 
 use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_network::primitives::BlockTransactionsKind;
@@ -12,9 +14,6 @@ use alloy_rpc_types_eth::{Block, TransactionReceipt};
 use alloy_rpc_types_trace::geth::GethDebugTracingOptions;
 
 use eyre::Result;
-use std::collections::HashMap;
-
-use crate::parsers::blocks::BlockParser;
 
 
 const RPC_URL: &str = "https://eth.drpc.org";
@@ -27,9 +26,11 @@ async fn main() -> Result<()> {
     let provider = ProviderBuilder::new().on_http(rpc_url);
 
     // Get latest block number
-    let latest_block: BlockNumberOrTag = indexer::get_latest_block_number(&provider)
-        .await?;
-    // let latest_block: BlockNumberOrTag = BlockNumberOrTag::Number(1000000);
+    // let latest_block: BlockNumberOrTag = indexer::get_latest_block_number(&provider).await?;
+    // let latest_block: BlockNumberOrTag = BlockNumberOrTag::Number(10000000);
+    let latest_block: BlockNumberOrTag = BlockNumberOrTag::Number(21319680);
+
+    println!("Latest block number: {:?}", latest_block);
 
     // Get block by number
     let kind = BlockTransactionsKind::Full; // Hashes: only include tx hashes, Full: include full tx objects
@@ -37,26 +38,17 @@ async fn main() -> Result<()> {
         .await?
         .ok_or_else(|| eyre::eyre!("Provider returned no block"))?;
 
+    // println!("Block: {:?}", block);
+
     // Get receipts by block number
     let block_id = BlockId::Number(latest_block);
     let receipts = indexer::get_block_receipts(&provider, block_id)
         .await?
         .ok_or_else(|| eyre::eyre!("Provider returned no receipts"))?;
 
-
-    // Parse block
-    let parsed_block = indexer::parse_block(block).await?;
-
-
-    // let parsed_block = Block::parse_block(block).unwrap();
-    // let parsed_block = block.parse_uncles()?;
-    // let parsed_block = block.parse_raw()?;
-
-
-
-    println!("Latest block number: {:?}", latest_block);
-    // println!("Block: {:?}", block);
-    println!("Parsed block: {:?}", parsed_block);
-    // println!("Receipts: {:?}", receipts);
+    // Parse all block data
+    let parsed_data = indexer::parse_data(block, receipts).await?; 
+    println!("Parsed block: {:?}", parsed_data);
+    
     Ok(())
 }

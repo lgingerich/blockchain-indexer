@@ -1,54 +1,58 @@
-use chrono::{NaiveDate, NaiveDateTime};
-use Transaction, Withdrawal; // TODO: Add these — idk if alloy has traits or I need to define them
+// Temporary disable warnings for development
+#![allow(unused_imports)]
+#![allow(unused_variables)]
+#![allow(dead_code)]
+
+use chrono::{DateTime, NaiveDate,Utc};
+use alloy_primitives::{Address, Bloom, Bytes, FixedBytes, Uint};
+use alloy_eips::eip2930::AccessList;
 
 #[derive(Debug)]
-pub struct BaseBlock {
-    base_fee_per_gas: Option<u64>,
-    block_hash: BlockHash,
-    block_number: BlockNumber,
-    block_date: NaiveDate,
-    block_time: NaiveDateTime,
-    difficulty: U256,
-    extra_data: Option<String>,
-    gas_limit: u64,
-    gas_used: u64,
-    logs_bloom: String,
-    miner: String,
-    mix_hash: String,
-    nonce: String,
-    parent_hash: String,
-    receipts_root: String,
-    sha3_uncles: String,
-    size: u64,
-    state_root: String,
-    total_difficulty: U256,
-    transactions: Vec<Transaction>, // Transaction trait/type needs to handle full tx objects or only hashes
-    transactions_root: String,
-    uncles: Vec<String>,
+pub struct HeaderData {
+    pub hash: FixedBytes<32>,
+    pub parent_hash: FixedBytes<32>,
+    pub ommers_hash: FixedBytes<32>,
+    pub beneficiary: Address,
+    pub state_root: FixedBytes<32>,
+    pub transactions_root: FixedBytes<32>,
+    pub receipts_root: FixedBytes<32>,
+    pub logs_bloom: Bloom,
+    pub difficulty: Uint<256, 4>,
+    pub number: u64,
+    pub gas_limit: u64,
+    pub gas_used: u64,
+    // pub timestamp: u64,
+    pub timestamp: DateTime<Utc>,
+    pub date: NaiveDate,
+    pub extra_data: Bytes,
+    pub mix_hash: FixedBytes<32>,
+    pub nonce: FixedBytes<8>,
+    pub base_fee_per_gas: Option<u64>,
+    pub withdrawals_root: Option<FixedBytes<32>>,
+    pub blob_gas_used: Option<u64>,
+    pub excess_blob_gas: Option<u64>,
+    pub parent_beacon_block_root: Option<FixedBytes<32>>,
+    pub requests_hash: Option<FixedBytes<32>>,
+    pub target_blobs_per_block: Option<u64>,
+    pub total_difficulty: Option<Uint<256, 4>>,
+    pub size: Option<Uint<256, 4>>,
 }
 
 #[derive(Debug)]
-pub struct ArbitrumBlock {
-    base: BaseBlock,
-    l1_block_number: u64,
-    send_count: Option<u64>,
-    send_root: Option<String>,
+pub struct TransactionData {
+    // pub chain_id: u64,
+    pub nonce: u64,
+    pub gas_limit: u64,
+    pub value: Uint<256, 4>,
+    pub input: Bytes,
+
 }
 
-#[derive(Debug)]
-pub struct EthereumBlock {
-    base: BaseBlock,
-    blob_gas_used: Option<u64>,
-    excess_blob_gas: Option<u64>,
-    parent_beacon_block_root: Option<String>,
-    withdrawals: Option<Vec<Withdrawal>>, // TODO: Add Withdrawal trait
-    withdrawals_root: Option<String>,
-}
 
 #[derive(Debug)]
-pub struct ZkSyncBlock {
-    base: BaseBlock,
-    l1_batch_number: Option<u64>,
-    l1_batch_time: Option<NaiveDateTime>,
-    seal_fields: Vec<String>,
+pub struct WithdrawalData {
+    pub index: u64,
+    pub validator_index: u64,
+    pub address: Address,
+    pub amount: u64,
 }
