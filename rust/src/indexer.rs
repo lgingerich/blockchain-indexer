@@ -13,14 +13,14 @@ use alloy_rpc_types_trace::{common::TraceResult, geth::{GethDebugTracingOptions,
 use eyre::Result;
 
 use crate::parsers::blocks::BlockParser;
-use crate::types::blocks::{HeaderData, TransactionData};
+use crate::types::blocks::{HeaderData, TransactionData, WithdrawalData};
 
 
 #[derive(Debug)]
 pub struct ParsedBlock {
     pub header: HeaderData,
     pub transactions: Vec<TransactionData>,
-    // pub withdrawals: Option<Vec<Withdrawal>>,
+    pub withdrawals: Vec<WithdrawalData>,
 }
 
 
@@ -78,15 +78,15 @@ where
     Ok(receipts)
 }
 
-
 pub async fn parse_data(block: Block, receipts: Vec<TransactionReceipt>) -> Result<ParsedBlock> {
 
     let header = block.clone().parse_header()?; //TODO: Remove clone
     let transactions = block.clone().parse_transactions()?;
-    
+    let withdrawals = block.clone().parse_withdrawals()?;
+
     Ok(ParsedBlock { 
         header: header,
         transactions: transactions,
-        // withdrawals: withdrawals 
+        withdrawals: withdrawals
     })
 }
