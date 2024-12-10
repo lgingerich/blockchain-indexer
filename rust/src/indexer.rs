@@ -13,14 +13,17 @@ use alloy_rpc_types_trace::{common::TraceResult, geth::{GethDebugTracingOptions,
 use eyre::Result;
 
 use crate::parsers::blocks::BlockParser;
+use crate::parsers::receipts::ReceiptParser;
 use crate::types::blocks::{HeaderData, TransactionData, WithdrawalData};
-
+use crate::types::receipts::{LogReceiptData, TransactionReceiptData};
 
 #[derive(Debug)]
-pub struct ParsedBlock {
-    pub header: HeaderData,
-    pub transactions: Vec<TransactionData>,
-    pub withdrawals: Vec<WithdrawalData>,
+pub struct ParsedData {
+    // pub header: HeaderData,
+    // pub transactions: Vec<TransactionData>,
+    // pub withdrawals: Vec<WithdrawalData>,
+    // pub transaction_receipts: Vec<TransactionReceiptData>,
+    pub logs: Vec<LogReceiptData>
 }
 
 
@@ -78,15 +81,20 @@ where
     Ok(receipts)
 }
 
-pub async fn parse_data(block: Block, receipts: Vec<TransactionReceipt>) -> Result<ParsedBlock> {
+pub async fn parse_data(block: Block, receipts: Vec<TransactionReceipt>) -> Result<ParsedData> {
 
     let header = block.clone().parse_header()?; //TODO: Remove clone
     let transactions = block.clone().parse_transactions()?;
     let withdrawals = block.clone().parse_withdrawals()?;
 
-    Ok(ParsedBlock { 
-        header: header,
-        transactions: transactions,
-        withdrawals: withdrawals
+    let transaction_receipts = receipts.clone().parse_transaction_receipts()?;
+    let logs = receipts.clone().parse_log_receipts()?;
+    
+    Ok(ParsedData { 
+        // header: header,
+        // transactions: transactions,
+        // withdrawals: withdrawals,
+        // transaction_receipts: transaction_receipts,
+        logs: logs
     })
 }

@@ -15,6 +15,8 @@ use eyre::Result;
 use chrono::DateTime;
 
 use crate::types::blocks::{ChainId, HeaderData, TransactionData, TransactionTo, WithdrawalData};
+use crate::types::receipts::TransactionReceiptData;
+
 
 // NOTE: No handling for uncle blocks
 pub trait BlockParser {
@@ -251,9 +253,11 @@ impl BlockParser for Block {
         }
     }
 
+    // TODO: Is there a better way to do this without unwrapping?
+    // Do I need to use `Ok`?
     fn parse_withdrawals(self) -> Result<Vec<WithdrawalData>> {
         Ok(self.withdrawals
-            .map(|withdrawals: Withdrawals| withdrawals.0.into_iter()
+            .map(|withdrawals | withdrawals.0.into_iter()
                 .map(|withdrawal| WithdrawalData {
                     index: withdrawal.index,
                     validator_index: withdrawal.validator_index,
@@ -263,4 +267,5 @@ impl BlockParser for Block {
                 .collect::<Vec<WithdrawalData>>())
             .unwrap_or_default())
     }
+
 }
