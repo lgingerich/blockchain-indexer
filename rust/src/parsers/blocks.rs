@@ -8,7 +8,6 @@ use alloy_eips::eip2930::AccessList;
 use alloy_eips::eip7702::SignedAuthorization;
 use alloy_network::primitives::BlockTransactions;
 use alloy_primitives::{Address, Bytes, FixedBytes, Uint};
-use alloy_provider::utils::Eip1559Estimation;
 use alloy_rpc_types_eth::{Block, Header, Withdrawals};
 
 use eyre::Result;

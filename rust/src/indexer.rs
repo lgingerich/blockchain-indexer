@@ -19,10 +19,10 @@ use crate::types::receipts::{LogReceiptData, TransactionReceiptData};
 
 #[derive(Debug)]
 pub struct ParsedData {
-    // pub header: HeaderData,
-    // pub transactions: Vec<TransactionData>,
-    // pub withdrawals: Vec<WithdrawalData>,
-    // pub transaction_receipts: Vec<TransactionReceiptData>,
+    pub header: HeaderData,
+    pub transactions: Vec<TransactionData>,
+    pub withdrawals: Vec<WithdrawalData>,
+    pub transaction_receipts: Vec<TransactionReceiptData>,
     pub logs: Vec<LogReceiptData>
 }
 
@@ -91,10 +91,10 @@ pub async fn parse_data(block: Block, receipts: Vec<TransactionReceipt>) -> Resu
     let logs = receipts.clone().parse_log_receipts()?;
     
     Ok(ParsedData { 
-        // header: header,
-        // transactions: transactions,
-        // withdrawals: withdrawals,
-        // transaction_receipts: transaction_receipts,
+        header: header,
+        transactions: transactions,
+        withdrawals: withdrawals,
+        transaction_receipts: transaction_receipts,
         logs: logs
     })
 }

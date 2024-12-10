@@ -4,14 +4,12 @@
 #![allow(dead_code)]
 
 use alloy_consensus::Eip658Value;
-// use alloy_primitives::{Address, Bytes, FixedBytes, Uint};
 use alloy_rpc_types_eth::{Log, TransactionReceipt};
 
 use eyre::Result;
 use chrono::DateTime;
 
 use crate::types::receipts::{LogReceiptData, TransactionReceiptData};
-
 
 
 pub trait ReceiptParser {

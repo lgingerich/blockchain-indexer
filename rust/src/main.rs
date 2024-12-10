@@ -46,9 +46,11 @@ async fn main() -> Result<()> {
         .await?
         .ok_or_else(|| eyre::eyre!("Provider returned no receipts"))?;
 
+    // println!("Receipts: {:?}", receipts);
+
     // Parse all block data
     let parsed_data = indexer::parse_data(block, receipts).await?; 
-    println!("Parsed block: {:?}", parsed_data);
+    println!("Parsed data: {:?}", parsed_data);
     
     Ok(())
 }
