@@ -13,9 +13,9 @@ use alloy_rpc_types_eth::{Block, Header, Withdrawals};
 use eyre::Result;
 use chrono::DateTime;
 
-use crate::models::rpc::blocks::{ChainId, HeaderData, TransactionData, TransactionTo, WithdrawalData};
+use crate::models::rpc::blocks::{HeaderData, TransactionData, WithdrawalData};
 use crate::models::rpc::receipts::TransactionReceiptData;
-
+use crate::models::common::{ChainId, TransactionTo};
 
 // NOTE: No handling for uncle blocks
 pub trait BlockParser {

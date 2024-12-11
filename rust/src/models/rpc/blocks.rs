@@ -8,19 +8,9 @@ use alloy_eips::eip4844::BYTES_PER_BLOB;
 use alloy_eips::eip7702::SignedAuthorization;
 use alloy_primitives::{Address, Bloom, Bytes, FixedBytes, TxKind, Uint};
 
-use chrono::{DateTime, NaiveDate,Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 
-#[derive(Debug)]
-pub enum ChainId {
-    Legacy(Option<u64>),  // For TxLegacy where chain_id is Option<u64>
-    Other(u64)           // For all other tx types where chain_id is u64
-}
-
-#[derive(Debug)]
-pub enum TransactionTo {
-    TxKind(TxKind),      // For TxLegacy, TxEip2930, TxEip1559 which use TxKind
-    Address(Address),    // For TxEip4844, TxEip7702 which use Address directly
-}
+use crate::models::common::{ChainId, TransactionTo};
 
 #[derive(Debug)]
 pub struct HeaderData {
