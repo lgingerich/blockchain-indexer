@@ -13,8 +13,8 @@ use alloy_rpc_types_eth::{Block, Header, Withdrawals};
 use eyre::Result;
 use chrono::DateTime;
 
-use crate::types::blocks::{ChainId, HeaderData, TransactionData, TransactionTo, WithdrawalData};
-use crate::types::receipts::TransactionReceiptData;
+use crate::models::rpc::blocks::{ChainId, HeaderData, TransactionData, TransactionTo, WithdrawalData};
+use crate::models::rpc::receipts::TransactionReceiptData;
 
 
 // NOTE: No handling for uncle blocks

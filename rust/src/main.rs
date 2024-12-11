@@ -4,8 +4,8 @@
 #![allow(dead_code)]
 
 mod indexer;
-mod parsers;
-mod types;
+// mod parsers;
+mod models;
 
 use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_network::primitives::BlockTransactionsKind;
@@ -34,7 +34,7 @@ async fn main() -> Result<()> {
 
     // Get block by number
     let kind = BlockTransactionsKind::Full; // Hashes: only include tx hashes, Full: include full tx objects
-    let block = indexer::get_block_by_number(&provider, latest_block, kind)
+    let block = indexer::indexer::get_block_by_number(&provider, latest_block, kind)
         .await?
         .ok_or_else(|| eyre::eyre!("Provider returned no block"))?;
 
@@ -42,14 +42,14 @@ async fn main() -> Result<()> {
 
     // Get receipts by block number
     let block_id = BlockId::Number(latest_block);
-    let receipts = indexer::get_block_receipts(&provider, block_id)
+    let receipts = indexer::indexer::get_block_receipts(&provider, block_id)
         .await?
         .ok_or_else(|| eyre::eyre!("Provider returned no receipts"))?;
 
     // println!("Receipts: {:?}", receipts);
 
     // Parse all block data
-    let parsed_data = indexer::parse_data(block, receipts).await?; 
+    let parsed_data = indexer::indexer::parse_data(block, receipts).await?; 
     println!("Parsed data: {:?}", parsed_data);
     
     Ok(())

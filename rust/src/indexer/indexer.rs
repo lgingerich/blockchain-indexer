@@ -12,10 +12,10 @@ use alloy_rpc_types_trace::{common::TraceResult, geth::{GethDebugTracingOptions,
 
 use eyre::Result;
 
-use crate::parsers::blocks::BlockParser;
-use crate::parsers::receipts::ReceiptParser;
-use crate::types::blocks::{HeaderData, TransactionData, WithdrawalData};
-use crate::types::receipts::{LogReceiptData, TransactionReceiptData};
+use crate::indexer::rpc::blocks::BlockParser;
+use crate::indexer::rpc::receipts::ReceiptParser;
+use crate::models::rpc::blocks::{HeaderData, TransactionData, WithdrawalData};
+use crate::models::rpc::receipts::{LogReceiptData, TransactionReceiptData};
 
 #[derive(Debug)]
 pub struct ParsedData {

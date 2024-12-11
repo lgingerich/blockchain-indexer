@@ -9,7 +9,7 @@ use alloy_rpc_types_eth::{Log, TransactionReceipt};
 use eyre::Result;
 use chrono::DateTime;
 
-use crate::types::receipts::{LogReceiptData, TransactionReceiptData};
+use crate::models::rpc::receipts::{LogReceiptData, TransactionReceiptData};
 
 
 pub trait ReceiptParser {
