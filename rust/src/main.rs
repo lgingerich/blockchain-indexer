@@ -14,9 +14,7 @@ use alloy_rpc_types_trace::geth::{GethDebugBuiltInTracerType, GethDebugTracerCon
 
 use eyre::Result;
 
-
 const RPC_URL: &str = "https://eth.drpc.org";
-
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -24,6 +22,7 @@ async fn main() -> Result<()> {
     let rpc_url = RPC_URL.parse()?;
     let provider = ProviderBuilder::new().on_http(rpc_url);
 
+    //////////////////////// Fetch data ////////////////////////
     // Get latest block number
     // let latest_block: BlockNumberOrTag = indexer::get_latest_block_number(&provider).await?;
     // let latest_block: BlockNumberOrTag = BlockNumberOrTag::Number(10000000);
@@ -45,7 +44,6 @@ async fn main() -> Result<()> {
         .await?
         .ok_or_else(|| eyre::eyre!("Provider returned no receipts"))?;
 
-
     // Create tracing options with CallTracer and nested calls
     let trace_options = GethDebugTracingOptions {
         config: GethDefaultTracingOptions::default(),
@@ -58,21 +56,22 @@ async fn main() -> Result<()> {
     // Get Geth debug traces by block number
     let traces = indexer::debug_trace_block_by_number(&provider, latest_block, trace_options).await?;
 
-    // Extract and separate the raw RPC response into distinct datasets (block headers, transactions, withdrawals, receipts, logs)
-    let parsed_data = indexer::parse_data(block, receipts).await?; 
-   
-    // Transform all data into final output formats (blocks, transactions, logs)
+    // Extract and separate the raw RPC response into distinct datasets (block headers, transactions, withdrawals, receipts, logs, traces)
+    let parsed_data = indexer::parse_data(block, receipts, traces).await?; 
+
+    // Transform all data into final output formats (blocks, transactions, logs, traces)
     let transformed_data = indexer::transform_data(parsed_data).await?;
 
     // Combine collections of data from multiple blocks
     let mut blocks_collection = vec![];
-    blocks_collection.extend(transformed_data.blocks);
-
     let mut transactions_collection = vec![];
-    transactions_collection.extend(transformed_data.transactions);
-
     let mut logs_collection = vec![];
+    let mut traces_collection = vec![];
+
+    blocks_collection.extend(transformed_data.blocks);  
+    transactions_collection.extend(transformed_data.transactions);
     logs_collection.extend(transformed_data.logs); // TODO: block_timestamp is None for some (or all) logs
+    traces_collection.extend(transformed_data.traces);
 
     Ok(())
 }

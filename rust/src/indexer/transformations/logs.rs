@@ -13,7 +13,7 @@ pub trait LogTransformer {
 }
 
 impl LogTransformer for ParsedData {
-    // The final logs dataset has no transformation from the raw data
+    // The final logs dataset has no transformation from the rpc receipt data
     fn transform_logs(self) -> Result<Vec<TransformedLogData>> {
         Ok(self.logs)
     }

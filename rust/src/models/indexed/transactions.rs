@@ -7,6 +7,7 @@ use chrono::{DateTime, NaiveDate, Utc};
 
 use crate::models::common::{ChainId, TransactionTo};
 
+// TODO: Verify fields and cleanup
 #[derive(Debug)]
 pub struct TransformedTransactionData {
 
@@ -46,7 +47,7 @@ pub struct TransformedTransactionData {
     pub block_hash: Option<FixedBytes<32>>,
     pub block_number: Option<u64>,
     pub gas_used: u128,
-    pub effective_gas_price: Option<u128>,
+    pub effective_gas_price: u128,
     pub blob_gas_used: Option<u128>,
     pub blob_gas_price: Option<u128>,
     pub from: Address,

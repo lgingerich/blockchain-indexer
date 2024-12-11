@@ -17,31 +17,19 @@ use eyre::Result;
 
 use crate::indexer::rpc::blocks::BlockParser;
 use crate::indexer::rpc::receipts::ReceiptParser;
+use crate::indexer::rpc::traces::TraceParser;
 use crate::indexer::transformations::blocks::BlockTransformer;
 use crate::indexer::transformations::logs::LogTransformer;
+use crate::indexer::transformations::transactions::TransactionTransformer;
+use crate::indexer::transformations::traces::TraceTransformer;
 use crate::models::common::{ParsedData, TransformedData};
 
-/// Retrieves the latest block number from the blockchain
-///
-/// # Arguments
-/// * `provider` - The blockchain provider implementation
-///
-/// # Returns
-/// * `Result<BlockNumberOrTag>` - The latest block number wrapped in BlockNumberOrTag enum
+
 pub async fn get_latest_block_number(provider: &ReqwestProvider) -> Result<BlockNumberOrTag> { // TODO: Why do I use ReqwestProvider here?
     let latest_block = provider.get_block_number().await?;
     Ok(BlockNumberOrTag::Number(latest_block)) // TODO: Why do I wrap this but not other results?
 }
 
-/// Fetches a block by its block number
-///
-/// # Arguments
-/// * `provider` - The blockchain provider implementation
-/// * `block_number` - The block number to fetch, can be a specific number or tag (latest, earliest, etc.)
-/// * `kind` - Specifies whether to include full transaction objects or just transaction hashes
-///
-/// # Returns
-/// * `Result<Option<N::BlockResponse>>` - The block data if found, None if the block doesn't exist
 pub async fn get_block_by_number<T, N>(
     provider: &dyn Provider<T, N>, 
     block_number: BlockNumberOrTag,
@@ -55,14 +43,6 @@ where
     Ok(block)
 }
 
-/// Retrieves all transaction receipts for a given block
-///
-/// # Arguments
-/// * `provider` - The blockchain provider implementation
-/// * `block` - The block identifier (can be hash or number)
-///
-/// # Returns
-/// * `Result<Option<Vec<N::ReceiptResponse>>>` - Vector of transaction receipts if the block exists
 pub async fn get_block_receipts<T, N>(
     provider: &dyn Provider<T, N>,
     block: BlockId,
@@ -75,35 +55,54 @@ where
     Ok(receipts)
 }
 
-pub async fn parse_data(block: Block, receipts: Vec<TransactionReceipt>) -> Result<ParsedData> {
+pub async fn debug_trace_block_by_number<T, N>(
+    provider: &impl DebugApi<N, T>,
+    block_number: BlockNumberOrTag,
+    trace_options: GethDebugTracingOptions,
+) -> Result<Vec<TraceResult<GethTrace, String>>>
+where
+    T: Transport + Clone,
+    N: Network,
+{
+    let traces = provider.debug_trace_block_by_number(block_number, trace_options).await?;
+    Ok(traces)
+}
 
+pub async fn parse_data(
+    block: Block, 
+    receipts: Vec<TransactionReceipt>, 
+    traces: Vec<TraceResult<GethTrace, String>>
+) -> Result<ParsedData> {
     let header = block.clone().parse_header()?; //TODO: Remove clone
     let transactions = block.clone().parse_transactions()?;
     let withdrawals = block.clone().parse_withdrawals()?;
 
     let transaction_receipts = receipts.clone().parse_transaction_receipts()?;
     let logs = receipts.clone().parse_log_receipts()?;
-    
+
+    let traces = traces.clone().parse_traces()?;
+
     Ok(ParsedData { 
         header: header,
         transactions: transactions,
         withdrawals: withdrawals,
         transaction_receipts: transaction_receipts,
-        logs: logs
+        logs: logs,
+        traces: traces
     })
 }
-
-
 
 pub async fn transform_data(parsed_data: ParsedData) -> Result<TransformedData> {
 
     let blocks = parsed_data.clone().transform_blocks()?;
-    // let transactions = parsed_data.clone().transform_transactions()?;
+    let transactions = parsed_data.clone().transform_transactions()?;
     let logs = parsed_data.clone().transform_logs()?;
+    let traces = parsed_data.clone().transform_traces()?;
 
     Ok(TransformedData {
         blocks: blocks,
-        // transactions: transactions,
-        logs: logs
+        transactions: transactions,
+        logs: logs,
+        traces: traces
     })
 }
