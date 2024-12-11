@@ -12,7 +12,7 @@ use chrono::{DateTime, NaiveDate, Utc};
 
 use crate::models::common::{ChainId, TransactionTo};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct HeaderData {
     pub hash: FixedBytes<32>,
     pub parent_hash: FixedBytes<32>,
@@ -42,7 +42,7 @@ pub struct HeaderData {
     pub size: Option<Uint<256, 4>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TransactionData {
     pub chain_id: ChainId,
     pub nonce: u64,

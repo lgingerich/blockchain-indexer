@@ -16,13 +16,13 @@ pub enum ChainId {
     Other(u64)           // For all other tx types where chain_id is u64
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum TransactionTo {
     TxKind(TxKind),      // For TxLegacy, TxEip2930, TxEip1559 which use TxKind
     Address(Address),    // For TxEip4844, TxEip7702 which use Address directly
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ParsedData {
     pub header: HeaderData,
     pub transactions: Vec<TransactionData>,
@@ -35,5 +35,5 @@ pub struct ParsedData {
 pub struct TransformedData {
     pub blocks: Vec<TransformedBlockData>,
     // pub transactions: Vec<TransformedTransactionData>,
-    // pub logs: Vec<TransformedLogData>
+    pub logs: Vec<TransformedLogData>
 }

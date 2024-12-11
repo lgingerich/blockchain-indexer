@@ -18,6 +18,7 @@ use eyre::Result;
 use crate::indexer::rpc::blocks::BlockParser;
 use crate::indexer::rpc::receipts::ReceiptParser;
 use crate::indexer::transformations::blocks::BlockTransformer;
+use crate::indexer::transformations::logs::LogTransformer;
 use crate::models::common::{ParsedData, TransformedData};
 
 /// Retrieves the latest block number from the blockchain
@@ -96,13 +97,13 @@ pub async fn parse_data(block: Block, receipts: Vec<TransactionReceipt>) -> Resu
 
 pub async fn transform_data(parsed_data: ParsedData) -> Result<TransformedData> {
 
-    let blocks = parsed_data.transform_blocks()?;
+    let blocks = parsed_data.clone().transform_blocks()?;
     // let transactions = parsed_data.clone().transform_transactions()?;
-    // let logs = parsed_data.clone().transform_logs()?;
+    let logs = parsed_data.clone().transform_logs()?;
 
     Ok(TransformedData {
         blocks: blocks,
         // transactions: transactions,
-        // logs: logs
+        logs: logs
     })
 }

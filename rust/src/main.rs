@@ -52,7 +52,29 @@ async fn main() -> Result<()> {
     // println!("Parsed data: {:?}", parsed_data);
     
     let transformed_data = indexer::transform_data(parsed_data).await?;
-    println!("Transformed data: {:?}", transformed_data);
+    // println!("Transformed data: {:?}", transformed_data);
+
+
+
+    // Combine collections of data from multiple blocks
+    let mut blocks_collection = vec![];
+    blocks_collection.extend(transformed_data.blocks);
+
+    println!("Blocks collection: {:?}", blocks_collection);
+
+    println!("\n\n\n");
+
+    // let mut transactions_collection = vec![];
+    // transactions_collection.extend(transformed_data.transactions);
+
+    // println!("\n\n\n");
+
+
+    // TODO: block_timestamp is None for some (or all) logs
+    let mut logs_collection = vec![];
+    logs_collection.extend(transformed_data.logs);
+
+    println!("Logs collection: {:?}", logs_collection);
 
     Ok(())
 }

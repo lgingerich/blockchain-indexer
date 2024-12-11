@@ -6,7 +6,7 @@
 use alloy_eips::eip7702::SignedAuthorization;
 use alloy_primitives::{Address, Bloom, Bytes, FixedBytes, Uint};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TransactionReceiptData {
     pub status: Option<bool>,
     pub cumulative_gas_used: u128,
@@ -25,7 +25,7 @@ pub struct TransactionReceiptData {
     pub authorization_list: Option<Vec<SignedAuthorization>>
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LogReceiptData {
     pub address: Address,
     pub topics: Vec<FixedBytes<32>>,

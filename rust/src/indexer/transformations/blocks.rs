@@ -1,4 +1,3 @@
-
 // Temporary disable warnings for development
 #![allow(unused_imports)]
 #![allow(unused_variables)]
@@ -13,6 +12,7 @@ pub trait BlockTransformer {
     fn transform_blocks(self) -> Result<Vec<TransformedBlockData>>;
 }
 
+// TODO: Confirm I want all these fields
 impl BlockTransformer for ParsedData {
     fn transform_blocks(self) -> Result<Vec<TransformedBlockData>> {
         Ok(vec![TransformedBlockData {
