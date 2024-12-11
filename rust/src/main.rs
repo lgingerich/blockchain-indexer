@@ -10,7 +10,7 @@ use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_network::primitives::BlockTransactionsKind;
 use alloy_provider::ProviderBuilder;
 use alloy_rpc_types_eth::{Block, TransactionReceipt};
-use alloy_rpc_types_trace::geth::GethDebugTracingOptions;
+use alloy_rpc_types_trace::geth::{GethDebugBuiltInTracerType, GethDebugTracerConfig, GethDebugTracerType, GethDebugTracingOptions, GethDefaultTracingOptions};
 
 use eyre::Result;
 
@@ -45,36 +45,34 @@ async fn main() -> Result<()> {
         .await?
         .ok_or_else(|| eyre::eyre!("Provider returned no receipts"))?;
 
-    // println!("Receipts: {:?}", receipts);
 
-    // Parse all block data
+    // Create tracing options with CallTracer and nested calls
+    let trace_options = GethDebugTracingOptions {
+        config: GethDefaultTracingOptions::default(),
+        tracer: Some(GethDebugTracerType::BuiltInTracer(
+            GethDebugBuiltInTracerType::CallTracer,
+        )),
+        tracer_config: GethDebugTracerConfig(serde_json::json!({"onlyTopCall": false})), // Get nested calls
+        timeout: Some("10s".to_string()),
+    };
+    // Get Geth debug traces by block number
+    let traces = indexer::debug_trace_block_by_number(&provider, latest_block, trace_options).await?;
+
+    // Extract and separate the raw RPC response into distinct datasets (block headers, transactions, withdrawals, receipts, logs)
     let parsed_data = indexer::parse_data(block, receipts).await?; 
-    // println!("Parsed data: {:?}", parsed_data);
-    
+   
+    // Transform all data into final output formats (blocks, transactions, logs)
     let transformed_data = indexer::transform_data(parsed_data).await?;
-    // println!("Transformed data: {:?}", transformed_data);
-
-
 
     // Combine collections of data from multiple blocks
     let mut blocks_collection = vec![];
     blocks_collection.extend(transformed_data.blocks);
 
-    println!("Blocks collection: {:?}", blocks_collection);
+    let mut transactions_collection = vec![];
+    transactions_collection.extend(transformed_data.transactions);
 
-    println!("\n\n\n");
-
-    // let mut transactions_collection = vec![];
-    // transactions_collection.extend(transformed_data.transactions);
-
-    // println!("\n\n\n");
-
-
-    // TODO: block_timestamp is None for some (or all) logs
     let mut logs_collection = vec![];
-    logs_collection.extend(transformed_data.logs);
-
-    println!("Logs collection: {:?}", logs_collection);
+    logs_collection.extend(transformed_data.logs); // TODO: block_timestamp is None for some (or all) logs
 
     Ok(())
 }
