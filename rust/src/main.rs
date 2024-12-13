@@ -5,6 +5,7 @@
 
 mod indexer;
 mod models;
+mod storage;
 
 use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_network::primitives::BlockTransactionsKind;
@@ -13,11 +14,24 @@ use alloy_rpc_types_eth::{Block, TransactionReceipt};
 use alloy_rpc_types_trace::geth::{GethDebugBuiltInTracerType, GethDebugTracerConfig, GethDebugTracerType, GethDebugTracingOptions, GethDefaultTracingOptions};
 
 use eyre::Result;
+use tracing_subscriber::{self, EnvFilter};
 
 const RPC_URL: &str = "https://eth.drpc.org";
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Initialize tracing
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env()
+            .add_directive(tracing::Level::INFO.into()))
+        .init();
+
+    // Create dataset and tables
+    let result_dataset = storage::bigquery::create_dataset("test_dataset").await;
+    for table in ["blocks", "logs", "transactions", "traces"] {
+        let result_table = storage::bigquery::create_table("test_dataset", table).await;
+    }
+
     // Create a RPC provider using HTTP with the `reqwest` crate
     let rpc_url = RPC_URL.parse()?;
     let provider = ProviderBuilder::new().on_http(rpc_url);
@@ -36,7 +50,7 @@ async fn main() -> Result<()> {
         .await?
         .ok_or_else(|| eyre::eyre!("Provider returned no block"))?;
 
-    // println!("Block: {:?}", block);
+    // println!("Block: {:?}", block.clone());
 
     // Get receipts by block number
     let block_id = BlockId::Number(latest_block);
@@ -73,5 +87,10 @@ async fn main() -> Result<()> {
     logs_collection.extend(transformed_data.logs); // TODO: block_timestamp is None for some (or all) logs
     traces_collection.extend(transformed_data.traces);
 
+    // println!("Blocks: {:?}", blocks_collection);
+
+    // TODO: This is not working.
+    let insert = storage::bigquery::insert_data("test_dataset", "blocks", blocks_collection).await;
+    
     Ok(())
 }
