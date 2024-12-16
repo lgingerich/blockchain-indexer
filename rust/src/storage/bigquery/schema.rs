@@ -1,5 +1,7 @@
 use google_cloud_bigquery::http::table::{TableFieldSchema, TableFieldType, TableFieldMode, TableSchema};
 
+// TODO: I changed many numbers to strings for easier handling. Is there a better way?
+
 pub fn block_schema() -> TableSchema {
     TableSchema {
         fields: vec![
@@ -243,7 +245,7 @@ pub fn transaction_schema() -> TableSchema {
             },
             TableFieldSchema {
                 name: "value".to_string(),
-                data_type: TableFieldType::Bignumeric,
+                data_type: TableFieldType::String,
                 mode: Some(TableFieldMode::Required),
                 description: None,
                 ..Default::default()
@@ -251,7 +253,7 @@ pub fn transaction_schema() -> TableSchema {
             TableFieldSchema {
                 name: "access_list".to_string(),
                 data_type: TableFieldType::String,
-                mode: Some(TableFieldMode::Required),
+                mode: Some(TableFieldMode::Repeated),
                 description: None,
                 ..Default::default()
             },
@@ -299,14 +301,14 @@ pub fn transaction_schema() -> TableSchema {
             },
             TableFieldSchema {
                 name: "r".to_string(),
-                data_type: TableFieldType::Bignumeric,
+                data_type: TableFieldType::String,
                 mode: Some(TableFieldMode::Required),
                 description: None,
                 ..Default::default()
             },
             TableFieldSchema {
                 name: "s".to_string(),
-                data_type: TableFieldType::Bignumeric,
+                data_type: TableFieldType::String,
                 mode: Some(TableFieldMode::Required),
                 description: None,
                 ..Default::default()
@@ -420,7 +422,7 @@ pub fn transaction_schema() -> TableSchema {
             TableFieldSchema {
                 name: "authorization_list".to_string(),
                 data_type: TableFieldType::String,
-                mode: Some(TableFieldMode::Nullable),
+                mode: Some(TableFieldMode::Repeated),
                 description: None,
                 ..Default::default()
             },
@@ -517,14 +519,14 @@ pub fn trace_schema() -> TableSchema {
             },
             TableFieldSchema {
                 name: "gas".to_string(),
-                data_type: TableFieldType::Bignumeric,
+                data_type: TableFieldType::String,
                 mode: Some(TableFieldMode::Required),
                 description: None,
                 ..Default::default()
             },
             TableFieldSchema {
                 name: "gas_used".to_string(),
-                data_type: TableFieldType::Bignumeric,
+                data_type: TableFieldType::String,
                 mode: Some(TableFieldMode::Required),
                 description: None,
                 ..Default::default()
@@ -573,7 +575,7 @@ pub fn trace_schema() -> TableSchema {
             },
             TableFieldSchema {
                 name: "value".to_string(),
-                data_type: TableFieldType::Bignumeric,
+                data_type: TableFieldType::String,
                 mode: Some(TableFieldMode::Nullable),
                 description: None,
                 ..Default::default()

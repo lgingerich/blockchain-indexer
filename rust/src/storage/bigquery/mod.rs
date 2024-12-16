@@ -9,6 +9,7 @@ use google_cloud_bigquery::http::tabledata::insert_all::{InsertAllRequest, Row};
 use eyre::{Result, Report};
 use serde::Serialize;
 use tracing::{info, warn, error};
+use once_cell::sync::OnceCell;
 
 use crate::storage::bigquery::schema::{block_schema, log_schema, transaction_schema, trace_schema};
 
@@ -17,19 +18,37 @@ use crate::models::indexed::logs::TransformedLogData;
 use crate::models::indexed::traces::TransformedTraceData;
 use crate::models::indexed::transactions::TransformedTransactionData;
 
+use std::sync::Arc;
 
-// for each function, I setup a client. do i need to end this client between each function?
-// what about persisting across multiple data inserts?
+// Define a static OnceCell to hold the shared Client and Project ID
+static BIGQUERY_CLIENT: OnceCell<Arc<(Client, String)>> = OnceCell::new();
 
-async fn get_client() -> Result<(Client, String), Report> {
-    let (config, project_id) = ClientConfig::new_with_auth().await?;
+/// Initializes and returns the shared BigQuery Client and Project ID.
+/// This function ensures that the Client is initialized only once.
+async fn get_client() -> Result<Arc<(Client, String)>, Report> {
+    if let Some(client) = BIGQUERY_CLIENT.get() {
+        return Ok(client.clone());
+    }
+
+    let (config, project_id_option) = ClientConfig::new_with_auth().await?;
     let client = Client::new(config).await?;
-    let project_id = project_id.ok_or_else(|| eyre::eyre!("Project ID not found"))?;
-    Ok((client, project_id))
+    let project_id = project_id_option
+        .ok_or_else(|| eyre::eyre!("Project ID not found"))?;
+    
+    let client_arc = Arc::new((client, project_id));
+    
+    match BIGQUERY_CLIENT.set(client_arc.clone()) {
+        Ok(_) => Ok(client_arc),
+        Err(_) => {
+            // If we failed to set (because another thread set it first),
+            // return the value that was set by the other thread
+            Ok(BIGQUERY_CLIENT.get().unwrap().clone())
+        }
+    }
 }
 
 pub async fn create_dataset(dataset_id: &str) -> Result<(), Report> {
-    let (client, project_id) = get_client().await?;
+    let (client, project_id) = &*get_client().await?;
     let dataset_client = client.dataset(); // Create BigqueryDatasetClient
 
     let metadata = Dataset {
@@ -70,7 +89,7 @@ pub async fn create_dataset(dataset_id: &str) -> Result<(), Report> {
 }
 
 pub async fn create_table(dataset_id: &str, table_id: &str) -> Result<(), Report> {
-    let (client, project_id) = get_client().await?;
+    let (client, project_id) = &*get_client().await?;
     let table_client = client.table(); // Create BigqueryTableClient
     let schema = match table_id {
         "blocks" => block_schema(),
@@ -126,7 +145,8 @@ pub async fn insert_data<T: serde::Serialize>(
     table_id: &str, 
     data: Vec<T>
 ) -> Result<(), Report> {
-    let (client, project_id) = get_client().await?;
+    let (client, project_id) = &*get_client().await?;
+    println!("Inserting data into {}.{}.{}", project_id, dataset_id, table_id);
     let tabledata_client = client.tabledata(); // Create BigqueryTabledataClient
 
     let rows = data.into_iter()

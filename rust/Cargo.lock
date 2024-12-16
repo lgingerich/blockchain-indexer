@@ -3141,6 +3141,7 @@ dependencies = [
  "chrono",
  "eyre",
  "google-cloud-bigquery",
+ "once_cell",
  "serde",
  "serde_json",
  "tokio",

@@ -63,6 +63,7 @@ impl BlockParser for Block {
         match self.transactions {
             BlockTransactions::Full(_) => Ok(self.transactions.txns().map(|transaction| {
                 
+                // TODO: (Maybe) remove all instances of `chain_id` as I am passing it in from the `chain_id` field in the `ParsedData` struct
                 let fields = TransactionData {
                     chain_id: ChainId::Other(0),
                     nonce: 0,
