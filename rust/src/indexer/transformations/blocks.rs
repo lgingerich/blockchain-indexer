@@ -7,7 +7,7 @@ use eyre::Result;
 
 use crate::models::indexed::blocks::TransformedBlockData;
 use crate::models::common::ParsedData;
-
+use crate::models::common::ChainId;
 pub trait BlockTransformer {
     fn transform_blocks(self) -> Result<Vec<TransformedBlockData>>;
 }
@@ -16,7 +16,7 @@ pub trait BlockTransformer {
 impl BlockTransformer for ParsedData {
     fn transform_blocks(self) -> Result<Vec<TransformedBlockData>> {
         Ok(vec![TransformedBlockData {
-            chain_id: self.transactions[0].chain_id.clone(), // TODO: Remove clone. What happens if their are no transactions in the block? This will be empty.
+            chain_id: self.chain_id,
             hash: self.header.hash,
             parent_hash: self.header.parent_hash,
             ommers_hash: self.header.ommers_hash,

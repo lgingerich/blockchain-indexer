@@ -25,6 +25,11 @@ use crate::indexer::transformations::traces::TraceTransformer;
 use crate::models::common::{ParsedData, TransformedData};
 
 
+pub async fn get_chain_id(provider: &ReqwestProvider) -> Result<u64> {
+    let chain_id = provider.get_chain_id().await?;
+    Ok(chain_id)
+}
+
 pub async fn get_latest_block_number(provider: &ReqwestProvider) -> Result<BlockNumberOrTag> { // TODO: Why do I use ReqwestProvider here?
     let latest_block = provider.get_block_number().await?;
     Ok(BlockNumberOrTag::Number(latest_block)) // TODO: Why do I wrap this but not other results?
@@ -69,6 +74,7 @@ where
 }
 
 pub async fn parse_data(
+    chain_id: u64,
     block: Block, 
     receipts: Vec<TransactionReceipt>, 
     traces: Vec<TraceResult<GethTrace, String>>
@@ -83,6 +89,7 @@ pub async fn parse_data(
     let traces = traces.clone().parse_traces()?;
 
     Ok(ParsedData { 
+        chain_id: chain_id,
         header: header,
         transactions: transactions,
         withdrawals: withdrawals,

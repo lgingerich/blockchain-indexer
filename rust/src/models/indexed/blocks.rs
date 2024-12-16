@@ -5,7 +5,8 @@ use crate::models::common::{ChainId, TransactionTo};
 
 #[derive(Debug, Serialize)]
 pub struct TransformedBlockData {
-    pub chain_id: ChainId,
+    // pub chain_id: ChainId,
+    pub chain_id: u64,
     pub hash: FixedBytes<32>,
     pub parent_hash: FixedBytes<32>,
     pub ommers_hash: FixedBytes<32>,

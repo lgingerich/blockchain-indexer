@@ -17,6 +17,7 @@ use eyre::Result;
 use tracing_subscriber::{self, EnvFilter};
 
 const RPC_URL: &str = "https://eth.drpc.org";
+// const RPC_URL: &str = "https://mainnet.era.zksync.io";
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -37,6 +38,9 @@ async fn main() -> Result<()> {
     let provider = ProviderBuilder::new().on_http(rpc_url);
 
     //////////////////////// Fetch data ////////////////////////
+    let chain_id = indexer::get_chain_id(&provider).await?;
+    println!("Chain ID: {:?}", chain_id);
+    
     // Get latest block number
     // let latest_block: BlockNumberOrTag = indexer::get_latest_block_number(&provider).await?;
     // let latest_block: BlockNumberOrTag = BlockNumberOrTag::Number(10000000);
@@ -71,7 +75,7 @@ async fn main() -> Result<()> {
     let traces = indexer::debug_trace_block_by_number(&provider, latest_block, trace_options).await?;
 
     // Extract and separate the raw RPC response into distinct datasets (block headers, transactions, withdrawals, receipts, logs, traces)
-    let parsed_data = indexer::parse_data(block, receipts, traces).await?; 
+    let parsed_data = indexer::parse_data(chain_id, block, receipts, traces).await?; 
 
     // Transform all data into final output formats (blocks, transactions, logs, traces)
     let transformed_data = indexer::transform_data(parsed_data).await?;
@@ -87,10 +91,13 @@ async fn main() -> Result<()> {
     logs_collection.extend(transformed_data.logs); // TODO: block_timestamp is None for some (or all) logs
     traces_collection.extend(transformed_data.traces);
 
-    // println!("Blocks: {:?}", blocks_collection);
+    println!("Blocks: {:?}", blocks_collection);
 
-    // TODO: This is not working.
+    
     let insert = storage::bigquery::insert_data("test_dataset", "blocks", blocks_collection).await;
+    let insert = storage::bigquery::insert_data("test_dataset", "transactions", transactions_collection).await;
+    let insert = storage::bigquery::insert_data("test_dataset", "logs", logs_collection).await;
+    let insert = storage::bigquery::insert_data("test_dataset", "traces", traces_collection).await;
     
     Ok(())
 }

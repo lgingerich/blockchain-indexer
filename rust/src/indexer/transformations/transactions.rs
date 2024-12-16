@@ -22,8 +22,9 @@ impl TransactionTransformer for ParsedData {
         Ok(transactions_with_receipts
             .map(|(tx, receipt)| {
                 TransformedTransactionData {
+                    chain_id: self.chain_id,
+                    
                     // Fields from TransactionData
-                    chain_id: tx.chain_id,
                     nonce: tx.nonce,
                     gas_price: tx.gas_price,
                     gas_limit: tx.gas_limit,
