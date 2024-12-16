@@ -3,7 +3,6 @@
 #![allow(unused_variables)]
 #![allow(dead_code)]
 
-use alloy_eips::eip7702::SignedAuthorization;
 use alloy_primitives::{Address, Bytes, Uint};
 use alloy_rpc_types_trace::geth::CallLogFrame;
 

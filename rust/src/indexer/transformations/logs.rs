@@ -13,8 +13,22 @@ pub trait LogTransformer {
 }
 
 impl LogTransformer for ParsedData {
-    // The final logs dataset has no transformation from the rpc receipt data
     fn transform_logs(self) -> Result<Vec<TransformedLogData>> {
-        Ok(self.logs)
+        // Ok(self.logs)
+        Ok(self.logs.into_iter().map(|log| {
+            TransformedLogData {
+                chain_id: self.chain_id,
+                address: log.address,
+                topics: log.topics,
+                data: log.data,
+                block_hash: log.block_hash,
+                block_number: log.block_number,
+                block_timestamp: log.block_timestamp,
+                transaction_hash: log.transaction_hash,
+                transaction_index: log.transaction_index,
+                log_index: log.log_index,
+                removed: log.removed,
+            }
+        }).collect())
     }
 }
