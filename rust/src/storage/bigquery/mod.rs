@@ -146,9 +146,13 @@ pub async fn insert_data<T: serde::Serialize>(
     data: Vec<T>
 ) -> Result<(), Report> {
     let (client, project_id) = &*get_client().await?;
-    println!("Inserting data into {}.{}.{}", project_id, dataset_id, table_id);
     let tabledata_client = client.tabledata(); // Create BigqueryTabledataClient
 
+    if data.is_empty() {
+        info!("No data to insert into {}.{}.{}", project_id, dataset_id, table_id);
+        return Ok(());
+    }
+    
     let rows = data.into_iter()
         .map(|item| Row {
             insert_id: None,

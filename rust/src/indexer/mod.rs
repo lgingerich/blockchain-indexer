@@ -14,6 +14,7 @@ use alloy_rpc_types_eth::{Block, TransactionReceipt, Withdrawal};
 use alloy_rpc_types_trace::{common::TraceResult, geth::{GethDebugTracingOptions, GethTrace}};
 
 use eyre::Result;
+use tracing::error;
 
 use crate::indexer::rpc::blocks::BlockParser;
 use crate::indexer::rpc::receipts::ReceiptParser;

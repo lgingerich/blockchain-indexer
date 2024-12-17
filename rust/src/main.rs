@@ -14,10 +14,21 @@ use alloy_rpc_types_eth::{Block, TransactionReceipt};
 use alloy_rpc_types_trace::geth::{GethDebugBuiltInTracerType, GethDebugTracerConfig, GethDebugTracerType, GethDebugTracingOptions, GethDefaultTracingOptions};
 
 use eyre::Result;
+use tracing::{info, warn, error};
 use tracing_subscriber::{self, EnvFilter};
 
+use crate::models::indexed::blocks::TransformedBlockData;
+use crate::models::indexed::transactions::TransformedTransactionData;
+use crate::models::indexed::logs::TransformedLogData;
+use crate::models::indexed::traces::TransformedTraceData;
+
 const RPC_URL: &str = "https://eth.drpc.org";
+// TODO: Tenderly RPC throws errors for some blocks (e.g. 15_000_000)
 // const RPC_URL: &str = "https://mainnet.era.zksync.io";
+const MAX_BATCH_SIZE: usize = 10;
+
+// TODO: Make datasets optional as some will be empty in early chain history
+// handle error when provider does not return data
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -40,70 +51,75 @@ async fn main() -> Result<()> {
 
     //////////////////////// Fetch data ////////////////////////
     let chain_id = indexer::get_chain_id(&provider).await?;
-    println!("Chain ID: {:?}", chain_id);
-    
-    // Get latest block number
-    // let latest_block: BlockNumberOrTag = indexer::get_latest_block_number(&provider).await?;
-    // let latest_block: BlockNumberOrTag = BlockNumberOrTag::Number(10000000);
-    let latest_block: BlockNumberOrTag = BlockNumberOrTag::Number(21319680);
+    info!("Chain ID: {:?}", chain_id);
 
-    println!("Latest block number: {:?}", latest_block);
+    // Initialize data for loop
+    let mut block_number: u64 = 15_000_000;
+    let mut block_number_to_process = BlockNumberOrTag::Number(block_number);
+    let mut blocks_collection: Vec<TransformedBlockData> = vec![];
+    let mut transactions_collection: Vec<TransformedTransactionData> = vec![];
+    let mut logs_collection: Vec<TransformedLogData> = vec![];
+    let mut traces_collection: Vec<TransformedTraceData> = vec![];
 
-    // Get block by number
-    let kind = BlockTransactionsKind::Full; // Hashes: only include tx hashes, Full: include full tx objects
-    let block = indexer::get_block_by_number(&provider, latest_block, kind)
-        .await?
-        .ok_or_else(|| eyre::eyre!("Provider returned no block"))?;
+    loop  {
+        // // Get latest block number
+        // let latest_block: BlockNumberOrTag = indexer::get_latest_block_number(&provider).await?;
 
-    // println!("Block: {:?}", block.clone());
+        info!("Block number to process: {:?}", block_number_to_process);
 
-    // Get receipts by block number
-    let block_id = BlockId::Number(latest_block);
-    let receipts = indexer::get_block_receipts(&provider, block_id)
-        .await?
-        .ok_or_else(|| eyre::eyre!("Provider returned no receipts"))?;
+        // Get block by number
+        let kind = BlockTransactionsKind::Full; // Hashes: only include tx hashes, Full: include full tx objects
+        let block = indexer::get_block_by_number(&provider, block_number_to_process, kind)
+            .await?
+            .ok_or_else(|| eyre::eyre!("Provider returned no block"))?;
 
-    // Create tracing options with CallTracer and nested calls
-    let trace_options = GethDebugTracingOptions {
-        config: GethDefaultTracingOptions::default(),
-        tracer: Some(GethDebugTracerType::BuiltInTracer(
-            GethDebugBuiltInTracerType::CallTracer,
-        )),
-        tracer_config: GethDebugTracerConfig(serde_json::json!({"onlyTopCall": false})), // Get nested calls
-        timeout: Some("10s".to_string()),
-    };
-    // Get Geth debug traces by block number
-    let traces = indexer::debug_trace_block_by_number(&provider, latest_block, trace_options).await?;
+        // Get receipts by block number
+        let block_id = BlockId::Number(block_number_to_process);
+        let receipts = indexer::get_block_receipts(&provider, block_id)
+            .await?
+            .ok_or_else(|| eyre::eyre!("Provider returned no receipts"))?;
 
-    // Extract and separate the raw RPC response into distinct datasets (block headers, transactions, withdrawals, receipts, logs, traces)
-    let parsed_data = indexer::parse_data(chain_id, block, receipts, traces).await?; 
+        // Create tracing options with CallTracer and nested calls
+        let trace_options = GethDebugTracingOptions {
+            config: GethDefaultTracingOptions::default(),
+            tracer: Some(GethDebugTracerType::BuiltInTracer(
+                GethDebugBuiltInTracerType::CallTracer,
+            )),
+            tracer_config: GethDebugTracerConfig(serde_json::json!({"onlyTopCall": false})), // Get nested calls
+            timeout: Some("10s".to_string()),
+        };
+        // Get Geth debug traces by block number
+        let traces = indexer::debug_trace_block_by_number(&provider, block_number_to_process, trace_options).await?;
 
-    // Transform all data into final output formats (blocks, transactions, logs, traces)
-    let transformed_data = indexer::transform_data(parsed_data).await?;
+        // Extract and separate the raw RPC response into distinct datasets (block headers, transactions, withdrawals, receipts, logs, traces)
+        let parsed_data = indexer::parse_data(chain_id, block, receipts, traces).await?; 
 
-    // Combine collections of data from multiple blocks
-    let mut blocks_collection = vec![];
-    let mut transactions_collection = vec![];
-    let mut logs_collection = vec![];
-    let mut traces_collection = vec![];
+        // Transform all data into final output formats (blocks, transactions, logs, traces)
+        let transformed_data = indexer::transform_data(parsed_data).await?;
 
-    blocks_collection.extend(transformed_data.blocks);  
-    transactions_collection.extend(transformed_data.transactions);
-    logs_collection.extend(transformed_data.logs); // TODO: block_timestamp is None for some (or all) logs
-    traces_collection.extend(transformed_data.traces);
+        blocks_collection.extend(transformed_data.blocks);  
+        transactions_collection.extend(transformed_data.transactions);
+        logs_collection.extend(transformed_data.logs); // TODO: block_timestamp is None for some (or all) logs
+        traces_collection.extend(transformed_data.traces);
 
-    // println!("Blocks: {:?}", blocks_collection);
-    // println!("Transactions: {:?}", transactions_collection);
-    // println!("Logs: {:?}", logs_collection);
-    // println!("Traces: {:?}", traces_collection);
-    
-    // Insert data into BigQuery
-    // This waits for each dataset to be inserted before inserting the next one
-    // TODO: Add parallel insert
-    storage::bigquery::insert_data("test_dataset", "blocks", blocks_collection).await?;
-    storage::bigquery::insert_data("test_dataset", "transactions", transactions_collection).await?;
-    storage::bigquery::insert_data("test_dataset", "logs", logs_collection).await?;
-    storage::bigquery::insert_data("test_dataset", "traces", traces_collection).await?;
-    
-    Ok(())
+        if blocks_collection.len() >= MAX_BATCH_SIZE {
+            // Insert data into BigQuery
+            // This waits for each dataset to be inserted before inserting the next one
+            // TODO: Add parallel insert
+            storage::bigquery::insert_data("test_dataset", "blocks", blocks_collection).await?;
+            storage::bigquery::insert_data("test_dataset", "transactions", transactions_collection).await?;
+            storage::bigquery::insert_data("test_dataset", "logs", logs_collection).await?;
+            storage::bigquery::insert_data("test_dataset", "traces", traces_collection).await?;
+
+            // Reset collections
+            blocks_collection = vec![];
+            transactions_collection = vec![];
+            logs_collection = vec![];
+            traces_collection = vec![];
+        }
+
+        // Increment the raw number and update BlockNumberOrTag
+        block_number += 1;
+        block_number_to_process = BlockNumberOrTag::Number(block_number);
+    }
 }
