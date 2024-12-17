@@ -97,10 +97,13 @@ async fn main() -> Result<()> {
     // println!("Logs: {:?}", logs_collection);
     // println!("Traces: {:?}", traces_collection);
     
-    let insert = storage::bigquery::insert_data("test_dataset", "blocks", blocks_collection).await;
-    let insert = storage::bigquery::insert_data("test_dataset", "transactions", transactions_collection).await;
-    let insert = storage::bigquery::insert_data("test_dataset", "logs", logs_collection).await;
-    let insert = storage::bigquery::insert_data("test_dataset", "traces", traces_collection).await;
+    // Insert data into BigQuery
+    // This waits for each dataset to be inserted before inserting the next one
+    // TODO: Add parallel insert
+    storage::bigquery::insert_data("test_dataset", "blocks", blocks_collection).await?;
+    storage::bigquery::insert_data("test_dataset", "transactions", transactions_collection).await?;
+    storage::bigquery::insert_data("test_dataset", "logs", logs_collection).await?;
+    storage::bigquery::insert_data("test_dataset", "traces", traces_collection).await?;
     
     Ok(())
 }
