@@ -1,5 +1,5 @@
 use alloy_primitives::{Address, TxKind};
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 
 use crate::indexer::rpc::blocks::BlockParser;
 use crate::indexer::rpc::receipts::ReceiptParser;
@@ -10,6 +10,17 @@ use crate::models::indexed::transactions::TransformedTransactionData;
 use crate::models::rpc::blocks::{HeaderData, TransactionData, WithdrawalData};
 use crate::models::rpc::receipts::{LogReceiptData, TransactionReceiptData};
 use crate::models::rpc::traces::TraceData;
+
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Config {
+    pub project_name: String,
+    pub chain_name: String,
+    pub chain_schema: String,
+    pub rpc_url: String,
+    pub datasets: Vec<String>,
+}
+
 
 #[derive(Debug, Clone, Serialize)]
 pub enum ChainId {

@@ -25,26 +25,45 @@ use crate::models::indexed::blocks::TransformedBlockData;
 use crate::models::indexed::logs::TransformedLogData;
 use crate::models::indexed::traces::TransformedTraceData;
 use crate::models::indexed::transactions::TransformedTransactionData;
+use crate::utils::load_config;
+
+// NEXT STEPS:
+// - Make datasets optional as some will be empty in early chain history
+// - Add retry logic on rpc calls
+// - Add better error handling on rpc calls?
+// - Some places I do "Result<()>". Is this ok?
+
+// NOTES:
+// - Not sure I should implement RPC rotation. Seems like lots of failure modes.
+
 
 const RPC_URL: &str = "https://eth.drpc.org";
 // TODO: Tenderly RPC throws errors for some blocks (e.g. 15_000_000)
 // const RPC_URL: &str = "https://mainnet.era.zksync.io";
 const MAX_BATCH_SIZE: usize = 10; // Number of blocks to fetch before inserting into BigQuery
 
-// TODO: Make datasets optional as some will be empty in early chain history
-// handle error when provider does not return data
-
-// Do I need to use Box<> for error handling?
-
 #[tokio::main]
 async fn main() -> Result<()> {
+    
+    // Load config
+    let config = match load_config("config.yml") {
+        Ok(config) => {
+            info!("Config loaded successfully");
+            config
+        },
+        Err(e) => {
+            error!("Failed to load config: {}", e);
+            return Err(e.into());
+        }
+    };
+
     // Initialize tracing
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env().add_directive(tracing::Level::INFO.into()))
         .init();
 
     // Create dataset and tables
-    let dataset_id = "test_dataset";
+    let dataset_id = config.project_name.as_str();
     let result_dataset = storage::bigquery::create_dataset_with_retry(dataset_id).await;
     for table in ["blocks", "logs", "transactions", "traces"] {
         let result_table = storage::bigquery::create_table_with_retry(dataset_id, table).await;
@@ -114,17 +133,13 @@ async fn main() -> Result<()> {
             // Insert data into BigQuery
             // This waits for each dataset to be inserted before inserting the next one
             // TODO: Add parallel insert
-            storage::bigquery::insert_data_with_retry("test_dataset", "blocks", blocks_collection)
+            storage::bigquery::insert_data_with_retry(dataset_id, "blocks", blocks_collection)
                 .await?;
-            storage::bigquery::insert_data_with_retry(
-                "test_dataset",
-                "transactions",
-                transactions_collection,
-            )
+            storage::bigquery::insert_data_with_retry(dataset_id, "transactions", transactions_collection)
             .await?;
-            storage::bigquery::insert_data_with_retry("test_dataset", "logs", logs_collection)
+            storage::bigquery::insert_data_with_retry(dataset_id, "logs", logs_collection)
                 .await?;
-            storage::bigquery::insert_data_with_retry("test_dataset", "traces", traces_collection)
+            storage::bigquery::insert_data_with_retry(dataset_id, "traces", traces_collection)
                 .await?;
 
             // Reset collections
