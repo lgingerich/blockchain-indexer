@@ -252,8 +252,24 @@ pub fn transaction_schema() -> TableSchema {
             },
             TableFieldSchema {
                 name: "access_list".to_string(),
-                data_type: TableFieldType::String,
+                data_type: TableFieldType::Record,
                 mode: Some(TableFieldMode::Repeated),
+                fields: Some(vec![
+                    TableFieldSchema {
+                        name: "address".to_string(),
+                        data_type: TableFieldType::String,
+                        mode: Some(TableFieldMode::Required),
+                        description: None,
+                        ..Default::default()
+                    },
+                    TableFieldSchema {
+                        name: "storage_keys".to_string(),
+                        data_type: TableFieldType::String,
+                        mode: Some(TableFieldMode::Repeated),
+                        description: None,
+                        ..Default::default()
+                    },
+                ]),
                 description: None,
                 ..Default::default()
             },

@@ -25,10 +25,12 @@ use crate::models::indexed::traces::TransformedTraceData;
 const RPC_URL: &str = "https://eth.drpc.org";
 // TODO: Tenderly RPC throws errors for some blocks (e.g. 15_000_000)
 // const RPC_URL: &str = "https://mainnet.era.zksync.io";
-const MAX_BATCH_SIZE: usize = 10;
+const MAX_BATCH_SIZE: usize = 1;
 
 // TODO: Make datasets optional as some will be empty in early chain history
 // handle error when provider does not return data
+
+// Do I need to use Box<> for error handling?
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -99,10 +101,19 @@ async fn main() -> Result<()> {
 
         blocks_collection.extend(transformed_data.blocks);  
         transactions_collection.extend(transformed_data.transactions);
+
         logs_collection.extend(transformed_data.logs); // TODO: block_timestamp is None for some (or all) logs
         traces_collection.extend(transformed_data.traces);
 
         if blocks_collection.len() >= MAX_BATCH_SIZE {
+            // use std::fs::File;
+            // use std::io::Write;
+            // // Dump transactions to JSON file
+            // let json = serde_json::to_string_pretty(&transactions_collection)?;
+            // let mut file = File::create(format!("transactions_{}.json", block_number))?;
+            // file.write_all(json.as_bytes())?;
+
+
             // Insert data into BigQuery
             // This waits for each dataset to be inserted before inserting the next one
             // TODO: Add parallel insert

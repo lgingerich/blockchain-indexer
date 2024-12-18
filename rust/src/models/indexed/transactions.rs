@@ -23,7 +23,7 @@ pub struct TransformedTransactionData {
     // pub from: Address,
     // pub to: TransactionTo,
     pub value: Uint<256, 4>,
-    pub access_list: AccessList,
+    pub access_list: Option<AccessList>,
     // pub authorization_list: Vec<SignedAuthorization>,
     pub blob_versioned_hashes: Vec<FixedBytes<32>>,
     pub max_fee_per_blob_gas: u128,
