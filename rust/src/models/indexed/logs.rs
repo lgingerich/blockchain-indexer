@@ -13,5 +13,5 @@ pub struct TransformedLogData {
     pub transaction_hash: Option<FixedBytes<32>>,
     pub transaction_index: Option<u64>,
     pub log_index: Option<u64>,
-    pub removed: bool
+    pub removed: bool,
 }

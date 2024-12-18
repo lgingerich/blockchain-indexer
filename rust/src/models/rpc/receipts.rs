@@ -22,7 +22,7 @@ pub struct TransactionReceiptData {
     pub from: Address,
     pub to: Option<Address>,
     pub contract_address: Option<Address>,
-    pub authorization_list: Option<Vec<SignedAuthorization>>
+    pub authorization_list: Option<Vec<SignedAuthorization>>,
 }
 
 #[derive(Debug, Clone)]
@@ -36,5 +36,5 @@ pub struct LogReceiptData {
     pub transaction_hash: Option<FixedBytes<32>>,
     pub transaction_index: Option<u64>,
     pub log_index: Option<u64>,
-    pub removed: bool
+    pub removed: bool,
 }

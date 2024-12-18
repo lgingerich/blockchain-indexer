@@ -5,8 +5,8 @@
 
 use eyre::Result;
 
-use crate::models::indexed::traces::TransformedTraceData;
 use crate::models::common::ParsedData;
+use crate::models::indexed::traces::TransformedTraceData;
 
 pub trait TraceTransformer {
     fn transform_traces(self) -> Result<Vec<TransformedTraceData>>;
@@ -14,8 +14,10 @@ pub trait TraceTransformer {
 
 impl TraceTransformer for ParsedData {
     fn transform_traces(self) -> Result<Vec<TransformedTraceData>> {
-        Ok(self.traces.into_iter().map(|trace| {
-            TransformedTraceData {
+        Ok(self
+            .traces
+            .into_iter()
+            .map(|trace| TransformedTraceData {
                 chain_id: self.chain_id,
                 from: trace.from,
                 gas: trace.gas,
@@ -28,7 +30,7 @@ impl TraceTransformer for ParsedData {
                 logs: trace.logs,
                 value: trace.value,
                 typ: trace.typ,
-            }
-        }).collect())
+            })
+            .collect())
     }
 }

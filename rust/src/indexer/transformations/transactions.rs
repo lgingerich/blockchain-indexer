@@ -5,8 +5,8 @@
 
 use eyre::Result;
 
-use crate::models::indexed::transactions::TransformedTransactionData;
 use crate::models::common::ParsedData;
+use crate::models::indexed::transactions::TransformedTransactionData;
 
 pub trait TransactionTransformer {
     fn transform_transactions(self) -> Result<Vec<TransformedTransactionData>>;
@@ -15,7 +15,9 @@ pub trait TransactionTransformer {
 impl TransactionTransformer for ParsedData {
     fn transform_transactions(self) -> Result<Vec<TransformedTransactionData>> {
         // Zip transactions with their corresponding receipts
-        let transactions_with_receipts = self.transactions.into_iter()
+        let transactions_with_receipts = self
+            .transactions
+            .into_iter()
             .zip(self.transaction_receipts.into_iter());
 
         // Map each (transaction, receipt) pair into a TransformedTransactionData
@@ -23,7 +25,7 @@ impl TransactionTransformer for ParsedData {
             .map(|(tx, receipt)| {
                 TransformedTransactionData {
                     chain_id: self.chain_id,
-                    
+
                     // Fields from TransactionData
                     nonce: tx.nonce,
                     gas_price: tx.gas_price,
@@ -43,7 +45,7 @@ impl TransactionTransformer for ParsedData {
                     s: tx.s,
                     v: tx.v,
                     transaction_hash: receipt.transaction_hash, // Use from receipt as it's non-optional
-                    
+
                     // Fields from TransactionReceiptData
                     status: receipt.status,
                     cumulative_gas_used: receipt.cumulative_gas_used,

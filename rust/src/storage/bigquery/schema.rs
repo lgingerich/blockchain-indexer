@@ -1,4 +1,6 @@
-use google_cloud_bigquery::http::table::{TableFieldSchema, TableFieldType, TableFieldMode, TableSchema};
+use google_cloud_bigquery::http::table::{
+    TableFieldMode, TableFieldSchema, TableFieldType, TableSchema,
+};
 
 // TODO: I changed many numbers to strings for easier handling. Is there a better way?
 

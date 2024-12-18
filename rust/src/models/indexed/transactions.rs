@@ -11,7 +11,6 @@ use crate::models::common::{ChainId, TransactionTo};
 // TODO: Verify fields and cleanup
 #[derive(Debug, Serialize)]
 pub struct TransformedTransactionData {
-
     // Block fields
     pub chain_id: u64,
     // pub hash: FixedBytes<32>,

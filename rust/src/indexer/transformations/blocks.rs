@@ -5,9 +5,9 @@
 
 use eyre::Result;
 
-use crate::models::indexed::blocks::TransformedBlockData;
-use crate::models::common::ParsedData;
 use crate::models::common::ChainId;
+use crate::models::common::ParsedData;
+use crate::models::indexed::blocks::TransformedBlockData;
 pub trait BlockTransformer {
     fn transform_blocks(self) -> Result<Vec<TransformedBlockData>>;
 }

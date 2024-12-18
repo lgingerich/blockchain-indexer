@@ -5,8 +5,8 @@
 
 use eyre::Result;
 
-use crate::models::indexed::logs::TransformedLogData;
 use crate::models::common::ParsedData;
+use crate::models::indexed::logs::TransformedLogData;
 
 pub trait LogTransformer {
     fn transform_logs(self) -> Result<Vec<TransformedLogData>>;
@@ -15,8 +15,10 @@ pub trait LogTransformer {
 impl LogTransformer for ParsedData {
     fn transform_logs(self) -> Result<Vec<TransformedLogData>> {
         // Ok(self.logs)
-        Ok(self.logs.into_iter().map(|log| {
-            TransformedLogData {
+        Ok(self
+            .logs
+            .into_iter()
+            .map(|log| TransformedLogData {
                 chain_id: self.chain_id,
                 address: log.address,
                 topics: log.topics,
@@ -28,7 +30,7 @@ impl LogTransformer for ParsedData {
                 transaction_index: log.transaction_index,
                 log_index: log.log_index,
                 removed: log.removed,
-            }
-        }).collect())
+            })
+            .collect())
     }
 }

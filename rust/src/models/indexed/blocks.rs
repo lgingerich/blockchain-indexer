@@ -1,7 +1,7 @@
+use crate::models::common::{ChainId, TransactionTo};
 use alloy_primitives::{Address, Bloom, Bytes, FixedBytes, TxKind, Uint};
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::Serialize;
-use crate::models::common::{ChainId, TransactionTo};
 
 #[derive(Debug, Serialize)]
 pub struct TransformedBlockData {

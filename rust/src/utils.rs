@@ -1,12 +1,10 @@
-use tokio::time::{sleep, Duration};
 use rand::Rng;
+use tokio::time::{sleep, Duration};
 
 // Constants for retry configuration
 const MAX_RETRIES: u32 = 5;
 const BASE_DELAY_MS: u64 = 100;
 const MAX_DELAY_MS: u64 = 5000;
-
-
 
 /// Implements exponential backoff with jitter
 pub async fn exponential_backoff(attempt: u32, max_retries: u32) {

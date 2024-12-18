@@ -12,16 +12,19 @@ use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_network::primitives::BlockTransactionsKind;
 use alloy_provider::ProviderBuilder;
 use alloy_rpc_types_eth::{Block, TransactionReceipt};
-use alloy_rpc_types_trace::geth::{GethDebugBuiltInTracerType, GethDebugTracerConfig, GethDebugTracerType, GethDebugTracingOptions, GethDefaultTracingOptions};
+use alloy_rpc_types_trace::geth::{
+    GethDebugBuiltInTracerType, GethDebugTracerConfig, GethDebugTracerType,
+    GethDebugTracingOptions, GethDefaultTracingOptions,
+};
 
 use eyre::Result;
-use tracing::{info, warn, error};
+use tracing::{error, info, warn};
 use tracing_subscriber::{self, EnvFilter};
 
 use crate::models::indexed::blocks::TransformedBlockData;
-use crate::models::indexed::transactions::TransformedTransactionData;
 use crate::models::indexed::logs::TransformedLogData;
 use crate::models::indexed::traces::TransformedTraceData;
+use crate::models::indexed::transactions::TransformedTransactionData;
 
 const RPC_URL: &str = "https://eth.drpc.org";
 // TODO: Tenderly RPC throws errors for some blocks (e.g. 15_000_000)
@@ -37,8 +40,7 @@ const MAX_BATCH_SIZE: usize = 10; // Number of blocks to fetch before inserting 
 async fn main() -> Result<()> {
     // Initialize tracing
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env()
-            .add_directive(tracing::Level::INFO.into()))
+        .with_env_filter(EnvFilter::from_default_env().add_directive(tracing::Level::INFO.into()))
         .init();
 
     // Create dataset and tables
@@ -64,7 +66,7 @@ async fn main() -> Result<()> {
     let mut logs_collection: Vec<TransformedLogData> = vec![];
     let mut traces_collection: Vec<TransformedTraceData> = vec![];
 
-    loop  {
+    loop {
         // // Get latest block number
         // let latest_block: BlockNumberOrTag = indexer::get_latest_block_number(&provider).await?;
 
@@ -92,15 +94,17 @@ async fn main() -> Result<()> {
             timeout: Some("10s".to_string()),
         };
         // Get Geth debug traces by block number
-        let traces = indexer::debug_trace_block_by_number(&provider, block_number_to_process, trace_options).await?;
+        let traces =
+            indexer::debug_trace_block_by_number(&provider, block_number_to_process, trace_options)
+                .await?;
 
         // Extract and separate the raw RPC response into distinct datasets (block headers, transactions, withdrawals, receipts, logs, traces)
-        let parsed_data = indexer::parse_data(chain_id, block, receipts, traces).await?; 
+        let parsed_data = indexer::parse_data(chain_id, block, receipts, traces).await?;
 
         // Transform all data into final output formats (blocks, transactions, logs, traces)
         let transformed_data = indexer::transform_data(parsed_data).await?;
 
-        blocks_collection.extend(transformed_data.blocks);  
+        blocks_collection.extend(transformed_data.blocks);
         transactions_collection.extend(transformed_data.transactions);
 
         logs_collection.extend(transformed_data.logs); // TODO: block_timestamp is None for some (or all) logs
@@ -110,10 +114,18 @@ async fn main() -> Result<()> {
             // Insert data into BigQuery
             // This waits for each dataset to be inserted before inserting the next one
             // TODO: Add parallel insert
-            storage::bigquery::insert_data_with_retry("test_dataset", "blocks", blocks_collection).await?;
-            storage::bigquery::insert_data_with_retry("test_dataset", "transactions", transactions_collection).await?;
-            storage::bigquery::insert_data_with_retry("test_dataset", "logs", logs_collection).await?;
-            storage::bigquery::insert_data_with_retry("test_dataset", "traces", traces_collection).await?;
+            storage::bigquery::insert_data_with_retry("test_dataset", "blocks", blocks_collection)
+                .await?;
+            storage::bigquery::insert_data_with_retry(
+                "test_dataset",
+                "transactions",
+                transactions_collection,
+            )
+            .await?;
+            storage::bigquery::insert_data_with_retry("test_dataset", "logs", logs_collection)
+                .await?;
+            storage::bigquery::insert_data_with_retry("test_dataset", "traces", traces_collection)
+                .await?;
 
             // Reset collections
             blocks_collection = vec![];

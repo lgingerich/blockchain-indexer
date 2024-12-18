@@ -1,17 +1,19 @@
 mod schema;
 
-use google_cloud_bigquery::client::{ClientConfig, Client};
+use google_cloud_bigquery::client::{Client, ClientConfig};
 use google_cloud_bigquery::http::dataset::{Dataset, DatasetReference};
-use google_cloud_bigquery::http::table::{Table, TableFieldSchema, TableReference, TableSchema};
 use google_cloud_bigquery::http::error::Error as BigQueryError;
+use google_cloud_bigquery::http::table::{Table, TableFieldSchema, TableReference, TableSchema};
 use google_cloud_bigquery::http::tabledata::insert_all::{InsertAllRequest, Row};
 
-use eyre::{Result, Report};
-use serde::Serialize;
-use tracing::{info, warn, error};
+use eyre::{Report, Result};
 use once_cell::sync::OnceCell;
+use serde::Serialize;
+use tracing::{error, info, warn};
 
-use crate::storage::bigquery::schema::{block_schema, log_schema, transaction_schema, trace_schema};
+use crate::storage::bigquery::schema::{
+    block_schema, log_schema, trace_schema, transaction_schema,
+};
 
 use crate::models::indexed::blocks::TransformedBlockData;
 use crate::models::indexed::logs::TransformedLogData;
@@ -35,11 +37,10 @@ async fn get_client() -> Result<Arc<(Client, String)>, Report> {
 
     let (config, project_id_option) = ClientConfig::new_with_auth().await?;
     let client = Client::new(config).await?;
-    let project_id = project_id_option
-        .ok_or_else(|| eyre::eyre!("Project ID not found"))?;
-    
+    let project_id = project_id_option.ok_or_else(|| eyre::eyre!("Project ID not found"))?;
+
     let client_arc = Arc::new((client, project_id));
-    
+
     match BIGQUERY_CLIENT.set(client_arc.clone()) {
         Ok(_) => Ok(client_arc),
         Err(_) => {
@@ -55,16 +56,21 @@ async fn verify_dataset(client: &Client, project_id: &str, dataset_id: &str) -> 
     match client.dataset().get(project_id, dataset_id).await {
         Ok(_) => Ok(true),
         Err(BigQueryError::Response(resp)) if resp.message.contains("Not found") => Ok(false),
-        Err(e) => Err(eyre::eyre!("Failed to verify dataset: {}", e))
+        Err(e) => Err(eyre::eyre!("Failed to verify dataset: {}", e)),
     }
 }
 
 /// Verify that a table exists and is accessible
-async fn verify_table(client: &Client, project_id: &str, dataset_id: &str, table_id: &str) -> Result<bool> {
+async fn verify_table(
+    client: &Client,
+    project_id: &str,
+    dataset_id: &str,
+    table_id: &str,
+) -> Result<bool> {
     match client.table().get(project_id, dataset_id, table_id).await {
         Ok(_) => Ok(true),
         Err(BigQueryError::Response(resp)) if resp.message.contains("Not found") => Ok(false),
-        Err(e) => Err(eyre::eyre!("Failed to verify table: {}", e))
+        Err(e) => Err(eyre::eyre!("Failed to verify table: {}", e)),
     }
 }
 
@@ -111,7 +117,7 @@ async fn create_dataset(dataset_id: &str) -> Result<(), Report> {
 
 pub async fn create_dataset_with_retry(dataset_id: &str) -> Result<()> {
     let (client, project_id) = &*get_client().await?;
-    
+
     for attempt in 0..MAX_RETRIES {
         // Check if dataset already exists
         if verify_dataset(client, project_id, dataset_id).await? {
@@ -137,8 +143,11 @@ pub async fn create_dataset_with_retry(dataset_id: &str) -> Result<()> {
             }
         }
     }
-    
-    Err(eyre::eyre!("Failed to create and verify dataset after {} attempts", MAX_RETRIES))
+
+    Err(eyre::eyre!(
+        "Failed to create and verify dataset after {} attempts",
+        MAX_RETRIES
+    ))
 }
 
 async fn create_table(dataset_id: &str, table_id: &str) -> Result<(), Report> {
@@ -164,14 +173,20 @@ async fn create_table(dataset_id: &str, table_id: &str) -> Result<(), Report> {
 
     match table_client.create(&metadata).await {
         Ok(_) => {
-            info!("Table '{}' successfully created in dataset '{}'", table_id, dataset_id);
+            info!(
+                "Table '{}' successfully created in dataset '{}'",
+                table_id, dataset_id
+            );
             Ok(())
         }
         Err(e) => {
             match e {
                 BigQueryError::Response(resp) => {
                     if resp.message.contains("Already Exists") {
-                        info!("Table '{}' already exists in dataset '{}'", table_id, dataset_id);
+                        info!(
+                            "Table '{}' already exists in dataset '{}'",
+                            table_id, dataset_id
+                        );
                         return Ok(());
                     }
                     error!("BigQuery API Error: {}", resp.message);
@@ -191,14 +206,16 @@ async fn create_table(dataset_id: &str, table_id: &str) -> Result<(), Report> {
     }
 }
 
-
 pub async fn create_table_with_retry(dataset_id: &str, table_id: &str) -> Result<()> {
     let (client, project_id) = &*get_client().await?;
-    
+
     for attempt in 0..MAX_RETRIES {
         // Check if table already exists
         if verify_table(client, project_id, dataset_id, table_id).await? {
-            info!("Table '{}.{}' already exists and is accessible", dataset_id, table_id);
+            info!(
+                "Table '{}.{}' already exists and is accessible",
+                dataset_id, table_id
+            );
             return Ok(());
         }
 
@@ -220,26 +237,31 @@ pub async fn create_table_with_retry(dataset_id: &str, table_id: &str) -> Result
             }
         }
     }
-    
-    Err(eyre::eyre!("Failed to create and verify table after {} attempts", MAX_RETRIES))
+
+    Err(eyre::eyre!(
+        "Failed to create and verify table after {} attempts",
+        MAX_RETRIES
+    ))
 }
 
-// Sometimes get this error:
-// BigQuery API Error: Table 871411803528:test_dataset.blocks not found.
 async fn insert_data<T: serde::Serialize>(
-    dataset_id: &str, 
-    table_id: &str, 
-    data: &Vec<T>
+    dataset_id: &str,
+    table_id: &str,
+    data: &Vec<T>,
 ) -> Result<(), Report> {
     let (client, project_id) = &*get_client().await?;
     let tabledata_client = client.tabledata(); // Create BigqueryTabledataClient
 
     if data.is_empty() {
-        info!("No data to insert into {}.{}.{}", project_id, dataset_id, table_id);
+        info!(
+            "No data to insert into {}.{}.{}",
+            project_id, dataset_id, table_id
+        );
         return Ok(());
     }
-    
-    let rows = data.into_iter()
+
+    let rows = data
+        .into_iter()
         .map(|item| Row {
             insert_id: None,
             json: item,
@@ -254,7 +276,10 @@ async fn insert_data<T: serde::Serialize>(
         trace_id: None,
     };
 
-    match tabledata_client.insert(&project_id, dataset_id, table_id, &request).await {
+    match tabledata_client
+        .insert(&project_id, dataset_id, table_id, &request)
+        .await
+    {
         Ok(response) => {
             if let Some(errors) = response.insert_errors {
                 if !errors.is_empty() {
@@ -311,12 +336,12 @@ async fn insert_data<T: serde::Serialize>(
 }
 
 pub async fn insert_data_with_retry<T: serde::Serialize>(
-    dataset_id: &str, 
-    table_id: &str, 
-    data: Vec<T>
+    dataset_id: &str,
+    table_id: &str,
+    data: Vec<T>,
 ) -> Result<()> {
     let (client, project_id) = &*get_client().await?;
-    
+
     for attempt in 0..MAX_RETRIES {
         // Verify table exists before attempting insert
         if !verify_table(client, project_id, dataset_id, table_id).await? {
@@ -333,6 +358,9 @@ pub async fn insert_data_with_retry<T: serde::Serialize>(
             }
         }
     }
-    
-    Err(eyre::eyre!("Failed to insert data after {} attempts", MAX_RETRIES))
+
+    Err(eyre::eyre!(
+        "Failed to insert data after {} attempts",
+        MAX_RETRIES
+    ))
 }
