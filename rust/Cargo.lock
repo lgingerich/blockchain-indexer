@@ -3142,6 +3142,7 @@ dependencies = [
  "eyre",
  "google-cloud-bigquery",
  "once_cell",
+ "rand",
  "serde",
  "serde_json",
  "tokio",

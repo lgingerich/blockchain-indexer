@@ -6,6 +6,7 @@
 mod indexer;
 mod models;
 mod storage;
+mod utils;
 
 use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_network::primitives::BlockTransactionsKind;
@@ -25,7 +26,7 @@ use crate::models::indexed::traces::TransformedTraceData;
 const RPC_URL: &str = "https://eth.drpc.org";
 // TODO: Tenderly RPC throws errors for some blocks (e.g. 15_000_000)
 // const RPC_URL: &str = "https://mainnet.era.zksync.io";
-const MAX_BATCH_SIZE: usize = 1;
+const MAX_BATCH_SIZE: usize = 10; // Number of blocks to fetch before inserting into BigQuery
 
 // TODO: Make datasets optional as some will be empty in early chain history
 // handle error when provider does not return data
@@ -42,9 +43,9 @@ async fn main() -> Result<()> {
 
     // Create dataset and tables
     let dataset_id = "test_dataset";
-    let result_dataset = storage::bigquery::create_dataset(dataset_id).await;
+    let result_dataset = storage::bigquery::create_dataset_with_retry(dataset_id).await;
     for table in ["blocks", "logs", "transactions", "traces"] {
-        let result_table = storage::bigquery::create_table(dataset_id, table).await;
+        let result_table = storage::bigquery::create_table_with_retry(dataset_id, table).await;
     }
 
     // Create a RPC provider using HTTP with the `reqwest` crate
@@ -106,21 +107,13 @@ async fn main() -> Result<()> {
         traces_collection.extend(transformed_data.traces);
 
         if blocks_collection.len() >= MAX_BATCH_SIZE {
-            // use std::fs::File;
-            // use std::io::Write;
-            // // Dump transactions to JSON file
-            // let json = serde_json::to_string_pretty(&transactions_collection)?;
-            // let mut file = File::create(format!("transactions_{}.json", block_number))?;
-            // file.write_all(json.as_bytes())?;
-
-
             // Insert data into BigQuery
             // This waits for each dataset to be inserted before inserting the next one
             // TODO: Add parallel insert
-            storage::bigquery::insert_data("test_dataset", "blocks", blocks_collection).await?;
-            storage::bigquery::insert_data("test_dataset", "transactions", transactions_collection).await?;
-            storage::bigquery::insert_data("test_dataset", "logs", logs_collection).await?;
-            storage::bigquery::insert_data("test_dataset", "traces", traces_collection).await?;
+            storage::bigquery::insert_data_with_retry("test_dataset", "blocks", blocks_collection).await?;
+            storage::bigquery::insert_data_with_retry("test_dataset", "transactions", transactions_collection).await?;
+            storage::bigquery::insert_data_with_retry("test_dataset", "logs", logs_collection).await?;
+            storage::bigquery::insert_data_with_retry("test_dataset", "traces", traces_collection).await?;
 
             // Reset collections
             blocks_collection = vec![];

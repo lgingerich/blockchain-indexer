@@ -32,7 +32,7 @@ impl TransactionTransformer for ParsedData {
                     max_priority_fee_per_gas: tx.max_priority_fee_per_gas,
                     value: tx.value,
                     access_list: Some(tx.access_list),
-                    authorization_list: Some(tx.authorization_list), // Convert Vec to Option<Vec>
+                    // authorization_list: Some(tx.authorization_list), // Convert Vec to Option<Vec>
                     blob_versioned_hashes: tx.blob_versioned_hashes,
                     max_fee_per_blob_gas: tx.max_fee_per_blob_gas,
                     blobs: tx.blobs,

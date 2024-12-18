@@ -54,5 +54,5 @@ pub struct TransformedTransactionData {
     pub from: Address,
     pub to: Option<Address>,
     pub contract_address: Option<Address>,
-    pub authorization_list: Option<Vec<SignedAuthorization>>
+    // pub authorization_list: Option<Vec<SignedAuthorization>> // TODO: Implement this. Need to handle private fields and updating the BigQuery schema
 }

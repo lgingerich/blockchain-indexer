@@ -584,8 +584,38 @@ pub fn trace_schema() -> TableSchema {
             },
             TableFieldSchema {
                 name: "logs".to_string(),
-                data_type: TableFieldType::String,
+                data_type: TableFieldType::Record,
                 mode: Some(TableFieldMode::Repeated),
+                fields: Some(vec![
+                    TableFieldSchema {
+                        name: "address".to_string(),
+                        data_type: TableFieldType::String,
+                        mode: Some(TableFieldMode::Nullable),
+                        description: None,
+                        ..Default::default()
+                    },
+                    TableFieldSchema {
+                        name: "topics".to_string(),
+                        data_type: TableFieldType::String,
+                        mode: Some(TableFieldMode::Repeated),
+                        description: None,
+                        ..Default::default()
+                    },
+                    TableFieldSchema {
+                        name: "data".to_string(),
+                        data_type: TableFieldType::String,
+                        mode: Some(TableFieldMode::Nullable),
+                        description: None,
+                        ..Default::default()
+                    },
+                    TableFieldSchema {
+                        name: "position".to_string(),
+                        data_type: TableFieldType::Integer,
+                        mode: Some(TableFieldMode::Nullable),
+                        description: None,
+                        ..Default::default()
+                    },
+                ]),
                 description: None,
                 ..Default::default()
             },

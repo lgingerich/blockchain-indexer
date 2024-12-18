@@ -17,8 +17,11 @@ use crate::models::indexed::blocks::TransformedBlockData;
 use crate::models::indexed::logs::TransformedLogData;
 use crate::models::indexed::traces::TransformedTraceData;
 use crate::models::indexed::transactions::TransformedTransactionData;
+use crate::utils::exponential_backoff;
 
 use std::sync::Arc;
+
+const MAX_RETRIES: u32 = 5;
 
 // Define a static OnceCell to hold the shared Client and Project ID
 static BIGQUERY_CLIENT: OnceCell<Arc<(Client, String)>> = OnceCell::new();
@@ -47,7 +50,25 @@ async fn get_client() -> Result<Arc<(Client, String)>, Report> {
     }
 }
 
-pub async fn create_dataset(dataset_id: &str) -> Result<(), Report> {
+/// Verify that a dataset exists and is accessible
+async fn verify_dataset(client: &Client, project_id: &str, dataset_id: &str) -> Result<bool> {
+    match client.dataset().get(project_id, dataset_id).await {
+        Ok(_) => Ok(true),
+        Err(BigQueryError::Response(resp)) if resp.message.contains("Not found") => Ok(false),
+        Err(e) => Err(eyre::eyre!("Failed to verify dataset: {}", e))
+    }
+}
+
+/// Verify that a table exists and is accessible
+async fn verify_table(client: &Client, project_id: &str, dataset_id: &str, table_id: &str) -> Result<bool> {
+    match client.table().get(project_id, dataset_id, table_id).await {
+        Ok(_) => Ok(true),
+        Err(BigQueryError::Response(resp)) if resp.message.contains("Not found") => Ok(false),
+        Err(e) => Err(eyre::eyre!("Failed to verify table: {}", e))
+    }
+}
+
+async fn create_dataset(dataset_id: &str) -> Result<(), Report> {
     let (client, project_id) = &*get_client().await?;
     let dataset_client = client.dataset(); // Create BigqueryDatasetClient
 
@@ -88,7 +109,39 @@ pub async fn create_dataset(dataset_id: &str) -> Result<(), Report> {
     }
 }
 
-pub async fn create_table(dataset_id: &str, table_id: &str) -> Result<(), Report> {
+pub async fn create_dataset_with_retry(dataset_id: &str) -> Result<()> {
+    let (client, project_id) = &*get_client().await?;
+    
+    for attempt in 0..MAX_RETRIES {
+        // Check if dataset already exists
+        if verify_dataset(client, project_id, dataset_id).await? {
+            info!("Dataset '{}' already exists and is accessible", dataset_id);
+            return Ok(());
+        }
+
+        // Try to create the dataset
+        match create_dataset(dataset_id).await {
+            Ok(_) => {
+                // Verify the dataset was created and is accessible
+                for verify_attempt in 0..MAX_RETRIES {
+                    if verify_dataset(client, project_id, dataset_id).await? {
+                        info!("Dataset '{}' created and verified", dataset_id);
+                        return Ok(());
+                    }
+                    exponential_backoff(verify_attempt, MAX_RETRIES).await;
+                }
+            }
+            Err(e) => {
+                warn!("Failed to create dataset on attempt {}: {}", attempt + 1, e);
+                exponential_backoff(attempt, MAX_RETRIES).await;
+            }
+        }
+    }
+    
+    Err(eyre::eyre!("Failed to create and verify dataset after {} attempts", MAX_RETRIES))
+}
+
+async fn create_table(dataset_id: &str, table_id: &str) -> Result<(), Report> {
     let (client, project_id) = &*get_client().await?;
     let table_client = client.table(); // Create BigqueryTableClient
     let schema = match table_id {
@@ -138,12 +191,45 @@ pub async fn create_table(dataset_id: &str, table_id: &str) -> Result<(), Report
     }
 }
 
+
+pub async fn create_table_with_retry(dataset_id: &str, table_id: &str) -> Result<()> {
+    let (client, project_id) = &*get_client().await?;
+    
+    for attempt in 0..MAX_RETRIES {
+        // Check if table already exists
+        if verify_table(client, project_id, dataset_id, table_id).await? {
+            info!("Table '{}.{}' already exists and is accessible", dataset_id, table_id);
+            return Ok(());
+        }
+
+        // Try to create the table
+        match create_table(dataset_id, table_id).await {
+            Ok(_) => {
+                // Verify the table was created and is accessible
+                for verify_attempt in 0..MAX_RETRIES {
+                    if verify_table(client, project_id, dataset_id, table_id).await? {
+                        info!("Table '{}.{}' created and verified", dataset_id, table_id);
+                        return Ok(());
+                    }
+                    exponential_backoff(verify_attempt, MAX_RETRIES).await;
+                }
+            }
+            Err(e) => {
+                warn!("Failed to create table on attempt {}: {}", attempt + 1, e);
+                exponential_backoff(attempt, MAX_RETRIES).await;
+            }
+        }
+    }
+    
+    Err(eyre::eyre!("Failed to create and verify table after {} attempts", MAX_RETRIES))
+}
+
 // Sometimes get this error:
 // BigQuery API Error: Table 871411803528:test_dataset.blocks not found.
-pub async fn insert_data<T: serde::Serialize>(
+async fn insert_data<T: serde::Serialize>(
     dataset_id: &str, 
     table_id: &str, 
-    data: Vec<T>
+    data: &Vec<T>
 ) -> Result<(), Report> {
     let (client, project_id) = &*get_client().await?;
     let tabledata_client = client.tabledata(); // Create BigqueryTabledataClient
@@ -222,4 +308,31 @@ pub async fn insert_data<T: serde::Serialize>(
             Err(eyre::eyre!("Data insertion failed"))
         }
     }
+}
+
+pub async fn insert_data_with_retry<T: serde::Serialize>(
+    dataset_id: &str, 
+    table_id: &str, 
+    data: Vec<T>
+) -> Result<()> {
+    let (client, project_id) = &*get_client().await?;
+    
+    for attempt in 0..MAX_RETRIES {
+        // Verify table exists before attempting insert
+        if !verify_table(client, project_id, dataset_id, table_id).await? {
+            warn!("Table not found before insert attempt {}", attempt + 1);
+            exponential_backoff(attempt, MAX_RETRIES).await;
+            continue;
+        }
+
+        match insert_data(dataset_id, table_id, &data).await {
+            Ok(_) => return Ok(()),
+            Err(e) => {
+                warn!("Failed to insert data on attempt {}: {}", attempt + 1, e);
+                exponential_backoff(attempt, MAX_RETRIES).await;
+            }
+        }
+    }
+    
+    Err(eyre::eyre!("Failed to insert data after {} attempts", MAX_RETRIES))
 }
