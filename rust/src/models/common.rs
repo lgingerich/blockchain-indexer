@@ -38,7 +38,7 @@ pub enum TransactionTo {
 #[derive(Debug, Clone)]
 pub struct ParsedData {
     pub chain_id: u64,
-    pub header: HeaderData,
+    pub header: Vec<HeaderData>,
     pub transactions: Vec<TransactionData>,
     pub withdrawals: Vec<WithdrawalData>,
     pub transaction_receipts: Vec<TransactionReceiptData>,

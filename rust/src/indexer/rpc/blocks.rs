@@ -19,16 +19,16 @@ use crate::models::rpc::receipts::TransactionReceiptData;
 
 // NOTE: No handling for uncle blocks
 pub trait BlockParser {
-    fn parse_header(self) -> Result<HeaderData>;
+    fn parse_header(self) -> Result<Vec<HeaderData>>;
     fn parse_transactions(self) -> Result<Vec<TransactionData>>;
     fn parse_withdrawals(self) -> Result<Vec<WithdrawalData>>;
 }
 
 impl BlockParser for Block {
-    fn parse_header(self) -> Result<HeaderData> {
+    fn parse_header(self) -> Result<Vec<HeaderData>> {
         let inner = self.header.inner;
         // TODO: Add error handling
-        Ok(HeaderData {
+        Ok(vec![HeaderData {
             hash: self.header.hash,
             parent_hash: inner.parent_hash,
             ommers_hash: inner.ommers_hash,
@@ -58,7 +58,7 @@ impl BlockParser for Block {
             target_blobs_per_block: inner.target_blobs_per_block,
             total_difficulty: self.header.total_difficulty,
             size: self.header.size,
-        })
+        }])
     }
 
     fn parse_transactions(self) -> Result<Vec<TransactionData>> {

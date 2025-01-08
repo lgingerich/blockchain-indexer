@@ -68,53 +68,90 @@ pub async fn debug_trace_block_by_number<T, N>(
     provider: &impl DebugApi<N, T>,
     block_number: BlockNumberOrTag,
     trace_options: GethDebugTracingOptions,
-) -> Result<Vec<TraceResult<GethTrace, String>>>
+) -> Result<Option<Vec<TraceResult<GethTrace, String>>>>
 where
     T: Transport + Clone,
     N: Network,
 {
-    let traces = provider
-        .debug_trace_block_by_number(block_number, trace_options)
-        .await?;
-    Ok(traces)
+    let traces = provider.debug_trace_block_by_number(block_number, trace_options).await?;
+    Ok(Some(traces))
 }
 
 pub async fn parse_data(
     chain_id: u64,
-    block: Block,
-    receipts: Vec<TransactionReceipt>,
-    traces: Vec<TraceResult<GethTrace, String>>,
+    block: Option<Block>,
+    receipts: Option<Vec<TransactionReceipt>>,
+    traces: Option<Vec<TraceResult<GethTrace, String>>>,
 ) -> Result<ParsedData> {
-    let header = block.clone().parse_header()?; //TODO: Remove clone
-    let transactions = block.clone().parse_transactions()?;
-    let withdrawals = block.clone().parse_withdrawals()?;
+    // Parse block data if available
+    let (header, transactions, withdrawals) = if let Some(block) = block {
+        (
+            block.clone().parse_header()?,
+            block.clone().parse_transactions()?,
+            block.parse_withdrawals()?,
+        )
+    } else {
+        (vec![], vec![], vec![])
+    };
 
-    let transaction_receipts = receipts.clone().parse_transaction_receipts()?;
-    let logs = receipts.clone().parse_log_receipts()?;
+    // Parse receipt data if available
+    let (transaction_receipts, logs) = if let Some(receipts) = receipts {
+        (
+            receipts.clone().parse_transaction_receipts()?,
+            receipts.parse_log_receipts()?,
+        )
+    } else {
+        (vec![], vec![])
+    };
 
-    let traces = traces.clone().parse_traces()?;
+    // Parse traces if available
+    let traces = if let Some(traces) = traces {
+        traces.parse_traces()?
+    } else {
+        vec![]
+    };
 
     Ok(ParsedData {
-        chain_id: chain_id,
-        header: header,
-        transactions: transactions,
-        withdrawals: withdrawals,
-        transaction_receipts: transaction_receipts,
-        logs: logs,
-        traces: traces,
+        chain_id,
+        header,
+        transactions,
+        withdrawals,
+        transaction_receipts,
+        logs,
+        traces,
     })
 }
 
-pub async fn transform_data(parsed_data: ParsedData) -> Result<TransformedData> {
-    let blocks = parsed_data.clone().transform_blocks()?;
-    let transactions = parsed_data.clone().transform_transactions()?;
-    let logs = parsed_data.clone().transform_logs()?;
-    let traces = parsed_data.clone().transform_traces()?;
+pub async fn transform_data(parsed_data: ParsedData, active_datasets: &Vec<String>) -> Result<TransformedData> {
+    // Only transform data for active datasets, otherwise return empty Vec
+    let blocks = if active_datasets.contains(&"blocks".to_string()) {
+        parsed_data.clone().transform_blocks()?
+    } else {
+        vec![]
+    };
+    
+    let transactions = if active_datasets.contains(&"transactions".to_string()) && !parsed_data.transactions.is_empty() {
+        parsed_data.clone().transform_transactions()?
+    } else {
+        vec![]
+    };
+    
+    let logs = if active_datasets.contains(&"logs".to_string()) && !parsed_data.logs.is_empty() {
+        parsed_data.clone().transform_logs()?
+    } else {
+        vec![]
+    };
+    
+    let traces = if active_datasets.contains(&"traces".to_string()) && !parsed_data.traces.is_empty() {
+        parsed_data.clone().transform_traces()?
+    } else {
+        vec![]
+    };
 
     Ok(TransformedData {
-        blocks: blocks,
-        transactions: transactions,
-        logs: logs,
-        traces: traces,
+        blocks,
+        transactions,
+        logs,
+        traces,
     })
 }

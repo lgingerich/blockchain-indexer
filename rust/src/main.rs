@@ -37,14 +37,20 @@ use crate::utils::load_config;
 // - Not sure I should implement RPC rotation. Seems like lots of failure modes.
 
 
-const RPC_URL: &str = "https://eth.drpc.org";
+
 // TODO: Tenderly RPC throws errors for some blocks (e.g. 15_000_000)
 // const RPC_URL: &str = "https://mainnet.era.zksync.io";
+
 const MAX_BATCH_SIZE: usize = 10; // Number of blocks to fetch before inserting into BigQuery
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    
+
+    // Initialize tracing
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env().add_directive(tracing::Level::INFO.into()))
+        .init();
+
     // Load config
     let config = match load_config("config.yml") {
         Ok(config) => {
@@ -57,20 +63,21 @@ async fn main() -> Result<()> {
         }
     };
 
-    // Initialize tracing
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env().add_directive(tracing::Level::INFO.into()))
-        .init();
+    // Parse configs
+    let rpc = config.rpc_url.as_str();
+    let dataset_id = config.project_name.as_str();
+    let datasets = config.datasets;
 
     // Create dataset and tables
-    let dataset_id = config.project_name.as_str();
     let result_dataset = storage::bigquery::create_dataset_with_retry(dataset_id).await;
     for table in ["blocks", "logs", "transactions", "traces"] {
-        let result_table = storage::bigquery::create_table_with_retry(dataset_id, table).await;
+        if datasets.contains(&table.to_string()) {
+            let result_table = storage::bigquery::create_table_with_retry(dataset_id, table).await;
+        }
     }
 
-    // Create a RPC provider using HTTP with the `reqwest` crate
-    let rpc_url = RPC_URL.parse()?;
+    // Create RPC provider
+    let rpc_url = rpc.parse()?;
     let provider = ProviderBuilder::new().on_http(rpc_url);
 
     //////////////////////// Fetch data ////////////////////////
@@ -85,43 +92,68 @@ async fn main() -> Result<()> {
     let mut logs_collection: Vec<TransformedLogData> = vec![];
     let mut traces_collection: Vec<TransformedTraceData> = vec![];
 
+    // while block_number <= 15_000_000 {
     loop {
+        // Track which RPC responses we need
+        let need_block = datasets.contains(&"blocks".to_string()) || 
+                        datasets.contains(&"transactions".to_string());
+        let need_receipts = datasets.contains(&"logs".to_string()) || 
+                           datasets.contains(&"transactions".to_string());
+        let need_traces = datasets.contains(&"traces".to_string());
+
+        // Initialize intermediate data
+        let mut block = None;
+        let mut receipts = None;
+        let mut traces = None;
+
         // // Get latest block number
         // let latest_block: BlockNumberOrTag = indexer::get_latest_block_number(&provider).await?;
 
         info!("Block number to process: {:?}", block_number_to_process);
 
         // Get block by number
-        let kind = BlockTransactionsKind::Full; // Hashes: only include tx hashes, Full: include full tx objects
-        let block = indexer::get_block_by_number(&provider, block_number_to_process, kind)
-            .await?
-            .ok_or_else(|| eyre::eyre!("Provider returned no block"))?;
+        // Only fetch block data if `blocks` or `transactions` are in the active datasets
+        if need_block { // TODO: Refactor to not search every time. Same with receipts and traces.
+            let kind = BlockTransactionsKind::Full; // Hashes: only include tx hashes, Full: include full tx objects
+            block = Some(indexer::get_block_by_number(&provider, block_number_to_process, kind)
+                .await?
+                .ok_or_else(|| eyre::eyre!("Provider returned no block"))?
+            );
+        }
 
         // Get receipts by block number
-        let block_id = BlockId::Number(block_number_to_process);
-        let receipts = indexer::get_block_receipts(&provider, block_id)
-            .await?
-            .ok_or_else(|| eyre::eyre!("Provider returned no receipts"))?;
+        // Only fetch receipts data if `logs` or `transactions` are in the active datasets
+        if need_receipts {
+            let block_id = BlockId::Number(block_number_to_process);
+            receipts = Some(indexer::get_block_receipts(&provider, block_id)
+                .await?
+                .ok_or_else(|| eyre::eyre!("Provider returned no receipts"))?
+            );
+        }
 
         // Create tracing options with CallTracer and nested calls
-        let trace_options = GethDebugTracingOptions {
-            config: GethDefaultTracingOptions::default(),
-            tracer: Some(GethDebugTracerType::BuiltInTracer(
-                GethDebugBuiltInTracerType::CallTracer,
-            )),
-            tracer_config: GethDebugTracerConfig(serde_json::json!({"onlyTopCall": false})), // Get nested calls
-            timeout: Some("10s".to_string()),
-        };
-        // Get Geth debug traces by block number
-        let traces =
-            indexer::debug_trace_block_by_number(&provider, block_number_to_process, trace_options)
-                .await?;
+        // Only fetch traces data if `traces` is in the active datasets
+        if need_traces {
+            let trace_options = GethDebugTracingOptions {
+                config: GethDefaultTracingOptions::default(),
+                tracer: Some(GethDebugTracerType::BuiltInTracer(
+                    GethDebugBuiltInTracerType::CallTracer,
+                )),
+                tracer_config: GethDebugTracerConfig(serde_json::json!({"onlyTopCall": false})), // Get nested calls
+                timeout: Some("10s".to_string()),
+            };
+            // Get Geth debug traces by block number
+            traces = Some(indexer::debug_trace_block_by_number(&provider, block_number_to_process, trace_options)
+                .await?
+                .ok_or_else(|| eyre::eyre!("Provider returned no traces"))?
+            );
+        }
 
         // Extract and separate the raw RPC response into distinct datasets (block headers, transactions, withdrawals, receipts, logs, traces)
         let parsed_data = indexer::parse_data(chain_id, block, receipts, traces).await?;
 
         // Transform all data into final output formats (blocks, transactions, logs, traces)
-        let transformed_data = indexer::transform_data(parsed_data).await?;
+        let transformed_data = indexer::transform_data(parsed_data, &datasets).await?;
 
         blocks_collection.extend(transformed_data.blocks);
         transactions_collection.extend(transformed_data.transactions);
@@ -133,14 +165,22 @@ async fn main() -> Result<()> {
             // Insert data into BigQuery
             // This waits for each dataset to be inserted before inserting the next one
             // TODO: Add parallel insert
-            storage::bigquery::insert_data_with_retry(dataset_id, "blocks", blocks_collection)
-                .await?;
-            storage::bigquery::insert_data_with_retry(dataset_id, "transactions", transactions_collection)
-            .await?;
-            storage::bigquery::insert_data_with_retry(dataset_id, "logs", logs_collection)
-                .await?;
-            storage::bigquery::insert_data_with_retry(dataset_id, "traces", traces_collection)
-                .await?;
+            if datasets.contains(&"blocks".to_string()) {
+                storage::bigquery::insert_data_with_retry(dataset_id, "blocks", blocks_collection)
+                    .await?;
+            }
+            if datasets.contains(&"transactions".to_string()) {
+                storage::bigquery::insert_data_with_retry(dataset_id, "transactions", transactions_collection)
+                    .await?;
+            }
+            if datasets.contains(&"logs".to_string()) {
+                storage::bigquery::insert_data_with_retry(dataset_id, "logs", logs_collection)
+                    .await?;
+            }
+            if datasets.contains(&"traces".to_string()) {
+                storage::bigquery::insert_data_with_retry(dataset_id, "traces", traces_collection)
+                    .await?;
+            }
 
             // Reset collections
             blocks_collection = vec![];
@@ -153,4 +193,6 @@ async fn main() -> Result<()> {
         block_number += 1;
         block_number_to_process = BlockNumberOrTag::Number(block_number);
     }
+
+    // Ok(())
 }
