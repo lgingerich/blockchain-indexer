@@ -78,7 +78,7 @@ pub fn block_schema() -> TableSchema {
                 ..Default::default()
             },
             TableFieldSchema {
-                name: "number".to_string(),
+                name: "block_number".to_string(),
                 data_type: TableFieldType::Integer,
                 mode: Some(TableFieldMode::Required),
                 description: None,

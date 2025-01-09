@@ -20,6 +20,7 @@ use alloy_rpc_types_trace::geth::{
 use eyre::Result;
 use tracing::{error, info, warn};
 use tracing_subscriber::{self, EnvFilter};
+use url::Url;
 
 use crate::models::indexed::blocks::TransformedBlockData;
 use crate::models::indexed::logs::TransformedLogData;
@@ -28,10 +29,10 @@ use crate::models::indexed::transactions::TransformedTransactionData;
 use crate::utils::load_config;
 
 // NEXT STEPS:
-// - Make datasets optional as some will be empty in early chain history
 // - Add retry logic on rpc calls
 // - Add better error handling on rpc calls?
 // - Some places I do "Result<()>". Is this ok?
+// - Get last processed block number from storage, if exists
 
 // NOTES:
 // - Not sure I should implement RPC rotation. Seems like lots of failure modes.
@@ -45,11 +46,13 @@ const MAX_BATCH_SIZE: usize = 10; // Number of blocks to fetch before inserting 
 
 #[tokio::main]
 async fn main() -> Result<()> {
-
     // Initialize tracing
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env().add_directive(tracing::Level::INFO.into()))
         .init();
+
+    println!();
+    info!("=========================== INITIALIZING ===========================");
 
     // Load config
     let config = match load_config("config.yml") {
@@ -68,7 +71,7 @@ async fn main() -> Result<()> {
     let dataset_id = config.project_name.as_str();
     let datasets = config.datasets;
 
-    // Create dataset and tables
+    // Create dataset and tables. Handles existing datasets and tables.
     let result_dataset = storage::bigquery::create_dataset_with_retry(dataset_id).await;
     for table in ["blocks", "logs", "transactions", "traces"] {
         if datasets.contains(&table.to_string()) {
@@ -76,8 +79,16 @@ async fn main() -> Result<()> {
         }
     }
 
+    // Get last processed block number from storage
+    // If it exists, start from the next block, else start from 0
+    let last_processed_block = storage::bigquery::get_last_processed_block(dataset_id, &datasets).await?;
+    let mut block_number = if last_processed_block > 0 { last_processed_block + 1 } else { 0 };
+    // let mut block_number: u64 = 15_000_000;
+    info!("Starting block number: {:?}", block_number);
+    
     // Create RPC provider
-    let rpc_url = rpc.parse()?;
+    let rpc_url: Url = rpc.parse()?;
+    info!("RPC URL: {:?}", rpc);
     let provider = ProviderBuilder::new().on_http(rpc_url);
 
     //////////////////////// Fetch data ////////////////////////
@@ -85,13 +96,14 @@ async fn main() -> Result<()> {
     info!("Chain ID: {:?}", chain_id);
 
     // Initialize data for loop
-    let mut block_number: u64 = 15_000_000;
     let mut block_number_to_process = BlockNumberOrTag::Number(block_number);
     let mut blocks_collection: Vec<TransformedBlockData> = vec![];
     let mut transactions_collection: Vec<TransformedTransactionData> = vec![];
     let mut logs_collection: Vec<TransformedLogData> = vec![];
     let mut traces_collection: Vec<TransformedTraceData> = vec![];
 
+    println!();
+    info!("========================= STARTING INDEXER =========================");
     // while block_number <= 15_000_000 {
     loop {
         // Track which RPC responses we need

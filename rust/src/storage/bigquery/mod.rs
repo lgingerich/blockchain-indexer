@@ -3,8 +3,13 @@ mod schema;
 use google_cloud_bigquery::client::{Client, ClientConfig};
 use google_cloud_bigquery::http::dataset::{Dataset, DatasetReference};
 use google_cloud_bigquery::http::error::Error as BigQueryError;
+use google_cloud_bigquery::http::job::query::{QueryRequest, QueryResponse};
 use google_cloud_bigquery::http::table::{Table, TableFieldSchema, TableReference, TableSchema};
-use google_cloud_bigquery::http::tabledata::insert_all::{InsertAllRequest, Row};
+use google_cloud_bigquery::http::tabledata::{
+    insert_all::{InsertAllRequest, Row as TableRow},
+    list::Value
+};
+use google_cloud_bigquery::http::query::row::Row;
 
 use eyre::{Report, Result};
 use once_cell::sync::OnceCell;
@@ -262,7 +267,7 @@ async fn insert_data<T: serde::Serialize>(
 
     let rows = data
         .into_iter()
-        .map(|item| Row {
+        .map(|item| TableRow {
             insert_id: None,
             json: item,
         })
@@ -363,4 +368,49 @@ pub async fn insert_data_with_retry<T: serde::Serialize>(
         "Failed to insert data after {} attempts",
         MAX_RETRIES
     ))
+}
+
+
+pub async fn get_last_processed_block(dataset_id: &str, datasets: &Vec<String>) -> Result<u64> {
+    let (client, project_id) = &*get_client().await?;
+    let job_client = client.job(); // Create BigqueryJobClient
+    let mut min_block: Option<u64> = None;
+
+    for table_id in datasets {
+        // Skip tables that don't exist
+        if !verify_table(client, project_id, dataset_id, table_id).await? {
+            continue;
+        }
+
+        let query = format!(
+            "SELECT MAX(block_number) AS max_block FROM `{}.{}.{}`",
+            project_id, dataset_id, table_id
+        );
+        let request = QueryRequest {
+            query: query.into(),
+            ..Default::default()
+        };
+        match job_client.query(&project_id, &request).await {
+            Ok(result) => {
+                if let Some(rows) = result.rows {
+                    if !rows.is_empty() {
+                        if let Value::String(str_value) = &rows[0].f[0].v {
+                            if let Ok(block_num) = str_value.parse::<u64>() {
+                                min_block = Some(match min_block {
+                                    Some(current_min) => current_min.min(block_num),
+                                    None => block_num,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                error!("Failed to query table {}: {}", table_id, e);
+            }
+        }
+    }
+    let min_block = min_block.unwrap_or(0);
+    info!("Last processed block: {}", min_block);
+    Ok(min_block)
 }

@@ -23,7 +23,7 @@ pub struct HeaderData {
     pub receipts_root: FixedBytes<32>,
     pub logs_bloom: Bloom,
     pub difficulty: Uint<256, 4>,
-    pub number: u64,
+    pub block_number: u64,
     pub gas_limit: u64,
     pub gas_used: u64,
     pub block_time: DateTime<Utc>,

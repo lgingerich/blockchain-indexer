@@ -29,7 +29,7 @@ impl BlockTransformer for ParsedData {
                 receipts_root: header.receipts_root,
                 logs_bloom: header.logs_bloom,
                 difficulty: header.difficulty,
-                number: header.number,
+                block_number: header.block_number,
                 gas_limit: header.gas_limit,
                 gas_used: header.gas_used,
                 block_time: header.block_time,

@@ -38,7 +38,7 @@ impl BlockParser for Block {
             receipts_root: inner.receipts_root,
             logs_bloom: inner.logs_bloom,
             difficulty: inner.difficulty,
-            number: inner.number,
+            block_number: inner.number,
             gas_limit: inner.gas_limit,
             gas_used: inner.gas_used,
             block_time: DateTime::from_timestamp(inner.timestamp as i64, 0)
