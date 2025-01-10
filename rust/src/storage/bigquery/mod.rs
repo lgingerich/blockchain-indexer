@@ -33,8 +33,8 @@ const MAX_RETRIES: u32 = 5;
 // Define a static OnceCell to hold the shared Client and Project ID
 static BIGQUERY_CLIENT: OnceCell<Arc<(Client, String)>> = OnceCell::new();
 
-/// Initializes and returns the shared BigQuery Client and Project ID.
-/// This function ensures that the Client is initialized only once.
+// Initializes and returns the shared BigQuery Client and Project ID.
+// This function ensures that the Client is initialized only once.
 async fn get_client() -> Result<Arc<(Client, String)>, Report> {
     if let Some(client) = BIGQUERY_CLIENT.get() {
         return Ok(client.clone());
@@ -56,7 +56,7 @@ async fn get_client() -> Result<Arc<(Client, String)>, Report> {
     }
 }
 
-/// Verify that a dataset exists and is accessible
+// Verify that a dataset exists and is accessible
 async fn verify_dataset(client: &Client, project_id: &str, dataset_id: &str) -> Result<bool> {
     match client.dataset().get(project_id, dataset_id).await {
         Ok(_) => Ok(true),
@@ -65,7 +65,7 @@ async fn verify_dataset(client: &Client, project_id: &str, dataset_id: &str) -> 
     }
 }
 
-/// Verify that a table exists and is accessible
+// Verify that a table exists and is accessible
 async fn verify_table(
     client: &Client,
     project_id: &str,
@@ -79,9 +79,10 @@ async fn verify_table(
     }
 }
 
-async fn create_dataset(dataset_id: &str) -> Result<(), Report> {
+// Create a dataset
+async fn create_dataset(dataset_id: &str) -> Result<()> {
     let (client, project_id) = &*get_client().await?;
-    let dataset_client = client.dataset(); // Create BigqueryDatasetClient
+    let dataset_client = client.dataset();
 
     let metadata = Dataset {
         dataset_reference: DatasetReference {

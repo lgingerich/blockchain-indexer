@@ -26,7 +26,6 @@ pub enum TransactionTo {
     Address(Address), // For TxEip4844, TxEip7702 which use Address directly
 }
 
-// TODO: The user will be able to specify which datasets they want, so these should all be optional
 #[derive(Debug, Clone)]
 pub struct ParsedData {
     pub chain_id: u64,
@@ -38,7 +37,6 @@ pub struct ParsedData {
     pub traces: Vec<TraceData>,
 }
 
-// TODO: The user will be able to specify which datasets they want, so these should all be optional
 #[derive(Debug)]
 pub struct TransformedData {
     pub blocks: Vec<TransformedBlockData>,

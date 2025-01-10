@@ -251,8 +251,6 @@ impl BlockParser for Block {
         }
     }
 
-    // TODO: Is there a better way to do this without unwrapping?
-    // Do I need to use `Ok`?
     fn parse_withdrawals(self) -> Result<Vec<WithdrawalData>> {
         Ok(self
             .withdrawals

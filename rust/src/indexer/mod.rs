@@ -25,14 +25,22 @@ use crate::indexer::transformations::{
     transactions::TransactionTransformer,
 };
 use crate::models::common::{ParsedData, TransformedData};
+use crate::utils::retry::{RetryConfig, retry};
 
-pub async fn get_chain_id<T, N>(provider: &dyn Provider<T, N>) -> Result<u64>
+pub async fn get_chain_id<T, N>(
+    provider: &dyn Provider<T, N>,
+    retry_config: &RetryConfig,
+) -> Result<u64>
 where
     T: Transport + Clone,
     N: Network,
 {
-    let chain_id = provider.get_chain_id().await?;
-    Ok(chain_id)
+    retry(
+        || async { provider.get_chain_id().await },
+        retry_config,
+        "get_chain_id",
+    )
+    .await
 }
 
 pub async fn get_latest_block_number<T, N>(
@@ -50,40 +58,54 @@ pub async fn get_block_by_number<T, N>(
     provider: &dyn Provider<T, N>,
     block_number: BlockNumberOrTag,
     kind: BlockTransactionsKind,
+    retry_config: &RetryConfig,
 ) -> Result<Option<N::BlockResponse>>
 where
     T: Transport + Clone,
     N: Network,
 {
-    let block = provider.get_block_by_number(block_number, kind).await?;
-    Ok(block)
+    retry(
+        || async { provider.get_block_by_number(block_number, kind).await },
+        retry_config,
+        &format!("get_block_by_number({})", block_number),
+    )
+    .await
 }
 
 pub async fn get_block_receipts<T, N>(
     provider: &dyn Provider<T, N>,
     block: BlockId,
+    retry_config: &RetryConfig,
 ) -> Result<Option<Vec<N::ReceiptResponse>>>
 where
     T: Transport + Clone,
     N: Network,
 {
-    let receipts = provider.get_block_receipts(block).await?;
-    Ok(receipts)
+    retry(
+        || async { provider.get_block_receipts(block).await },
+        retry_config,
+        &format!("get_block_receipts({})", block),
+    )
+    .await
 }
 
 pub async fn debug_trace_block_by_number<T, N>(
     provider: &impl DebugApi<N, T>,
     block_number: BlockNumberOrTag,
     trace_options: GethDebugTracingOptions,
+    retry_config: &RetryConfig,
 ) -> Result<Option<Vec<TraceResult<GethTrace, String>>>>
 where
     T: Transport + Clone,
     N: Network,
 {
-    let traces = provider
-        .debug_trace_block_by_number(block_number, trace_options)
-        .await?;
-    Ok(Some(traces))
+    retry(
+        || async { provider.debug_trace_block_by_number(block_number, trace_options.clone()).await },
+        retry_config,
+        &format!("debug_trace_block_by_number({})", block_number),
+    )
+    .await
+    .map(Some)
 }
 
 pub async fn parse_data(

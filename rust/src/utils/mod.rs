@@ -1,3 +1,5 @@
+pub mod retry;
+
 use eyre::{Result, WrapErr};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
