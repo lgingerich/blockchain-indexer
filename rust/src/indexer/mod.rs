@@ -19,24 +19,31 @@ use alloy_transport::{RpcError, Transport};
 use eyre::Result;
 use tracing::error;
 
-use crate::indexer::rpc::blocks::BlockParser;
-use crate::indexer::rpc::receipts::ReceiptParser;
-use crate::indexer::rpc::traces::TraceParser;
-use crate::indexer::transformations::blocks::BlockTransformer;
-use crate::indexer::transformations::logs::LogTransformer;
-use crate::indexer::transformations::traces::TraceTransformer;
-use crate::indexer::transformations::transactions::TransactionTransformer;
+use crate::indexer::rpc::{blocks::BlockParser, receipts::ReceiptParser, traces::TraceParser};
+use crate::indexer::transformations::{
+    blocks::BlockTransformer, logs::LogTransformer, traces::TraceTransformer,
+    transactions::TransactionTransformer,
+};
 use crate::models::common::{ParsedData, TransformedData};
 
-pub async fn get_chain_id(provider: &ReqwestProvider) -> Result<u64> {
+pub async fn get_chain_id<T, N>(provider: &dyn Provider<T, N>) -> Result<u64>
+where
+    T: Transport + Clone,
+    N: Network,
+{
     let chain_id = provider.get_chain_id().await?;
     Ok(chain_id)
 }
 
-pub async fn get_latest_block_number(provider: &ReqwestProvider) -> Result<BlockNumberOrTag> {
-    // TODO: Why do I use ReqwestProvider here?
+pub async fn get_latest_block_number<T, N>(
+    provider: &dyn Provider<T, N>,
+) -> Result<BlockNumberOrTag>
+where
+    T: Transport + Clone,
+    N: Network,
+{
     let latest_block = provider.get_block_number().await?;
-    Ok(BlockNumberOrTag::Number(latest_block)) // TODO: Why do I wrap this but not other results?
+    Ok(BlockNumberOrTag::Number(latest_block))
 }
 
 pub async fn get_block_by_number<T, N>(
@@ -73,7 +80,9 @@ where
     T: Transport + Clone,
     N: Network,
 {
-    let traces = provider.debug_trace_block_by_number(block_number, trace_options).await?;
+    let traces = provider
+        .debug_trace_block_by_number(block_number, trace_options)
+        .await?;
     Ok(Some(traces))
 }
 
@@ -122,31 +131,37 @@ pub async fn parse_data(
     })
 }
 
-pub async fn transform_data(parsed_data: ParsedData, active_datasets: &Vec<String>) -> Result<TransformedData> {
+pub async fn transform_data(
+    parsed_data: ParsedData,
+    active_datasets: &Vec<String>,
+) -> Result<TransformedData> {
     // Only transform data for active datasets, otherwise return empty Vec
     let blocks = if active_datasets.contains(&"blocks".to_string()) {
         parsed_data.clone().transform_blocks()?
     } else {
         vec![]
     };
-    
-    let transactions = if active_datasets.contains(&"transactions".to_string()) && !parsed_data.transactions.is_empty() {
+
+    let transactions = if active_datasets.contains(&"transactions".to_string())
+        && !parsed_data.transactions.is_empty()
+    {
         parsed_data.clone().transform_transactions()?
     } else {
         vec![]
     };
-    
+
     let logs = if active_datasets.contains(&"logs".to_string()) && !parsed_data.logs.is_empty() {
         parsed_data.clone().transform_logs()?
     } else {
         vec![]
     };
-    
-    let traces = if active_datasets.contains(&"traces".to_string()) && !parsed_data.traces.is_empty() {
-        parsed_data.clone().transform_traces()?
-    } else {
-        vec![]
-    };
+
+    let traces =
+        if active_datasets.contains(&"traces".to_string()) && !parsed_data.traces.is_empty() {
+            parsed_data.clone().transform_traces()?
+        } else {
+            vec![]
+        };
 
     Ok(TransformedData {
         blocks,
