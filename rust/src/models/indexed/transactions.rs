@@ -12,7 +12,7 @@ use crate::models::common::{ChainId, TransactionTo};
 #[derive(Debug, Serialize)]
 pub struct TransformedTransactionData {
     // Block fields
-    pub chain_id: u64,
+    pub chain_id: ChainId,
     // pub hash: FixedBytes<32>,
     pub nonce: u64,
     pub gas_price: u128,
