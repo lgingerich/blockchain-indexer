@@ -4,12 +4,12 @@ use google_cloud_bigquery::client::{Client, ClientConfig};
 use google_cloud_bigquery::http::dataset::{Dataset, DatasetReference};
 use google_cloud_bigquery::http::error::Error as BigQueryError;
 use google_cloud_bigquery::http::job::query::{QueryRequest, QueryResponse};
+use google_cloud_bigquery::http::query::row::Row;
 use google_cloud_bigquery::http::table::{Table, TableFieldSchema, TableReference, TableSchema};
 use google_cloud_bigquery::http::tabledata::{
     insert_all::{InsertAllRequest, Row as TableRow},
-    list::Value
+    list::Value,
 };
-use google_cloud_bigquery::http::query::row::Row;
 
 use eyre::{Report, Result};
 use once_cell::sync::OnceCell;
@@ -252,7 +252,7 @@ pub async fn create_table_with_retry(dataset_id: &str, table_id: &str) -> Result
 async fn insert_data<T: serde::Serialize>(
     dataset_id: &str,
     table_id: &str,
-    data: &Vec<T>,
+    data: &[T],
 ) -> Result<(), Report> {
     let (client, project_id) = &*get_client().await?;
     let tabledata_client = client.tabledata(); // Create BigqueryTabledataClient
@@ -266,7 +266,7 @@ async fn insert_data<T: serde::Serialize>(
     }
 
     let rows = data
-        .into_iter()
+        .iter()
         .map(|item| TableRow {
             insert_id: None,
             json: item,
@@ -282,7 +282,7 @@ async fn insert_data<T: serde::Serialize>(
     };
 
     match tabledata_client
-        .insert(&project_id, dataset_id, table_id, &request)
+        .insert(project_id, dataset_id, table_id, &request)
         .await
     {
         Ok(response) => {
@@ -370,7 +370,6 @@ pub async fn insert_data_with_retry<T: serde::Serialize>(
     ))
 }
 
-
 pub async fn get_last_processed_block(dataset_id: &str, datasets: &Vec<String>) -> Result<u64> {
     let (client, project_id) = &*get_client().await?;
     let job_client = client.job(); // Create BigqueryJobClient
@@ -387,10 +386,10 @@ pub async fn get_last_processed_block(dataset_id: &str, datasets: &Vec<String>) 
             project_id, dataset_id, table_id
         );
         let request = QueryRequest {
-            query: query.into(),
+            query,
             ..Default::default()
         };
-        match job_client.query(&project_id, &request).await {
+        match job_client.query(project_id, &request).await {
             Ok(result) => {
                 if let Some(rows) = result.rows {
                     if !rows.is_empty() {

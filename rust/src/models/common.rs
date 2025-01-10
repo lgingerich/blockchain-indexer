@@ -1,5 +1,5 @@
 use alloy_primitives::{Address, TxKind};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use crate::indexer::rpc::blocks::BlockParser;
 use crate::indexer::rpc::receipts::ReceiptParser;
@@ -10,7 +10,6 @@ use crate::models::indexed::transactions::TransformedTransactionData;
 use crate::models::rpc::blocks::{HeaderData, TransactionData, WithdrawalData};
 use crate::models::rpc::receipts::{LogReceiptData, TransactionReceiptData};
 use crate::models::rpc::traces::TraceData;
-
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Config {

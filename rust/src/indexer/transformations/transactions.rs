@@ -15,10 +15,8 @@ pub trait TransactionTransformer {
 impl TransactionTransformer for ParsedData {
     fn transform_transactions(self) -> Result<Vec<TransformedTransactionData>> {
         // Zip transactions with their corresponding receipts
-        let transactions_with_receipts = self
-            .transactions
-            .into_iter()
-            .zip(self.transaction_receipts.into_iter());
+        let transactions_with_receipts =
+            self.transactions.into_iter().zip(self.transaction_receipts);
 
         // Map each (transaction, receipt) pair into a TransformedTransactionData
         Ok(transactions_with_receipts

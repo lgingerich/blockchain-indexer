@@ -111,7 +111,7 @@ impl BlockParser for Block {
                                 r: signature.r(),
                                 s: signature.s(),
                                 v: signature.v(),
-                                hash: signed.hash().clone(), // TODO: Remove clone
+                                hash: *signed.hash(),
                                 ..fields
                             }
                         }
@@ -130,7 +130,7 @@ impl BlockParser for Block {
                                 r: signature.r(),
                                 s: signature.s(),
                                 v: signature.v(),
-                                hash: signed.hash().clone(), // TODO: Remove clone
+                                hash: *signed.hash(),
                                 ..fields
                             }
                         }
@@ -150,7 +150,7 @@ impl BlockParser for Block {
                                 r: signature.r(),
                                 s: signature.s(),
                                 v: signature.v(),
-                                hash: signed.hash().clone(), // TODO: Remove clone
+                                hash: *signed.hash(),
                                 ..fields
                             }
                         }
@@ -172,7 +172,7 @@ impl BlockParser for Block {
                                     r: signature.r(),
                                     s: signature.s(),
                                     v: signature.v(),
-                                    hash: signed.hash().clone(), // TODO: Remove clone
+                                    hash: *signed.hash(),
                                     ..fields
                                 },
                                 TxEip4844Variant::TxEip4844WithSidecar(tx_with_sidecar) => {
@@ -196,7 +196,7 @@ impl BlockParser for Block {
                                         r: signature.r(),
                                         s: signature.s(),
                                         v: signature.v(),
-                                        hash: signed.hash().clone(), // TODO: Remove clone
+                                        hash: *signed.hash(),
                                         ..fields
                                     }
                                 }
@@ -219,7 +219,7 @@ impl BlockParser for Block {
                                 r: signature.r(),
                                 s: signature.s(),
                                 v: signature.v(),
-                                hash: signed.hash().clone(), // TODO: Remove clone
+                                hash: *signed.hash(),
                                 ..fields
                             }
                         }

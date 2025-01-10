@@ -31,16 +31,12 @@ use crate::utils::load_config;
 // NEXT STEPS:
 // - Add retry logic on rpc calls
 // - Add better error handling on rpc calls?
+//      - Fix Tenderly RPC
 // - Some places I do "Result<()>". Is this ok?
-// - Get last processed block number from storage, if exists
+// - Add monitoring
 
 // NOTES:
 // - Not sure I should implement RPC rotation. Seems like lots of failure modes.
-
-
-
-// TODO: Tenderly RPC throws errors for some blocks (e.g. 15_000_000)
-// const RPC_URL: &str = "https://mainnet.era.zksync.io";
 
 const MAX_BATCH_SIZE: usize = 10; // Number of blocks to fetch before inserting into BigQuery
 
@@ -59,10 +55,10 @@ async fn main() -> Result<()> {
         Ok(config) => {
             info!("Config loaded successfully");
             config
-        },
+        }
         Err(e) => {
             error!("Failed to load config: {}", e);
-            return Err(e.into());
+            return Err(e);
         }
     };
 
@@ -70,6 +66,13 @@ async fn main() -> Result<()> {
     let rpc = config.rpc_url.as_str();
     let dataset_id = config.project_name.as_str();
     let datasets = config.datasets;
+
+    // Track which RPC responses we need
+    let need_block =
+        datasets.contains(&"blocks".to_string()) || datasets.contains(&"transactions".to_string()); // Blocks and transactions are dependendent on eth_getBlockByNumber
+    let need_receipts =
+        datasets.contains(&"logs".to_string()) || datasets.contains(&"transactions".to_string()); // Logs and transactions are dependendent on eth_getBlockReceipts
+    let need_traces = datasets.contains(&"traces".to_string()); // Traces are dependendent on eth_debug_traceBlockByNumber
 
     // Create dataset and tables. Handles existing datasets and tables.
     let result_dataset = storage::bigquery::create_dataset_with_retry(dataset_id).await;
@@ -81,17 +84,22 @@ async fn main() -> Result<()> {
 
     // Get last processed block number from storage
     // If it exists, start from the next block, else start from 0
-    let last_processed_block = storage::bigquery::get_last_processed_block(dataset_id, &datasets).await?;
-    let mut block_number = if last_processed_block > 0 { last_processed_block + 1 } else { 0 };
+    let last_processed_block =
+        storage::bigquery::get_last_processed_block(dataset_id, &datasets).await?;
+    let mut block_number = if last_processed_block > 0 {
+        last_processed_block + 1
+    } else {
+        0
+    };
     // let mut block_number: u64 = 15_000_000;
     info!("Starting block number: {:?}", block_number);
-    
+
     // Create RPC provider
     let rpc_url: Url = rpc.parse()?;
     info!("RPC URL: {:?}", rpc);
     let provider = ProviderBuilder::new().on_http(rpc_url);
 
-    //////////////////////// Fetch data ////////////////////////
+    // Get chain ID
     let chain_id = indexer::get_chain_id(&provider).await?;
     info!("Chain ID: {:?}", chain_id);
 
@@ -106,13 +114,6 @@ async fn main() -> Result<()> {
     info!("========================= STARTING INDEXER =========================");
     // while block_number <= 15_000_000 {
     loop {
-        // Track which RPC responses we need
-        let need_block = datasets.contains(&"blocks".to_string()) || 
-                        datasets.contains(&"transactions".to_string());
-        let need_receipts = datasets.contains(&"logs".to_string()) || 
-                           datasets.contains(&"transactions".to_string());
-        let need_traces = datasets.contains(&"traces".to_string());
-
         // Initialize intermediate data
         let mut block = None;
         let mut receipts = None;
@@ -125,11 +126,12 @@ async fn main() -> Result<()> {
 
         // Get block by number
         // Only fetch block data if `blocks` or `transactions` are in the active datasets
-        if need_block { // TODO: Refactor to not search every time. Same with receipts and traces.
+        if need_block {
             let kind = BlockTransactionsKind::Full; // Hashes: only include tx hashes, Full: include full tx objects
-            block = Some(indexer::get_block_by_number(&provider, block_number_to_process, kind)
-                .await?
-                .ok_or_else(|| eyre::eyre!("Provider returned no block"))?
+            block = Some(
+                indexer::get_block_by_number(&provider, block_number_to_process, kind)
+                    .await?
+                    .ok_or_else(|| eyre::eyre!("Provider returned no block"))?,
             );
         }
 
@@ -137,9 +139,10 @@ async fn main() -> Result<()> {
         // Only fetch receipts data if `logs` or `transactions` are in the active datasets
         if need_receipts {
             let block_id = BlockId::Number(block_number_to_process);
-            receipts = Some(indexer::get_block_receipts(&provider, block_id)
-                .await?
-                .ok_or_else(|| eyre::eyre!("Provider returned no receipts"))?
+            receipts = Some(
+                indexer::get_block_receipts(&provider, block_id)
+                    .await?
+                    .ok_or_else(|| eyre::eyre!("Provider returned no receipts"))?,
             );
         }
 
@@ -155,9 +158,14 @@ async fn main() -> Result<()> {
                 timeout: Some("10s".to_string()),
             };
             // Get Geth debug traces by block number
-            traces = Some(indexer::debug_trace_block_by_number(&provider, block_number_to_process, trace_options)
+            traces = Some(
+                indexer::debug_trace_block_by_number(
+                    &provider,
+                    block_number_to_process,
+                    trace_options,
+                )
                 .await?
-                .ok_or_else(|| eyre::eyre!("Provider returned no traces"))?
+                .ok_or_else(|| eyre::eyre!("Provider returned no traces"))?,
             );
         }
 
@@ -182,8 +190,12 @@ async fn main() -> Result<()> {
                     .await?;
             }
             if datasets.contains(&"transactions".to_string()) {
-                storage::bigquery::insert_data_with_retry(dataset_id, "transactions", transactions_collection)
-                    .await?;
+                storage::bigquery::insert_data_with_retry(
+                    dataset_id,
+                    "transactions",
+                    transactions_collection,
+                )
+                .await?;
             }
             if datasets.contains(&"logs".to_string()) {
                 storage::bigquery::insert_data_with_retry(dataset_id, "logs", logs_collection)

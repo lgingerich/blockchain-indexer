@@ -133,7 +133,7 @@ pub async fn parse_data(
 
 pub async fn transform_data(
     parsed_data: ParsedData,
-    active_datasets: &Vec<String>,
+    active_datasets: &[String],
 ) -> Result<TransformedData> {
     // Only transform data for active datasets, otherwise return empty Vec
     let blocks = if active_datasets.contains(&"blocks".to_string()) {

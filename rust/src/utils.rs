@@ -1,11 +1,10 @@
 use eyre::{Result, WrapErr};
-use tracing::info;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use serde_yaml;
 use std::fs;
 use std::path::Path;
 use tokio::time::{sleep, Duration};
+use tracing::info;
 
 use crate::models::common::Config;
 
@@ -29,18 +28,16 @@ pub fn load_config<P: AsRef<Path>>(file_name: P) -> Result<Config> {
     info!("Config path: {}", config_path.to_string_lossy());
 
     // Read the file contents to a string
-    let contents = fs::read_to_string(config_path)
-        .wrap_err("failed to read config file")?;
-    
+    let contents = fs::read_to_string(config_path).wrap_err("failed to read config file")?;
+
     // Parse the YAML into our Config struct
-    let mut config: Config = serde_yaml::from_str(&contents)
-        .wrap_err("failed to parse config YAML")?;
+    let mut config: Config =
+        serde_yaml::from_str(&contents).wrap_err("failed to parse config YAML")?;
 
     // Convert hyphens to underscores in all relevant fields
     config.project_name = config.project_name.replace('-', "_");
     config.chain_name = config.chain_name.replace('-', "_");
     config.chain_schema = config.chain_schema.replace('-', "_");
-    
+
     Ok(config)
 }
-
