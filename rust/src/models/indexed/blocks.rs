@@ -1,11 +1,11 @@
-use crate::models::common::{ChainId, TransactionTo};
+use crate::models::common::TransactionTo;
 use alloy_primitives::{Address, Bloom, Bytes, FixedBytes, TxKind, Uint};
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::Serialize;
 
 #[derive(Debug, Serialize)]
 pub struct TransformedBlockData {
-    pub chain_id: ChainId,
+    pub chain_id: u64,
     pub hash: FixedBytes<32>,
     pub parent_hash: FixedBytes<32>,
     pub ommers_hash: FixedBytes<32>,

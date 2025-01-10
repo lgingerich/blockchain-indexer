@@ -6,13 +6,13 @@ use alloy_primitives::{Address, Bloom, Bytes, FixedBytes, TxKind, Uint};
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::Serialize;
 
-use crate::models::common::{ChainId, TransactionTo};
+use crate::models::common::TransactionTo;
 
 // TODO: Verify fields and cleanup
 #[derive(Debug, Serialize)]
 pub struct TransformedTransactionData {
     // Block fields
-    pub chain_id: ChainId,
+    pub chain_id: u64,
     // pub hash: FixedBytes<32>,
     pub nonce: u64,
     pub gas_price: u128,

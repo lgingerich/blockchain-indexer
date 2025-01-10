@@ -14,7 +14,6 @@ pub trait LogTransformer {
 
 impl LogTransformer for ParsedData {
     fn transform_logs(self) -> Result<Vec<TransformedLogData>> {
-        // Ok(self.logs)
         Ok(self
             .logs
             .into_iter()

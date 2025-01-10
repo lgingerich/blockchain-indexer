@@ -13,7 +13,7 @@ use alloy_rpc_types_eth::{Block, Header, Withdrawals};
 use chrono::DateTime;
 use eyre::Result;
 
-use crate::models::common::{ChainId, TransactionTo};
+use crate::models::common::TransactionTo;
 use crate::models::rpc::blocks::{HeaderData, TransactionData, WithdrawalData};
 use crate::models::rpc::receipts::TransactionReceiptData;
 
@@ -67,9 +67,7 @@ impl BlockParser for Block {
                 .transactions
                 .txns()
                 .map(|transaction| {
-                    // TODO: (Maybe) remove all instances of `chain_id` as I am passing it in from the `chain_id` field in the `ParsedData` struct
                     let fields = TransactionData {
-                        chain_id: ChainId::Other(0),
                         nonce: 0,
                         gas_price: 0,
                         gas_limit: 0,
@@ -104,7 +102,6 @@ impl BlockParser for Block {
                             let signature = signed.signature();
 
                             TransactionData {
-                                chain_id: ChainId::Legacy(tx.chain_id),
                                 nonce: tx.nonce,
                                 gas_price: tx.gas_price,
                                 gas_limit: tx.gas_limit,
@@ -123,7 +120,6 @@ impl BlockParser for Block {
                             let signature = signed.signature();
 
                             TransactionData {
-                                chain_id: ChainId::Other(tx.chain_id),
                                 nonce: tx.nonce,
                                 gas_price: tx.gas_price,
                                 gas_limit: tx.gas_limit,
@@ -143,7 +139,6 @@ impl BlockParser for Block {
                             let signature = signed.signature();
 
                             TransactionData {
-                                chain_id: ChainId::Other(tx.chain_id),
                                 nonce: tx.nonce,
                                 gas_limit: tx.gas_limit,
                                 max_fee_per_gas: tx.max_fee_per_gas,
@@ -164,7 +159,6 @@ impl BlockParser for Block {
 
                             match signed.tx() {
                                 TxEip4844Variant::TxEip4844(tx) => TransactionData {
-                                    chain_id: ChainId::Other(tx.chain_id),
                                     nonce: tx.nonce,
                                     gas_limit: tx.gas_limit,
                                     max_fee_per_gas: tx.max_fee_per_gas,
@@ -184,7 +178,6 @@ impl BlockParser for Block {
                                 TxEip4844Variant::TxEip4844WithSidecar(tx_with_sidecar) => {
                                     let tx = &tx_with_sidecar.tx;
                                     TransactionData {
-                                        chain_id: ChainId::Other(tx.chain_id),
                                         nonce: tx.nonce,
                                         gas_limit: tx.gas_limit,
                                         max_fee_per_gas: tx.max_fee_per_gas,
@@ -214,7 +207,6 @@ impl BlockParser for Block {
                             let signature = signed.signature();
 
                             TransactionData {
-                                chain_id: ChainId::Other(tx.chain_id),
                                 nonce: tx.nonce,
                                 gas_limit: tx.gas_limit,
                                 max_fee_per_gas: tx.max_fee_per_gas,
@@ -235,7 +227,6 @@ impl BlockParser for Block {
                         // Can I do an if...else? Try to access common fields that are likely to exist in all transaction types, and if they don't exist, use empty/zero defaults
                         // Maybe I only give defaults for fields guaranteed to exist in all transaction types?
                         _ => TransactionData {
-                            chain_id: ChainId::Other(0),
                             nonce: 0,
                             gas_limit: 0,
                             value: Uint::<256, 4>::ZERO,

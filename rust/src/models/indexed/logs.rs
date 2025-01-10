@@ -1,10 +1,9 @@
 use alloy_primitives::{Address, Bytes, FixedBytes};
-use crate::models::common::ChainId;
 use serde::Serialize;
 
 #[derive(Debug, Serialize)]
 pub struct TransformedLogData {
-    pub chain_id: ChainId,
+    pub chain_id: u64,
     pub address: Address,
     pub topics: Vec<FixedBytes<32>>,
     pub data: Bytes,

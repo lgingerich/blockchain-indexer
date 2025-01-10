@@ -21,13 +21,6 @@ pub struct Config {
     pub datasets: Vec<String>,
 }
 
-
-#[derive(Debug, Clone, Serialize)]
-pub enum ChainId {
-    Legacy(Option<u64>), // For TxLegacy where chain_id is Option<u64>
-    Other(u64),          // For all other tx types where chain_id is u64
-}
-
 #[derive(Debug, Clone, Serialize)]
 pub enum TransactionTo {
     TxKind(TxKind),   // For TxLegacy, TxEip2930, TxEip1559 which use TxKind

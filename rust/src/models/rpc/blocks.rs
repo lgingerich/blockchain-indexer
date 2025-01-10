@@ -10,7 +10,7 @@ use alloy_primitives::{Address, Bloom, Bytes, FixedBytes, TxKind, Uint};
 
 use chrono::{DateTime, NaiveDate, Utc};
 
-use crate::models::common::{ChainId, TransactionTo};
+use crate::models::common::TransactionTo;
 
 #[derive(Debug, Clone)]
 pub struct HeaderData {
@@ -44,7 +44,6 @@ pub struct HeaderData {
 
 #[derive(Debug, Clone)]
 pub struct TransactionData {
-    pub chain_id: ChainId,
     pub nonce: u64,
     pub gas_price: u128,
     pub gas_limit: u64,
