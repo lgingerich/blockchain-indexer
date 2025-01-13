@@ -24,11 +24,11 @@ use crate::models::indexed::blocks::TransformedBlockData;
 use crate::models::indexed::logs::TransformedLogData;
 use crate::models::indexed::traces::TransformedTraceData;
 use crate::models::indexed::transactions::TransformedTransactionData;
-use crate::utils::exponential_backoff;
+// use crate::utils::exponential_backoff;
+use crate::utils::retry::{retry, RetryConfig};
 
 use std::sync::Arc;
 
-const MAX_RETRIES: u32 = 5;
 
 // Define a static OnceCell to hold the shared Client and Project ID
 static BIGQUERY_CLIENT: OnceCell<Arc<(Client, String)>> = OnceCell::new();
@@ -123,37 +123,29 @@ async fn create_dataset(dataset_id: &str) -> Result<()> {
 
 pub async fn create_dataset_with_retry(dataset_id: &str) -> Result<()> {
     let (client, project_id) = &*get_client().await?;
+    let retry_config = RetryConfig::default();
 
-    for attempt in 0..MAX_RETRIES {
-        // Check if dataset already exists
-        if verify_dataset(client, project_id, dataset_id).await? {
-            info!("Dataset '{}' already exists and is accessible", dataset_id);
-            return Ok(());
-        }
-
-        // Try to create the dataset
-        match create_dataset(dataset_id).await {
-            Ok(_) => {
-                // Verify the dataset was created and is accessible
-                for verify_attempt in 0..MAX_RETRIES {
-                    if verify_dataset(client, project_id, dataset_id).await? {
-                        info!("Dataset '{}' created and verified", dataset_id);
-                        return Ok(());
-                    }
-                    exponential_backoff(verify_attempt, MAX_RETRIES).await;
-                }
+    retry(
+        || async {
+            // Check if dataset exists
+            if verify_dataset(client, project_id, dataset_id).await? {
+                info!("Dataset '{}' already exists and is accessible", dataset_id);
+                return Ok(());
             }
-            Err(e) => {
-                warn!("Failed to create dataset on attempt {}: {}", attempt + 1, e);
-                exponential_backoff(attempt, MAX_RETRIES).await;
-            }
-        }
-    }
 
-    Err(anyhow!(
-        "Failed to create and verify dataset after {} attempts",
-        MAX_RETRIES
-    ))
+            // Create and verify dataset
+            create_dataset(dataset_id).await?;
+            if verify_dataset(client, project_id, dataset_id).await? {
+                info!("Dataset '{}' created and verified", dataset_id);
+                Ok(())
+            } else {
+                Err(anyhow!("Dataset creation could not be verified"))
+            }
+        },
+        &retry_config,
+        &format!("create_dataset_{}", dataset_id),
+    )
+    .await
 }
 
 async fn create_table(dataset_id: &str, table_id: &str) -> Result<()> {
@@ -214,40 +206,32 @@ async fn create_table(dataset_id: &str, table_id: &str) -> Result<()> {
 
 pub async fn create_table_with_retry(dataset_id: &str, table_id: &str) -> Result<()> {
     let (client, project_id) = &*get_client().await?;
+    let retry_config = RetryConfig::default();
 
-    for attempt in 0..MAX_RETRIES {
-        // Check if table already exists
-        if verify_table(client, project_id, dataset_id, table_id).await? {
-            info!(
-                "Table '{}.{}' already exists and is accessible",
-                dataset_id, table_id
-            );
-            return Ok(());
-        }
-
-        // Try to create the table
-        match create_table(dataset_id, table_id).await {
-            Ok(_) => {
-                // Verify the table was created and is accessible
-                for verify_attempt in 0..MAX_RETRIES {
-                    if verify_table(client, project_id, dataset_id, table_id).await? {
-                        info!("Table '{}.{}' created and verified", dataset_id, table_id);
-                        return Ok(());
-                    }
-                    exponential_backoff(verify_attempt, MAX_RETRIES).await;
-                }
+    retry(
+        || async {
+            // Check if table exists
+            if verify_table(client, project_id, dataset_id, table_id).await? {
+                info!(
+                    "Table '{}.{}' already exists and is accessible",
+                    dataset_id, table_id
+                );
+                return Ok(());
             }
-            Err(e) => {
-                warn!("Failed to create table on attempt {}: {}", attempt + 1, e);
-                exponential_backoff(attempt, MAX_RETRIES).await;
-            }
-        }
-    }
 
-    Err(anyhow!(
-        "Failed to create and verify table after {} attempts",
-        MAX_RETRIES
-    ))
+            // Create and verify table
+            create_table(dataset_id, table_id).await?;
+            if verify_table(client, project_id, dataset_id, table_id).await? {
+                info!("Table '{}.{}' created and verified", dataset_id, table_id);
+                Ok(())
+            } else {
+                Err(anyhow!("Table creation could not be verified"))
+            }
+        },
+        &retry_config,
+        &format!("create_table_{}_{}", dataset_id, table_id),
+    )
+    .await
 }
 
 async fn insert_data<T: serde::Serialize>(
@@ -347,28 +331,21 @@ pub async fn insert_data_with_retry<T: serde::Serialize>(
     data: Vec<T>,
 ) -> Result<()> {
     let (client, project_id) = &*get_client().await?;
+    let retry_config = RetryConfig::default();
 
-    for attempt in 0..MAX_RETRIES {
-        // Verify table exists before attempting insert
-        if !verify_table(client, project_id, dataset_id, table_id).await? {
-            warn!("Table not found before insert attempt {}", attempt + 1);
-            exponential_backoff(attempt, MAX_RETRIES).await;
-            continue;
-        }
-
-        match insert_data(dataset_id, table_id, &data).await {
-            Ok(_) => return Ok(()),
-            Err(e) => {
-                warn!("Failed to insert data on attempt {}: {}", attempt + 1, e);
-                exponential_backoff(attempt, MAX_RETRIES).await;
+    retry(
+        || async {
+            // Verify table exists before attempting insert
+            if !verify_table(client, project_id, dataset_id, table_id).await? {
+                return Err(anyhow!("Table not found before insert attempt"));
             }
-        }
-    }
 
-    Err(anyhow!(
-        "Failed to insert data after {} attempts",
-        MAX_RETRIES
-    ))
+            insert_data(dataset_id, table_id, &data).await
+        },
+        &retry_config,
+        &format!("insert_data_{}_{}", dataset_id, table_id),
+    )
+    .await
 }
 
 pub async fn get_last_processed_block(dataset_id: &str, datasets: &Vec<String>) -> Result<u64> {

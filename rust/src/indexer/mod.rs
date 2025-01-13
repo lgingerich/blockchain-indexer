@@ -16,7 +16,7 @@ use alloy_rpc_types_trace::{
 };
 use alloy_transport::{RpcError, Transport};
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use tracing::error;
 
 use crate::indexer::rpc::{blocks::BlockParser, receipts::ReceiptParser, traces::TraceParser};
@@ -25,19 +25,25 @@ use crate::indexer::transformations::{
     transactions::TransactionTransformer,
 };
 use crate::models::common::{ParsedData, TransformedData};
-use crate::utils::retry::{RetryConfig, retry};
+use crate::utils::retry::{retry, RetryConfig};
 
 pub async fn get_chain_id<T, N>(
     provider: &dyn Provider<T, N>,
-    retry_config: &RetryConfig,
 ) -> Result<u64>
 where
     T: Transport + Clone,
     N: Network,
 {
+    let retry_config = RetryConfig::default();
+
     retry(
-        || async { provider.get_chain_id().await },
-        retry_config,
+        || async {
+            provider
+                .get_chain_id()
+                .await
+                .map_err(|e| anyhow!("RPC error: {}", e))
+        },
+        &retry_config,
         "get_chain_id",
     )
     .await
@@ -50,23 +56,39 @@ where
     T: Transport + Clone,
     N: Network,
 {
-    let latest_block = provider.get_block_number().await?;
-    Ok(BlockNumberOrTag::Number(latest_block))
+    let retry_config = RetryConfig::default();
+    retry(
+        || async {
+            provider
+                .get_block_number()
+                .await
+                .map_err(|e| anyhow!("RPC error: {}", e))
+                .map(BlockNumberOrTag::Number)
+        },
+        &retry_config,
+        "get_latest_block_number",
+    )
+    .await
 }
 
 pub async fn get_block_by_number<T, N>(
     provider: &dyn Provider<T, N>,
     block_number: BlockNumberOrTag,
     kind: BlockTransactionsKind,
-    retry_config: &RetryConfig,
 ) -> Result<Option<N::BlockResponse>>
 where
     T: Transport + Clone,
     N: Network,
 {
+    let retry_config = RetryConfig::default();
     retry(
-        || async { provider.get_block_by_number(block_number, kind).await },
-        retry_config,
+        || async {
+            provider
+                .get_block_by_number(block_number, kind)
+                .await
+                .map_err(|e| anyhow!("RPC error: {}", e))
+        },
+        &retry_config,
         &format!("get_block_by_number({})", block_number),
     )
     .await
@@ -75,15 +97,20 @@ where
 pub async fn get_block_receipts<T, N>(
     provider: &dyn Provider<T, N>,
     block: BlockId,
-    retry_config: &RetryConfig,
 ) -> Result<Option<Vec<N::ReceiptResponse>>>
 where
     T: Transport + Clone,
     N: Network,
 {
+    let retry_config = RetryConfig::default();
     retry(
-        || async { provider.get_block_receipts(block).await },
-        retry_config,
+        || async {
+            provider
+                .get_block_receipts(block)
+                .await
+                .map_err(|e| anyhow!("RPC error: {}", e))
+        },
+        &retry_config,
         &format!("get_block_receipts({})", block),
     )
     .await
@@ -93,15 +120,20 @@ pub async fn debug_trace_block_by_number<T, N>(
     provider: &impl DebugApi<N, T>,
     block_number: BlockNumberOrTag,
     trace_options: GethDebugTracingOptions,
-    retry_config: &RetryConfig,
 ) -> Result<Option<Vec<TraceResult<GethTrace, String>>>>
 where
     T: Transport + Clone,
     N: Network,
 {
+    let retry_config = RetryConfig::default();
     retry(
-        || async { provider.debug_trace_block_by_number(block_number, trace_options.clone()).await },
-        retry_config,
+        || async {
+            provider
+                .debug_trace_block_by_number(block_number, trace_options.clone())
+                .await
+                .map_err(|e| anyhow!("RPC error: {}", e))
+        },
+        &retry_config,
         &format!("debug_trace_block_by_number({})", block_number),
     )
     .await

@@ -17,7 +17,7 @@ use alloy_rpc_types_trace::geth::{
     GethDebugTracingOptions, GethDefaultTracingOptions,
 };
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use tracing::{error, info, warn};
 use tracing_subscriber::{self, EnvFilter};
 use url::Url;
@@ -29,19 +29,8 @@ use crate::models::indexed::transactions::TransformedTransactionData;
 use crate::utils::load_config;
 
 
-use crate::utils::retry::RetryConfig;
-
-// const RETRY_CONFIG: RetryConfig = RetryConfig::default();
-
-const RETRY_CONFIG: RetryConfig = RetryConfig {
-    max_attempts: 5,
-    base_delay_ms: 500,
-    max_delay_ms: 30_000,
-};
-
 
 // NEXT STEPS:
-// - Change bigquery to use other retry logic
 // - Add support for ZKsync
 // - Add better error handling on rpc calls?
 //      - Fix Tenderly RPC
@@ -53,7 +42,6 @@ const RETRY_CONFIG: RetryConfig = RetryConfig {
 // - Docker containerization
 // - CI/CD
 // - Kubernetes/Helm deployment for production
-
 
 // NOTES:
 // - Not sure I should implement RPC rotation. Seems like lots of failure modes.
@@ -120,7 +108,7 @@ async fn main() -> Result<()> {
     let provider = ProviderBuilder::new().on_http(rpc_url);
 
     // Get chain ID
-    let chain_id = indexer::get_chain_id(&provider, &RETRY_CONFIG).await?;
+    let chain_id = indexer::get_chain_id(&provider).await?;
     info!("Chain ID: {:?}", chain_id);
 
     // Initialize data for loop
@@ -149,9 +137,13 @@ async fn main() -> Result<()> {
         if need_block {
             let kind = BlockTransactionsKind::Full; // Hashes: only include tx hashes, Full: include full tx objects
             block = Some(
-                indexer::get_block_by_number(&provider, block_number_to_process, kind, &RETRY_CONFIG)
-                    .await?
-                    .ok_or_else(|| anyhow!("Provider returned no block"))?,
+                indexer::get_block_by_number(
+                    &provider,
+                    block_number_to_process,
+                    kind,
+                )
+                .await?
+                .ok_or_else(|| anyhow!("Provider returned no block"))?,
             );
         }
 
@@ -160,7 +152,7 @@ async fn main() -> Result<()> {
         if need_receipts {
             let block_id = BlockId::Number(block_number_to_process);
             receipts = Some(
-                indexer::get_block_receipts(&provider, block_id, &RETRY_CONFIG)
+                indexer::get_block_receipts(&provider, block_id)
                     .await?
                     .ok_or_else(|| anyhow!("Provider returned no receipts"))?,
             );
@@ -183,7 +175,6 @@ async fn main() -> Result<()> {
                     &provider,
                     block_number_to_process,
                     trace_options,
-                    &RETRY_CONFIG,
                 )
                 .await?
                 .ok_or_else(|| anyhow!("Provider returned no traces"))?,
