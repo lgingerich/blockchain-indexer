@@ -7,7 +7,7 @@ use alloy_consensus::Eip658Value;
 use alloy_rpc_types_eth::{Log, TransactionReceipt};
 
 use chrono::DateTime;
-use eyre::Result;
+use anyhow::{Result, anyhow};
 
 use crate::models::rpc::receipts::{LogReceiptData, TransactionReceiptData};
 
@@ -44,7 +44,7 @@ impl ReceiptParser for Vec<TransactionReceipt> {
                         authorization_list: receipt.authorization_list,
                     })
                 }
-                None => Err(eyre::eyre!("Receipt missing bloom data")),
+                None => Err(anyhow!("Receipt missing bloom data")),
             })
             .collect()
     }
@@ -76,7 +76,7 @@ impl ReceiptParser for Vec<TransactionReceipt> {
                             })
                             .collect()
                     }
-                    None => vec![Err(eyre::eyre!("Receipt missing bloom data"))],
+                    None => vec![Err(anyhow!("Receipt missing bloom data"))],
                 }
             })
             .collect()

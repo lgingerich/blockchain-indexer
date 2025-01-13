@@ -11,7 +11,7 @@ use google_cloud_bigquery::http::tabledata::{
     list::Value,
 };
 
-use eyre::{Report, Result};
+use anyhow::{anyhow, Context, Result};
 use once_cell::sync::OnceCell;
 use serde::Serialize;
 use tracing::{error, info, warn};
@@ -35,14 +35,14 @@ static BIGQUERY_CLIENT: OnceCell<Arc<(Client, String)>> = OnceCell::new();
 
 // Initializes and returns the shared BigQuery Client and Project ID.
 // This function ensures that the Client is initialized only once.
-async fn get_client() -> Result<Arc<(Client, String)>, Report> {
+async fn get_client() -> Result<Arc<(Client, String)>> {
     if let Some(client) = BIGQUERY_CLIENT.get() {
         return Ok(client.clone());
     }
 
     let (config, project_id_option) = ClientConfig::new_with_auth().await?;
     let client = Client::new(config).await?;
-    let project_id = project_id_option.ok_or_else(|| eyre::eyre!("Project ID not found"))?;
+    let project_id = project_id_option.ok_or_else(|| anyhow!("Project ID not found"))?;
 
     let client_arc = Arc::new((client, project_id));
 
@@ -61,7 +61,7 @@ async fn verify_dataset(client: &Client, project_id: &str, dataset_id: &str) -> 
     match client.dataset().get(project_id, dataset_id).await {
         Ok(_) => Ok(true),
         Err(BigQueryError::Response(resp)) if resp.message.contains("Not found") => Ok(false),
-        Err(e) => Err(eyre::eyre!("Failed to verify dataset: {}", e)),
+        Err(e) => Err(anyhow!("Failed to verify dataset: {}", e)),
     }
 }
 
@@ -75,7 +75,7 @@ async fn verify_table(
     match client.table().get(project_id, dataset_id, table_id).await {
         Ok(_) => Ok(true),
         Err(BigQueryError::Response(resp)) if resp.message.contains("Not found") => Ok(false),
-        Err(e) => Err(eyre::eyre!("Failed to verify table: {}", e)),
+        Err(e) => Err(anyhow!("Failed to verify table: {}", e)),
     }
 }
 
@@ -116,7 +116,7 @@ async fn create_dataset(dataset_id: &str) -> Result<()> {
                     error!("Token Source error: {}", e);
                 }
             }
-            Err(eyre::eyre!("Dataset creation failed"))
+            Err(anyhow!("Dataset creation failed"))
         }
     }
 }
@@ -150,13 +150,13 @@ pub async fn create_dataset_with_retry(dataset_id: &str) -> Result<()> {
         }
     }
 
-    Err(eyre::eyre!(
+    Err(anyhow!(
         "Failed to create and verify dataset after {} attempts",
         MAX_RETRIES
     ))
 }
 
-async fn create_table(dataset_id: &str, table_id: &str) -> Result<(), Report> {
+async fn create_table(dataset_id: &str, table_id: &str) -> Result<()> {
     let (client, project_id) = &*get_client().await?;
     let table_client = client.table(); // Create BigqueryTableClient
     let schema = match table_id {
@@ -164,7 +164,7 @@ async fn create_table(dataset_id: &str, table_id: &str) -> Result<(), Report> {
         "logs" => log_schema(),
         "transactions" => transaction_schema(),
         "traces" => trace_schema(),
-        _ => return Err(eyre::eyre!("Invalid table ID: {}", table_id)),
+        _ => return Err(anyhow!("Invalid table ID: {}", table_id)),
     };
 
     let metadata = Table {
@@ -207,7 +207,7 @@ async fn create_table(dataset_id: &str, table_id: &str) -> Result<(), Report> {
                     error!("Token Source error: {}", e);
                 }
             }
-            Err(eyre::eyre!("Table creation failed"))
+            Err(anyhow!("Table creation failed"))
         }
     }
 }
@@ -244,7 +244,7 @@ pub async fn create_table_with_retry(dataset_id: &str, table_id: &str) -> Result
         }
     }
 
-    Err(eyre::eyre!(
+    Err(anyhow!(
         "Failed to create and verify table after {} attempts",
         MAX_RETRIES
     ))
@@ -254,7 +254,7 @@ async fn insert_data<T: serde::Serialize>(
     dataset_id: &str,
     table_id: &str,
     data: &[T],
-) -> Result<(), Report> {
+) -> Result<()> {
     let (client, project_id) = &*get_client().await?;
     let tabledata_client = client.tabledata(); // Create BigqueryTabledataClient
 
@@ -305,7 +305,7 @@ async fn insert_data<T: serde::Serialize>(
                             );
                         }
                     }
-                    Err(eyre::eyre!("Some rows failed to insert"))
+                    Err(anyhow!("Some rows failed to insert"))
                 } else {
                     info!(
                         "Successfully inserted all data into {}.{}.{}",
@@ -336,7 +336,7 @@ async fn insert_data<T: serde::Serialize>(
                     error!("Token Source error: {}", e);
                 }
             }
-            Err(eyre::eyre!("Data insertion failed"))
+            Err(anyhow!("Data insertion failed"))
         }
     }
 }
@@ -365,7 +365,7 @@ pub async fn insert_data_with_retry<T: serde::Serialize>(
         }
     }
 
-    Err(eyre::eyre!(
+    Err(anyhow!(
         "Failed to insert data after {} attempts",
         MAX_RETRIES
     ))

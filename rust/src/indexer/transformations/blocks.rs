@@ -3,7 +3,7 @@
 #![allow(unused_variables)]
 #![allow(dead_code)]
 
-use eyre::Result;
+use anyhow::{Result, anyhow};
 
 use crate::models::common::ParsedData;
 use crate::models::indexed::blocks::TransformedBlockData;

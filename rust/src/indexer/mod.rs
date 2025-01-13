@@ -16,7 +16,7 @@ use alloy_rpc_types_trace::{
 };
 use alloy_transport::{RpcError, Transport};
 
-use eyre::Result;
+use anyhow::Result;
 use tracing::error;
 
 use crate::indexer::rpc::{blocks::BlockParser, receipts::ReceiptParser, traces::TraceParser};

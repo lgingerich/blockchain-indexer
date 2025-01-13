@@ -1,4 +1,4 @@
-use eyre::Result;
+use anyhow::{Result, anyhow};
 use std::{future::Future, time::Duration, error::Error as StdError};
 use tokio::time::sleep;
 use tracing::{error, warn};
@@ -23,7 +23,7 @@ pub async fn retry<F, Fut, T, E>(
     operation: F,
     config: &RetryConfig,
     context: &str,
-) -> Result<T>  // Returns eyre::Result
+) -> Result<T>
 where
     F: Fn() -> Fut,
     Fut: Future<Output = std::result::Result<T, E>>,
@@ -41,7 +41,7 @@ where
                         "Operation '{}' failed after {} attempts. Final error: {}",
                         context, attempt, e
                     );
-                    return Err(eyre::eyre!(e).wrap_err(format!("Failed after {} attempts", attempt)));
+                    return Err(anyhow!(e).context(format!("Failed after {} attempts", attempt)));
                 }
 
                 warn!(

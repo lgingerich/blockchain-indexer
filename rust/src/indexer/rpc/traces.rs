@@ -12,7 +12,7 @@ use alloy_rpc_types_eth::{Block, Header, Withdrawals};
 use alloy_rpc_types_trace::geth::{CallFrame, GethTrace, TraceResult};
 
 use chrono::DateTime;
-use eyre::Result;
+use anyhow::{Result, anyhow};
 
 use crate::models::rpc::traces::TraceData;
 

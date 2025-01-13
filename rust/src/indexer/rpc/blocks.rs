@@ -11,7 +11,7 @@ use alloy_primitives::{Address, Bytes, FixedBytes, Uint};
 use alloy_rpc_types_eth::{Block, Header, Withdrawals};
 
 use chrono::DateTime;
-use eyre::Result;
+use anyhow::{Result, anyhow};
 
 use crate::models::common::TransactionTo;
 use crate::models::rpc::blocks::{HeaderData, TransactionData, WithdrawalData};
@@ -241,12 +241,12 @@ impl BlockParser for Block {
                 })
                 .collect()),
             BlockTransactions::Hashes(_) => {
-                Err(eyre::eyre!(
+                Err(anyhow!(
                     "Block contains only transaction hashes, full transaction data required"
                 )) // Throw error if full tx objects are not included
             }
             BlockTransactions::Uncle => {
-                Err(eyre::eyre!("Uncle blocks not supported")) // TODO: Handle better
+                Err(anyhow!("Uncle blocks not supported")) // TODO: Handle better
             }
         }
     }

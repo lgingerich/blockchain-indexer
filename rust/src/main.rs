@@ -17,7 +17,7 @@ use alloy_rpc_types_trace::geth::{
     GethDebugTracingOptions, GethDefaultTracingOptions,
 };
 
-use eyre::Result;
+use anyhow::{Result, anyhow};
 use tracing::{error, info, warn};
 use tracing_subscriber::{self, EnvFilter};
 use url::Url;
@@ -41,11 +41,10 @@ const RETRY_CONFIG: RetryConfig = RetryConfig {
 
 
 // NEXT STEPS:
-// - Add retry logic on rpc calls
-// - Move from eyre to anyhow
+// - Change bigquery to use other retry logic
+// - Add support for ZKsync
 // - Add better error handling on rpc calls?
 //      - Fix Tenderly RPC
-// - Some places I do "Result<()>". Is this ok?
 // - Add buffer to stay away from chain tip
 // - Add monitoring
 // - Add data quality checks (schema compliance, missing block detection, duplication detection, etc.)
@@ -79,7 +78,7 @@ async fn main() -> Result<()> {
         }
         Err(e) => {
             error!("Failed to load config: {}", e);
-            return Err(e);
+            return Err(anyhow!(e));
         }
     };
 
@@ -152,7 +151,7 @@ async fn main() -> Result<()> {
             block = Some(
                 indexer::get_block_by_number(&provider, block_number_to_process, kind, &RETRY_CONFIG)
                     .await?
-                    .ok_or_else(|| eyre::eyre!("Provider returned no block"))?,
+                    .ok_or_else(|| anyhow!("Provider returned no block"))?,
             );
         }
 
@@ -163,7 +162,7 @@ async fn main() -> Result<()> {
             receipts = Some(
                 indexer::get_block_receipts(&provider, block_id, &RETRY_CONFIG)
                     .await?
-                    .ok_or_else(|| eyre::eyre!("Provider returned no receipts"))?,
+                    .ok_or_else(|| anyhow!("Provider returned no receipts"))?,
             );
         }
 
@@ -187,7 +186,7 @@ async fn main() -> Result<()> {
                     &RETRY_CONFIG,
                 )
                 .await?
-                .ok_or_else(|| eyre::eyre!("Provider returned no traces"))?,
+                .ok_or_else(|| anyhow!("Provider returned no traces"))?,
             );
         }
 

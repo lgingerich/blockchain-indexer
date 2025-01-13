@@ -1,6 +1,6 @@
 pub mod retry;
 
-use eyre::{Result, WrapErr};
+use anyhow::{anyhow, Context, Result};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -30,11 +30,11 @@ pub fn load_config<P: AsRef<Path>>(file_name: P) -> Result<Config> {
     info!("Config path: {}", config_path.to_string_lossy());
 
     // Read the file contents to a string
-    let contents = fs::read_to_string(config_path).wrap_err("failed to read config file")?;
+    let contents = fs::read_to_string(config_path).context("failed to read config file")?;
 
     // Parse the YAML into our Config struct
     let mut config: Config =
-        serde_yaml::from_str(&contents).wrap_err("failed to parse config YAML")?;
+        serde_yaml::from_str(&contents).context("failed to parse config YAML")?;
 
     // Convert hyphens to underscores in all relevant fields
     config.project_name = config.project_name.replace('-', "_");
