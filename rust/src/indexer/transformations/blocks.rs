@@ -3,7 +3,7 @@
 #![allow(unused_variables)]
 #![allow(dead_code)]
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 
 use crate::models::common::ParsedData;
 use crate::models::indexed::blocks::TransformedBlockData;

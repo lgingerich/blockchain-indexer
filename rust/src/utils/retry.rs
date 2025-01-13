@@ -16,7 +16,7 @@ impl Default for RetryConfig {
             max_attempts: 5,
             base_delay_ms: 500,
             max_delay_ms: 30_000,
-            exponential: 2.0
+            exponential: 2.0,
         }
     }
 }

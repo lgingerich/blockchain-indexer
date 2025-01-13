@@ -6,8 +6,8 @@
 use alloy_consensus::Eip658Value;
 use alloy_rpc_types_eth::{Log, TransactionReceipt};
 
+use anyhow::{anyhow, Result};
 use chrono::DateTime;
-use anyhow::{Result, anyhow};
 
 use crate::models::rpc::receipts::{LogReceiptData, TransactionReceiptData};
 

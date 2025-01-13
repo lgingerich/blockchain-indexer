@@ -11,8 +11,8 @@ use alloy_primitives::{Address, Bytes, FixedBytes, Uint};
 use alloy_rpc_types_eth::{Block, Header, Withdrawals};
 use alloy_rpc_types_trace::geth::{CallFrame, GethTrace, TraceResult};
 
+use anyhow::{anyhow, Result};
 use chrono::DateTime;
-use anyhow::{Result, anyhow};
 
 use crate::models::rpc::traces::TraceData;
 

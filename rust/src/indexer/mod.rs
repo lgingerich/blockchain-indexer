@@ -27,9 +27,7 @@ use crate::indexer::transformations::{
 use crate::models::common::{ParsedData, TransformedData};
 use crate::utils::retry::{retry, RetryConfig};
 
-pub async fn get_chain_id<T, N>(
-    provider: &dyn Provider<T, N>,
-) -> Result<u64>
+pub async fn get_chain_id<T, N>(provider: &dyn Provider<T, N>) -> Result<u64>
 where
     T: Transport + Clone,
     N: Network,

@@ -10,8 +10,8 @@ use alloy_network::primitives::BlockTransactions;
 use alloy_primitives::{Address, Bytes, FixedBytes, Uint};
 use alloy_rpc_types_eth::{Block, Header, Withdrawals};
 
+use anyhow::{anyhow, Result};
 use chrono::DateTime;
-use anyhow::{Result, anyhow};
 
 use crate::models::common::TransactionTo;
 use crate::models::rpc::blocks::{HeaderData, TransactionData, WithdrawalData};

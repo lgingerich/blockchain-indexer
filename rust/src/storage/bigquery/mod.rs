@@ -29,7 +29,6 @@ use crate::utils::retry::{retry, RetryConfig};
 
 use std::sync::Arc;
 
-
 // Define a static OnceCell to hold the shared Client and Project ID
 static BIGQUERY_CLIENT: OnceCell<Arc<(Client, String)>> = OnceCell::new();
 
