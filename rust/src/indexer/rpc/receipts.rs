@@ -9,15 +9,17 @@ use alloy_rpc_types_eth::{Log, TransactionReceipt};
 use anyhow::{anyhow, Result};
 use chrono::DateTime;
 
-use crate::models::rpc::receipts::{LogReceiptData, TransactionReceiptData};
+use crate::models::datasets::logs::RpcLogReceiptData;
+use crate::models::datasets::transactions::RpcTransactionReceiptData;
+
 
 pub trait ReceiptParser {
-    fn parse_transaction_receipts(self) -> Result<Vec<TransactionReceiptData>>;
-    fn parse_log_receipts(self) -> Result<Vec<LogReceiptData>>;
+    fn parse_transaction_receipts(self) -> Result<Vec<RpcTransactionReceiptData>>;
+    fn parse_log_receipts(self) -> Result<Vec<RpcLogReceiptData>>;
 }
 
 impl ReceiptParser for Vec<TransactionReceipt> {
-    fn parse_transaction_receipts(self) -> Result<Vec<TransactionReceiptData>> {
+    fn parse_transaction_receipts(self) -> Result<Vec<RpcTransactionReceiptData>> {
         self.into_iter()
             .map(|receipt| match receipt.inner.as_receipt_with_bloom() {
                 Some(receipt_with_bloom) => {
@@ -26,7 +28,7 @@ impl ReceiptParser for Vec<TransactionReceipt> {
                         Eip658Value::PostState(_) => None,
                     };
 
-                    Ok(TransactionReceiptData {
+                    Ok(RpcTransactionReceiptData {
                         status,
                         cumulative_gas_used: receipt_with_bloom.receipt.cumulative_gas_used,
                         logs_bloom: receipt_with_bloom.logs_bloom,
@@ -49,7 +51,7 @@ impl ReceiptParser for Vec<TransactionReceipt> {
             .collect()
     }
 
-    fn parse_log_receipts(self) -> Result<Vec<LogReceiptData>> {
+    fn parse_log_receipts(self) -> Result<Vec<RpcLogReceiptData>> {
         self.into_iter()
             .flat_map(|receipt| {
                 match receipt.inner.as_receipt_with_bloom() {
@@ -61,7 +63,7 @@ impl ReceiptParser for Vec<TransactionReceipt> {
                             .into_iter()
                             .map(|log| {
                                 //TODO: Remove clone
-                                Ok(LogReceiptData {
+                                Ok(RpcLogReceiptData {
                                     address: log.inner.address,
                                     topics: log.inner.data.topics().to_vec(),
                                     data: log.inner.data.data,

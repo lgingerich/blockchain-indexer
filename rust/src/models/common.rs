@@ -3,13 +3,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::indexer::rpc::blocks::BlockParser;
 use crate::indexer::rpc::receipts::ReceiptParser;
-use crate::models::indexed::blocks::TransformedBlockData;
-use crate::models::indexed::logs::TransformedLogData;
-use crate::models::indexed::traces::TransformedTraceData;
-use crate::models::indexed::transactions::TransformedTransactionData;
-use crate::models::rpc::blocks::{HeaderData, TransactionData, WithdrawalData};
-use crate::models::rpc::receipts::{LogReceiptData, TransactionReceiptData};
-use crate::models::rpc::traces::TraceData;
+
+use crate::models::datasets::blocks::{RpcHeaderData, RpcWithdrawalData, TransformedBlockData};
+use crate::models::datasets::logs::{RpcLogReceiptData, TransformedLogData};
+use crate::models::datasets::transactions::{RpcTransactionData, RpcTransactionReceiptData, TransformedTransactionData};
+use crate::models::datasets::traces::{RpcTraceData, TransformedTraceData};
+
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
@@ -29,12 +28,12 @@ pub enum TransactionTo {
 #[derive(Debug, Clone)]
 pub struct ParsedData {
     pub chain_id: u64,
-    pub header: Vec<HeaderData>,
-    pub transactions: Vec<TransactionData>,
-    pub withdrawals: Vec<WithdrawalData>,
-    pub transaction_receipts: Vec<TransactionReceiptData>,
-    pub logs: Vec<LogReceiptData>,
-    pub traces: Vec<TraceData>,
+    pub header: Vec<RpcHeaderData>,
+    pub transactions: Vec<RpcTransactionData>,
+    pub withdrawals: Vec<RpcWithdrawalData>,
+    pub transaction_receipts: Vec<RpcTransactionReceiptData>,
+    pub logs: Vec<RpcLogReceiptData>,
+    pub traces: Vec<RpcTraceData>,
 }
 
 #[derive(Debug)]

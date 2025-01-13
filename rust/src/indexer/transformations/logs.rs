@@ -6,7 +6,7 @@
 use anyhow::Result;
 
 use crate::models::common::ParsedData;
-use crate::models::indexed::logs::TransformedLogData;
+use crate::models::datasets::logs::TransformedLogData;
 
 pub trait LogTransformer {
     fn transform_logs(self) -> Result<Vec<TransformedLogData>>;

@@ -1,3 +1,2 @@
 pub mod common;
-pub mod indexed;
-pub mod rpc;
+pub mod datasets;

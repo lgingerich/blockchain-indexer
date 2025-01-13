@@ -20,10 +20,10 @@ use crate::storage::bigquery::schema::{
     block_schema, log_schema, trace_schema, transaction_schema,
 };
 
-use crate::models::indexed::blocks::TransformedBlockData;
-use crate::models::indexed::logs::TransformedLogData;
-use crate::models::indexed::traces::TransformedTraceData;
-use crate::models::indexed::transactions::TransformedTransactionData;
+use crate::models::datasets::blocks::TransformedBlockData;
+use crate::models::datasets::logs::TransformedLogData;
+use crate::models::datasets::traces::TransformedTraceData;
+use crate::models::datasets::transactions::TransformedTransactionData;
 // use crate::utils::exponential_backoff;
 use crate::utils::retry::{retry, RetryConfig};
 

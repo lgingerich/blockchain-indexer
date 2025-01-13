@@ -6,7 +6,7 @@
 use anyhow::Result;
 
 use crate::models::common::ParsedData;
-use crate::models::indexed::traces::TransformedTraceData;
+use crate::models::datasets::traces::TransformedTraceData;
 
 pub trait TraceTransformer {
     fn transform_traces(self) -> Result<Vec<TransformedTraceData>>;

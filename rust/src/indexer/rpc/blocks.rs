@@ -14,21 +14,22 @@ use anyhow::{anyhow, Result};
 use chrono::DateTime;
 
 use crate::models::common::TransactionTo;
-use crate::models::rpc::blocks::{HeaderData, TransactionData, WithdrawalData};
-use crate::models::rpc::receipts::TransactionReceiptData;
+
+use crate::models::datasets::blocks::{RpcHeaderData, RpcWithdrawalData};
+use crate::models::datasets::transactions::RpcTransactionData;
 
 // NOTE: No handling for uncle blocks
 pub trait BlockParser {
-    fn parse_header(self) -> Result<Vec<HeaderData>>;
-    fn parse_transactions(self) -> Result<Vec<TransactionData>>;
-    fn parse_withdrawals(self) -> Result<Vec<WithdrawalData>>;
+    fn parse_header(self) -> Result<Vec<RpcHeaderData>>;
+    fn parse_transactions(self) -> Result<Vec<RpcTransactionData>>;
+    fn parse_withdrawals(self) -> Result<Vec<RpcWithdrawalData>>;
 }
 
 impl BlockParser for Block {
-    fn parse_header(self) -> Result<Vec<HeaderData>> {
+    fn parse_header(self) -> Result<Vec<RpcHeaderData>> {
         let inner = self.header.inner;
         // TODO: Add error handling
-        Ok(vec![HeaderData {
+        Ok(vec![RpcHeaderData {
             hash: self.header.hash,
             parent_hash: inner.parent_hash,
             ommers_hash: inner.ommers_hash,
@@ -61,13 +62,13 @@ impl BlockParser for Block {
         }])
     }
 
-    fn parse_transactions(self) -> Result<Vec<TransactionData>> {
+    fn parse_transactions(self) -> Result<Vec<RpcTransactionData>> {
         match self.transactions {
             BlockTransactions::Full(_) => Ok(self
                 .transactions
                 .txns()
                 .map(|transaction| {
-                    let fields = TransactionData {
+                    let fields = RpcTransactionData {
                         nonce: 0,
                         gas_price: 0,
                         gas_limit: 0,
@@ -101,7 +102,7 @@ impl BlockParser for Block {
                             let tx = signed.tx();
                             let signature = signed.signature();
 
-                            TransactionData {
+                            RpcTransactionData {
                                 nonce: tx.nonce,
                                 gas_price: tx.gas_price,
                                 gas_limit: tx.gas_limit,
@@ -119,7 +120,7 @@ impl BlockParser for Block {
                             let tx = signed.tx();
                             let signature = signed.signature();
 
-                            TransactionData {
+                            RpcTransactionData {
                                 nonce: tx.nonce,
                                 gas_price: tx.gas_price,
                                 gas_limit: tx.gas_limit,
@@ -138,7 +139,7 @@ impl BlockParser for Block {
                             let tx = signed.tx();
                             let signature = signed.signature();
 
-                            TransactionData {
+                            RpcTransactionData {
                                 nonce: tx.nonce,
                                 gas_limit: tx.gas_limit,
                                 max_fee_per_gas: tx.max_fee_per_gas,
@@ -158,7 +159,7 @@ impl BlockParser for Block {
                             let signature = signed.signature();
 
                             match signed.tx() {
-                                TxEip4844Variant::TxEip4844(tx) => TransactionData {
+                                TxEip4844Variant::TxEip4844(tx) => RpcTransactionData {
                                     nonce: tx.nonce,
                                     gas_limit: tx.gas_limit,
                                     max_fee_per_gas: tx.max_fee_per_gas,
@@ -177,7 +178,7 @@ impl BlockParser for Block {
                                 },
                                 TxEip4844Variant::TxEip4844WithSidecar(tx_with_sidecar) => {
                                     let tx = &tx_with_sidecar.tx;
-                                    TransactionData {
+                                    RpcTransactionData {
                                         nonce: tx.nonce,
                                         gas_limit: tx.gas_limit,
                                         max_fee_per_gas: tx.max_fee_per_gas,
@@ -206,7 +207,7 @@ impl BlockParser for Block {
                             let tx = signed.tx();
                             let signature = signed.signature();
 
-                            TransactionData {
+                            RpcTransactionData {
                                 nonce: tx.nonce,
                                 gas_limit: tx.gas_limit,
                                 max_fee_per_gas: tx.max_fee_per_gas,
@@ -226,7 +227,7 @@ impl BlockParser for Block {
                         // TODO: Use better default values for undefined TxEnvelope types
                         // Can I do an if...else? Try to access common fields that are likely to exist in all transaction types, and if they don't exist, use empty/zero defaults
                         // Maybe I only give defaults for fields guaranteed to exist in all transaction types?
-                        _ => TransactionData {
+                        _ => RpcTransactionData {
                             nonce: 0,
                             gas_limit: 0,
                             value: Uint::<256, 4>::ZERO,
@@ -251,20 +252,20 @@ impl BlockParser for Block {
         }
     }
 
-    fn parse_withdrawals(self) -> Result<Vec<WithdrawalData>> {
+    fn parse_withdrawals(self) -> Result<Vec<RpcWithdrawalData>> {
         Ok(self
             .withdrawals
             .map(|withdrawals| {
                 withdrawals
                     .0
                     .into_iter()
-                    .map(|withdrawal| WithdrawalData {
+                    .map(|withdrawal| RpcWithdrawalData {
                         index: withdrawal.index,
                         validator_index: withdrawal.validator_index,
                         address: withdrawal.address,
                         amount: withdrawal.amount,
                     })
-                    .collect::<Vec<WithdrawalData>>()
+                    .collect::<Vec<RpcWithdrawalData>>()
             })
             .unwrap_or_default())
     }

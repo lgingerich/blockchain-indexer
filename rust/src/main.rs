@@ -22,13 +22,11 @@ use tracing::{error, info, warn};
 use tracing_subscriber::{self, EnvFilter};
 use url::Url;
 
-use crate::models::indexed::blocks::TransformedBlockData;
-use crate::models::indexed::logs::TransformedLogData;
-use crate::models::indexed::traces::TransformedTraceData;
-use crate::models::indexed::transactions::TransformedTransactionData;
+use crate::models::datasets::blocks::TransformedBlockData;
+use crate::models::datasets::logs::TransformedLogData;
+use crate::models::datasets::traces::TransformedTraceData;
+use crate::models::datasets::transactions::TransformedTransactionData;
 use crate::utils::load_config;
-
-
 
 // NEXT STEPS:
 // - Add support for ZKsync
@@ -45,6 +43,7 @@ use crate::utils::load_config;
 
 // NOTES:
 // - Not sure I should implement RPC rotation. Seems like lots of failure modes.
+
 
 const MAX_BATCH_SIZE: usize = 10; // Number of blocks to fetch before inserting into BigQuery
 
@@ -99,13 +98,14 @@ async fn main() -> Result<()> {
     } else {
         0
     };
-    // let mut block_number: u64 = 15_000_000;
+
     info!("Starting block number: {:?}", block_number);
 
     // Create RPC provider
     let rpc_url: Url = rpc.parse()?;
     info!("RPC URL: {:?}", rpc);
     let provider = ProviderBuilder::new().on_http(rpc_url);
+    // let provider = ProviderBuilder::new().network::<AnyNetwork>().on_http(rpc_url);
 
     // Get chain ID
     let chain_id = indexer::get_chain_id(&provider).await?;
@@ -146,7 +146,7 @@ async fn main() -> Result<()> {
                 .ok_or_else(|| anyhow!("Provider returned no block"))?,
             );
         }
-
+        println!("Block: {:?}", block);
         // Get receipts by block number
         // Only fetch receipts data if `logs` or `transactions` are in the active datasets
         if need_receipts {
@@ -183,7 +183,7 @@ async fn main() -> Result<()> {
 
         // Extract and separate the raw RPC response into distinct datasets (block headers, transactions, withdrawals, receipts, logs, traces)
         let parsed_data = indexer::parse_data(chain_id, block, receipts, traces).await?;
-
+        // println!("Parsed data: {:?}", parsed_data);
         // Transform all data into final output formats (blocks, transactions, logs, traces)
         let transformed_data = indexer::transform_data(parsed_data, &datasets).await?;
 

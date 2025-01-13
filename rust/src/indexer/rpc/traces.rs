@@ -14,14 +14,14 @@ use alloy_rpc_types_trace::geth::{CallFrame, GethTrace, TraceResult};
 use anyhow::{anyhow, Result};
 use chrono::DateTime;
 
-use crate::models::rpc::traces::TraceData;
+use crate::models::datasets::traces::RpcTraceData;
 
 pub trait TraceParser {
-    fn parse_traces(self) -> Result<Vec<TraceData>>;
+    fn parse_traces(self) -> Result<Vec<RpcTraceData>>;
 }
 
 impl TraceParser for Vec<TraceResult> {
-    fn parse_traces(self) -> Result<Vec<TraceData>> {
+    fn parse_traces(self) -> Result<Vec<RpcTraceData>> {
         Ok(self
             .into_iter()
             .flat_map(|trace_result| {
@@ -43,11 +43,11 @@ impl TraceParser for Vec<TraceResult> {
 }
 
 /// Recursively flattens a CallFrame and its nested calls into a vector of TraceData
-fn flatten_call_frames(frame: CallFrame) -> Vec<TraceData> {
+fn flatten_call_frames(frame: CallFrame) -> Vec<RpcTraceData> {
     let mut traces = Vec::new();
 
     // Add the current frame
-    traces.push(TraceData {
+    traces.push(RpcTraceData {
         from: frame.from,
         gas: frame.gas,
         gas_used: frame.gas_used,

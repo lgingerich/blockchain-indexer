@@ -6,7 +6,7 @@
 use anyhow::{anyhow, Result};
 
 use crate::models::common::ParsedData;
-use crate::models::indexed::blocks::TransformedBlockData;
+use crate::models::datasets::blocks::TransformedBlockData;
 
 pub trait BlockTransformer {
     fn transform_blocks(self) -> Result<Vec<TransformedBlockData>>;

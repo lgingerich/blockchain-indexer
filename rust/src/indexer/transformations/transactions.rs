@@ -6,7 +6,7 @@
 use anyhow::Result;
 
 use crate::models::common::ParsedData;
-use crate::models::indexed::transactions::TransformedTransactionData;
+use crate::models::datasets::transactions::TransformedTransactionData;
 
 pub trait TransactionTransformer {
     fn transform_transactions(self) -> Result<Vec<TransformedTransactionData>>;
