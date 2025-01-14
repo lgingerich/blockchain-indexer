@@ -20,8 +20,8 @@ pub struct RpcHeaderData {
     pub block_time: DateTime<Utc>,
     pub block_date: NaiveDate,
     pub extra_data: Bytes,
-    pub mix_hash: FixedBytes<32>,
-    pub nonce: FixedBytes<8>,
+    pub mix_hash: Option<FixedBytes<32>>,
+    pub nonce: Option<FixedBytes<8>>,
     pub base_fee_per_gas: Option<u64>,
     pub withdrawals_root: Option<FixedBytes<32>>,
     pub blob_gas_used: Option<u64>,
@@ -31,6 +31,11 @@ pub struct RpcHeaderData {
     pub target_blobs_per_block: Option<u64>,
     pub total_difficulty: Option<Uint<256, 4>>,
     pub size: Option<Uint<256, 4>>,
+
+    // ZKsync fields
+    pub l1_batch_number: Option<u64>,
+    pub l1_batch_timestamp: Option<DateTime<Utc>>,
+    pub seal_fields: Option<Vec<String>>,
 }
 
 // Final output format
@@ -52,8 +57,8 @@ pub struct TransformedBlockData {
     pub block_time: DateTime<Utc>,
     pub block_date: NaiveDate,
     pub extra_data: Bytes,
-    pub mix_hash: FixedBytes<32>,
-    pub nonce: FixedBytes<8>,
+    pub mix_hash: Option<FixedBytes<32>>,
+    pub nonce: Option<FixedBytes<8>>,
     pub base_fee_per_gas: Option<u64>,
     pub withdrawals_root: Option<FixedBytes<32>>,
     pub blob_gas_used: Option<u64>,
@@ -63,8 +68,12 @@ pub struct TransformedBlockData {
     pub target_blobs_per_block: Option<u64>,
     pub total_difficulty: Option<Uint<256, 4>>,
     pub size: Option<Uint<256, 4>>,
-}
 
+    // ZKsync fields
+    pub l1_batch_number: Option<u64>,
+    pub l1_batch_timestamp: Option<DateTime<Utc>>,
+    pub seal_fields: Option<Vec<String>>,
+}
 
 // Create type alias for alloy Withdrawal type
 // Do not expect to need custom modifications to this type

@@ -12,41 +12,42 @@ use chrono::DateTime;
 use crate::models::datasets::logs::RpcLogReceiptData;
 use crate::models::datasets::transactions::RpcTransactionReceiptData;
 
+use alloy_network::AnyTransactionReceipt;
 
 pub trait ReceiptParser {
     fn parse_transaction_receipts(self) -> Result<Vec<RpcTransactionReceiptData>>;
     fn parse_log_receipts(self) -> Result<Vec<RpcLogReceiptData>>;
 }
 
-impl ReceiptParser for Vec<TransactionReceipt> {
+impl ReceiptParser for Vec<AnyTransactionReceipt> {
     fn parse_transaction_receipts(self) -> Result<Vec<RpcTransactionReceiptData>> {
         self.into_iter()
-            .map(|receipt| match receipt.inner.as_receipt_with_bloom() {
-                Some(receipt_with_bloom) => {
-                    let status = match receipt_with_bloom.receipt.status {
-                        Eip658Value::Eip658(success) => Some(success),
-                        Eip658Value::PostState(_) => None,
-                    };
+            .map(|receipt| {
+                // Access the inner ReceiptWithBloom through the AnyReceiptEnvelope
+                let receipt_with_bloom = &receipt.inner.inner.inner;
+                
+                let status = match receipt_with_bloom.receipt.status {
+                    Eip658Value::Eip658(success) => Some(success),
+                    Eip658Value::PostState(_) => None,
+                };
 
-                    Ok(RpcTransactionReceiptData {
-                        status,
-                        cumulative_gas_used: receipt_with_bloom.receipt.cumulative_gas_used,
-                        logs_bloom: receipt_with_bloom.logs_bloom,
-                        transaction_hash: receipt.transaction_hash,
-                        transaction_index: receipt.transaction_index,
-                        block_hash: receipt.block_hash,
-                        block_number: receipt.block_number,
-                        gas_used: receipt.gas_used,
-                        effective_gas_price: receipt.effective_gas_price,
-                        blob_gas_used: receipt.blob_gas_used,
-                        blob_gas_price: receipt.blob_gas_price,
-                        from: receipt.from,
-                        to: receipt.to,
-                        contract_address: receipt.contract_address,
-                        authorization_list: receipt.authorization_list,
-                    })
-                }
-                None => Err(anyhow!("Receipt missing bloom data")),
+                Ok(RpcTransactionReceiptData {
+                    status,
+                    cumulative_gas_used: receipt_with_bloom.receipt.cumulative_gas_used,
+                    logs_bloom: receipt_with_bloom.logs_bloom,
+                    transaction_hash: receipt.inner.transaction_hash,
+                    transaction_index: receipt.inner.transaction_index,
+                    block_hash: receipt.inner.block_hash,
+                    block_number: receipt.inner.block_number,
+                    gas_used: receipt.inner.gas_used,
+                    effective_gas_price: receipt.inner.effective_gas_price,
+                    blob_gas_used: receipt.inner.blob_gas_used,
+                    blob_gas_price: receipt.inner.blob_gas_price,
+                    from: receipt.inner.from,
+                    to: receipt.inner.to,
+                    contract_address: receipt.inner.contract_address,
+                    authorization_list: receipt.inner.authorization_list,
+                })
             })
             .collect()
     }
@@ -54,32 +55,27 @@ impl ReceiptParser for Vec<TransactionReceipt> {
     fn parse_log_receipts(self) -> Result<Vec<RpcLogReceiptData>> {
         self.into_iter()
             .flat_map(|receipt| {
-                match receipt.inner.as_receipt_with_bloom() {
-                    Some(receipt_with_bloom) => {
-                        receipt_with_bloom
-                            .receipt
-                            .logs
-                            .clone()
-                            .into_iter()
-                            .map(|log| {
-                                //TODO: Remove clone
-                                Ok(RpcLogReceiptData {
-                                    address: log.inner.address,
-                                    topics: log.inner.data.topics().to_vec(),
-                                    data: log.inner.data.data,
-                                    block_hash: log.block_hash,
-                                    block_number: log.block_number,
-                                    block_timestamp: log.block_timestamp,
-                                    transaction_hash: log.transaction_hash,
-                                    transaction_index: log.transaction_index,
-                                    log_index: log.log_index,
-                                    removed: log.removed,
-                                })
-                            })
-                            .collect()
-                    }
-                    None => vec![Err(anyhow!("Receipt missing bloom data"))],
-                }
+                let receipt_with_bloom = &receipt.inner.inner.inner;
+                receipt_with_bloom
+                    .receipt
+                    .logs
+                    .clone()
+                    .into_iter()
+                    .map(|log| {
+                        Ok(RpcLogReceiptData {
+                            address: log.inner.address,
+                            topics: log.inner.data.topics().to_vec(),
+                            data: log.inner.data.data,
+                            block_hash: log.block_hash,
+                            block_number: log.block_number,
+                            block_timestamp: log.block_timestamp,
+                            transaction_hash: log.transaction_hash,
+                            transaction_index: log.transaction_index,
+                            log_index: log.log_index,
+                            removed: log.removed,
+                        })
+                    })
+                    .collect::<Vec<Result<RpcLogReceiptData>>>()
             })
             .collect()
     }

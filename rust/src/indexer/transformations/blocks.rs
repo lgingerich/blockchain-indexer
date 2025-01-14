@@ -46,6 +46,11 @@ impl BlockTransformer for ParsedData {
                 target_blobs_per_block: header.target_blobs_per_block,
                 total_difficulty: header.total_difficulty,
                 size: header.size,
+
+                // ZKsync fields
+                l1_batch_number: header.l1_batch_number,
+                l1_batch_timestamp: header.l1_batch_timestamp,
+                seal_fields: header.seal_fields,
             })
             .collect())
     }

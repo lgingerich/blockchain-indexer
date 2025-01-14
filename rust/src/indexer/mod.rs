@@ -15,7 +15,7 @@ use alloy_rpc_types_trace::{
     geth::{GethDebugTracingOptions, GethTrace},
 };
 use alloy_transport::{RpcError, Transport};
-
+use alloy_network::{AnyRpcBlock, AnyTransactionReceipt};
 use anyhow::{anyhow, Result};
 use tracing::error;
 
@@ -140,8 +140,8 @@ where
 
 pub async fn parse_data(
     chain_id: u64,
-    block: Option<Block>,
-    receipts: Option<Vec<TransactionReceipt>>,
+    block: Option<AnyRpcBlock>,
+    receipts: Option<Vec<AnyTransactionReceipt>>,
     traces: Option<Vec<TraceResult<GethTrace, String>>>,
 ) -> Result<ParsedData> {
     // Parse block data if available

@@ -2,6 +2,8 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
 #![allow(dead_code)]
+#![allow(unused_mut)]
+#![allow(unused_assignments)]
 
 mod indexer;
 mod models;
@@ -9,7 +11,10 @@ mod storage;
 mod utils;
 
 use alloy_eips::{BlockId, BlockNumberOrTag};
-use alloy_network::primitives::BlockTransactionsKind;
+use alloy_network::{
+    AnyNetwork,
+    primitives::BlockTransactionsKind,
+};
 use alloy_provider::ProviderBuilder;
 use alloy_rpc_types_eth::{Block, TransactionReceipt};
 use alloy_rpc_types_trace::geth::{
@@ -99,13 +104,13 @@ async fn main() -> Result<()> {
         0
     };
 
+    // let mut block_number = 35876713;
     info!("Starting block number: {:?}", block_number);
 
     // Create RPC provider
     let rpc_url: Url = rpc.parse()?;
     info!("RPC URL: {:?}", rpc);
-    let provider = ProviderBuilder::new().on_http(rpc_url);
-    // let provider = ProviderBuilder::new().network::<AnyNetwork>().on_http(rpc_url);
+    let provider = ProviderBuilder::new().network::<AnyNetwork>().on_http(rpc_url);
 
     // Get chain ID
     let chain_id = indexer::get_chain_id(&provider).await?;
@@ -146,7 +151,7 @@ async fn main() -> Result<()> {
                 .ok_or_else(|| anyhow!("Provider returned no block"))?,
             );
         }
-        println!("Block: {:?}", block);
+
         // Get receipts by block number
         // Only fetch receipts data if `logs` or `transactions` are in the active datasets
         if need_receipts {
@@ -183,10 +188,9 @@ async fn main() -> Result<()> {
 
         // Extract and separate the raw RPC response into distinct datasets (block headers, transactions, withdrawals, receipts, logs, traces)
         let parsed_data = indexer::parse_data(chain_id, block, receipts, traces).await?;
-        // println!("Parsed data: {:?}", parsed_data);
+
         // Transform all data into final output formats (blocks, transactions, logs, traces)
         let transformed_data = indexer::transform_data(parsed_data, &datasets).await?;
-
         blocks_collection.extend(transformed_data.blocks);
         transactions_collection.extend(transformed_data.transactions);
 
@@ -228,6 +232,7 @@ async fn main() -> Result<()> {
         // Increment the raw number and update BlockNumberOrTag
         block_number += 1;
         block_number_to_process = BlockNumberOrTag::Number(block_number);
+        tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
     }
 
     // Ok(())
