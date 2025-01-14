@@ -23,6 +23,7 @@ impl TransactionTransformer for ParsedData {
             .map(|(tx, receipt)| {
                 TransformedTransactionData {
                     chain_id: self.chain_id,
+                    tx_type: receipt.tx_type,
 
                     // Fields from TransactionData
                     nonce: tx.nonce,
@@ -58,6 +59,10 @@ impl TransactionTransformer for ParsedData {
                     from: receipt.from,
                     to: receipt.to,
                     contract_address: receipt.contract_address,
+
+                    // ZKsync fields
+                    l1_batch_number: tx.l1_batch_number,
+                    l1_batch_tx_index: tx.l1_batch_tx_index,
                 }
             })
             .collect())

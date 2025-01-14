@@ -35,6 +35,17 @@ pub struct RpcTransactionData {
     pub transaction_index: Option<u64>,
     pub effective_gas_price: Option<u128>,
     pub from: Address,
+
+
+    pub tx_type: u8,
+    // pub gas: 
+
+    // ZKsync fields
+    // Sometimes the below fields are in inner and other times in other
+    pub l1_batch_number: Option<u64>,
+    pub l1_batch_tx_index: Option<u64>,
+    // pub max_fee_per_gas: Option<u128>,
+    // pub max_priority_fee_per_gas: Option<u128>,
 }
 
 // Raw RPC response format from `eth_getTransactionReceipt`
@@ -55,6 +66,11 @@ pub struct RpcTransactionReceiptData {
     pub to: Option<Address>,
     pub contract_address: Option<Address>,
     pub authorization_list: Option<Vec<SignedAuthorization>>,
+    pub tx_type: u8,
+
+    // pub l1_batch_number: Option<u64>,
+    // pub l1_batch_tx_index: Option<u64>,
+    // pub l2_to_l1_logs: Option<Vec<L2ToL1Log>>,
 }
 
 // Final output format
@@ -63,6 +79,7 @@ pub struct RpcTransactionReceiptData {
 pub struct TransformedTransactionData {
     // Block fields
     pub chain_id: u64,
+    pub tx_type: u8,
     // pub hash: FixedBytes<32>,
     pub nonce: u64,
     pub gas_price: u128,
@@ -104,4 +121,8 @@ pub struct TransformedTransactionData {
     pub to: Option<Address>,
     pub contract_address: Option<Address>,
     // pub authorization_list: Option<Vec<SignedAuthorization>> // TODO: Implement this. Need to handle private fields and updating the BigQuery schema
+
+    // ZKsync fields
+    pub l1_batch_number: Option<u64>,
+    pub l1_batch_tx_index: Option<u64>,
 }

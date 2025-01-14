@@ -19,7 +19,7 @@ pub struct Config {
     pub datasets: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize,Serialize)]
 pub enum TransactionTo {
     TxKind(TxKind),   // For TxLegacy, TxEip2930, TxEip1559 which use TxKind
     Address(Address), // For TxEip4844, TxEip7702 which use Address directly

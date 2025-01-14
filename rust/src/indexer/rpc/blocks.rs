@@ -89,6 +89,7 @@ impl BlockParser for AnyRpcBlock {
                     let fields: RpcTransactionData = RpcTransactionData {
                         nonce: 0,
                         gas_price: 0,
+                        tx_type: 0,
                         gas_limit: 0,
                         max_fee_per_gas: 0,
                         max_priority_fee_per_gas: 0,
@@ -111,8 +112,26 @@ impl BlockParser for AnyRpcBlock {
                         transaction_index: None,
                         effective_gas_price: None,
                         from: Address::ZERO,
+                        l1_batch_number: Some(0),
+                        l1_batch_tx_index: Some(0),
                     };
 
+/*
+                    AnyTxEnvelope
+                        Ethereum(TxEnvelope)
+                            Legacy(Signed<TxLegacy>),
+                            Eip2930(Signed<TxEip2930>),
+                            Eip1559(Signed<TxEip1559>),
+                            Eip4844(Signed<TxEip4844Variant>),
+                            Eip7702(Signed<TxEip7702>),
+                        Unknown(UnknownTxEnvelope)
+                            pub hash: FixedBytes<32>,
+                            pub inner: UnknownTypedTransaction,
+                                    pub ty: AnyTxType,
+                                    pub fields: OtherFields,
+                                    pub memo: DeserMemo,
+                        
+*/
                     match &transaction.inner.inner {
                         AnyTxEnvelope::Ethereum(inner) => {
                             match inner {
@@ -259,8 +278,76 @@ impl BlockParser for AnyRpcBlock {
                             }
                         }
                         AnyTxEnvelope::Unknown(unknown) => {
-                            // info!("Unknown transaction envelope: {:?}", unknown);
+                            info!("Unknown transaction envelope: {:?}", unknown);
+
+                            let other_fields = &unknown.inner.fields;
+                            let memo = &unknown.inner.memo;
+                            let inner = &unknown.inner;
+                            let ty = inner.ty;
+                            
                             RpcTransactionData {
+                                hash: unknown.hash,
+                                tx_type: ty.0, // Gets the first element of the tuple as u8
+                                // gas: fields
+                                //     .get_deserialized::<>("gas")
+                                //     .and_then(|result| result.ok())
+                                //     .unwrap_or(),
+                                gas_price: other_fields
+                                    .get_deserialized::<u128>("gasPrice")
+                                    .and_then(|result| result.ok())
+                                    .unwrap_or(0),
+                                input: other_fields
+                                    .get_deserialized::<Bytes>("input")
+                                    .and_then(|result| result.ok())
+                                    .unwrap_or(Bytes::default()),
+                                // input: fields // Try fields first, then fall back to memo if not found
+                                //     .get_deserialized::<Bytes>("input")
+                                //     .and_then(|result| result.ok())
+                                //     .or_else(|| memo.input.get().cloned())
+                                //     .unwrap_or(Bytes::default()),                                      
+                                l1_batch_number: other_fields
+                                    .get_deserialized::<String>("l1BatchNumber")
+                                    .and_then(|result| result.ok())
+                                    .and_then(|hex| hex_to_u64(hex)),
+                                    // .unwrap_or(0),
+                                l1_batch_tx_index: other_fields
+                                    .get_deserialized::<String>("l1BatchTxIndex")
+                                    .and_then(|result| result.ok())
+                                    .and_then(|hex| hex_to_u64(hex)),
+                                    // .unwrap_or(TransactionTo::Address(Address::ZERO)),                                                                    
+                                max_fee_per_gas: other_fields
+                                    .get_deserialized::<u128>("maxFeePerGas")
+                                    .and_then(|result| result.ok())
+                                    .unwrap_or(0), // not sure if this field should be option or not                                 
+                                max_priority_fee_per_gas: other_fields
+                                    .get_deserialized::<u128>("maxPriorityFeePerGas")
+                                    .and_then(|result| result.ok())
+                                    .unwrap_or(0),                                    
+                                nonce: other_fields
+                                    .get_deserialized::<u64>("nonce")
+                                    .and_then(|result| result.ok())
+                                    .unwrap_or(0),                                
+                                to: other_fields
+                                    .get_deserialized::<TransactionTo>("to")
+                                    .and_then(|result| result.ok())
+                                    .unwrap_or(TransactionTo::Address(Address::ZERO)),
+                                value: other_fields
+                                    .get_deserialized::<Uint<256, 4>>("value")
+                                    .and_then(|result| result.ok())
+                                    .unwrap_or(Uint::<256, 4>::ZERO),
+
+                                access_list: memo.access_list
+                                    .get()
+                                    .cloned()
+                                    .unwrap_or_default(),
+                                blob_versioned_hashes: memo.blob_versioned_hashes
+                                    .get()
+                                    .cloned()
+                                    .unwrap_or_default(),                                    
+                                authorization_list: memo.authorization_list
+                                    .get()
+                                    .cloned()
+                                    .unwrap_or_default(),
                                 ..fields
                             }
                         }
