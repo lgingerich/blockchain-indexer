@@ -11,6 +11,7 @@ use chrono::DateTime;
 
 use crate::models::datasets::logs::RpcLogReceiptData;
 use crate::models::datasets::transactions::RpcTransactionReceiptData;
+use crate::utils::hex_to_u64;
 
 use alloy_network::AnyTransactionReceipt;
 
@@ -47,6 +48,15 @@ impl ReceiptParser for Vec<AnyTransactionReceipt> {
                     to: receipt.inner.to,
                     contract_address: receipt.inner.contract_address,
                     authorization_list: receipt.inner.authorization_list,
+                    tx_type: receipt.inner.inner.r#type,
+                    l1_batch_number: receipt.other
+                        .get_deserialized::<String>("l1BatchNumber")
+                        .and_then(|result| result.ok())
+                        .and_then(|hex| hex_to_u64(hex)),
+                    l1_batch_tx_index: receipt.other
+                        .get_deserialized::<String>("l1BatchTxIndex")
+                        .and_then(|result| result.ok())
+                        .and_then(|hex| hex_to_u64(hex)),
                 })
             })
             .collect()

@@ -68,8 +68,9 @@ pub struct RpcTransactionReceiptData {
     pub authorization_list: Option<Vec<SignedAuthorization>>,
     pub tx_type: u8,
 
-    // pub l1_batch_number: Option<u64>,
-    // pub l1_batch_tx_index: Option<u64>,
+    // ZKsync fields
+    pub l1_batch_number: Option<u64>,
+    pub l1_batch_tx_index: Option<u64>,
     // pub l2_to_l1_logs: Option<Vec<L2ToL1Log>>,
 }
 

@@ -23,7 +23,7 @@ impl TransactionTransformer for ParsedData {
             .map(|(tx, receipt)| {
                 TransformedTransactionData {
                     chain_id: self.chain_id,
-                    tx_type: receipt.tx_type,
+                    tx_type: tx.tx_type,
 
                     // Fields from TransactionData
                     nonce: tx.nonce,
