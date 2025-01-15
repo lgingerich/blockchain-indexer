@@ -196,6 +196,20 @@ pub fn block_schema() -> TableSchema {
                 description: None,
                 ..Default::default()
             },
+            TableFieldSchema {
+                name: "l1_batch_number".to_string(),
+                data_type: TableFieldType::Integer,
+                mode: Some(TableFieldMode::Nullable),
+                description: None,
+                ..Default::default()
+            },
+            TableFieldSchema {
+                name: "l1_batch_timestamp".to_string(),
+                data_type: TableFieldType::Timestamp,
+                mode: Some(TableFieldMode::Nullable),
+                description: None,
+                ..Default::default()
+            },
         ],
     }
 }
@@ -205,6 +219,13 @@ pub fn transaction_schema() -> TableSchema {
         fields: vec![
             TableFieldSchema {
                 name: "chain_id".to_string(),
+                data_type: TableFieldType::Integer,
+                mode: Some(TableFieldMode::Required),
+                description: None,
+                ..Default::default()
+            },
+            TableFieldSchema {
+                name: "tx_type".to_string(),
                 data_type: TableFieldType::Integer,
                 mode: Some(TableFieldMode::Required),
                 description: None,
@@ -444,6 +465,20 @@ pub fn transaction_schema() -> TableSchema {
                 description: None,
                 ..Default::default()
             },
+            TableFieldSchema {
+                name: "l1_batch_number".to_string(),
+                data_type: TableFieldType::Integer,
+                mode: Some(TableFieldMode::Nullable),
+                description: None,
+                ..Default::default()
+            },
+            TableFieldSchema {
+                name: "l1_batch_tx_index".to_string(),
+                data_type: TableFieldType::Integer,
+                mode: Some(TableFieldMode::Nullable),
+                description: None,
+                ..Default::default()
+            },                        
         ],
     }
 }

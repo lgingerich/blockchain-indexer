@@ -35,7 +35,7 @@ pub struct RpcHeaderData {
     // ZKsync fields
     pub l1_batch_number: Option<u64>,
     pub l1_batch_timestamp: Option<DateTime<Utc>>,
-    pub seal_fields: Option<Vec<String>>,
+    // pub seal_fields: Option<Vec<String>>, // TODO: Add this back in
 }
 
 // Final output format
@@ -72,7 +72,7 @@ pub struct TransformedBlockData {
     // ZKsync fields
     pub l1_batch_number: Option<u64>,
     pub l1_batch_timestamp: Option<DateTime<Utc>>,
-    pub seal_fields: Option<Vec<String>>,
+    // pub seal_fields: Option<Vec<String>>, // TODO: Add this back in
 }
 
 // Create type alias for alloy Withdrawal type

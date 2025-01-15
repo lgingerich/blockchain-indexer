@@ -50,7 +50,7 @@ impl BlockTransformer for ParsedData {
                 // ZKsync fields
                 l1_batch_number: header.l1_batch_number,
                 l1_batch_timestamp: header.l1_batch_timestamp,
-                seal_fields: header.seal_fields,
+                // seal_fields: header.seal_fields, // TODO: Add this back in
             })
             .collect())
     }

@@ -75,7 +75,7 @@ impl BlockParser for AnyRpcBlock {
                 .and_then(|result| result.ok())
                 .and_then(|hex| hex_to_u64(hex))
                 .and_then(|timestamp| DateTime::from_timestamp(timestamp as i64, 0)),
-            seal_fields: other.get_deserialized::<Vec<String>>("sealFields").and_then(|result| result.ok()),
+            // seal_fields: other.get_deserialized::<Vec<String>>("sealFields").and_then(|result| result.ok()), // TODO: Add this back in
 
         }])
     }
@@ -116,22 +116,6 @@ impl BlockParser for AnyRpcBlock {
                         l1_batch_tx_index: Some(0),
                     };
 
-/*
-                    AnyTxEnvelope
-                        Ethereum(TxEnvelope)
-                            Legacy(Signed<TxLegacy>),
-                            Eip2930(Signed<TxEip2930>),
-                            Eip1559(Signed<TxEip1559>),
-                            Eip4844(Signed<TxEip4844Variant>),
-                            Eip7702(Signed<TxEip7702>),
-                        Unknown(UnknownTxEnvelope)
-                            pub hash: FixedBytes<32>,
-                            pub inner: UnknownTypedTransaction,
-                                    pub ty: AnyTxType,
-                                    pub fields: OtherFields,
-                                    pub memo: DeserMemo,
-                        
-*/
                     match &transaction.inner.inner {
                         AnyTxEnvelope::Ethereum(inner) => {
                             match inner {
@@ -288,7 +272,7 @@ impl BlockParser for AnyRpcBlock {
                             RpcTransactionData {
                                 hash: unknown.hash,
                                 tx_type: ty.0, // Gets the first element of the tuple as u8
-                                // gas: fields
+                                // gas: fields // TODO: Handle this
                                 //     .get_deserialized::<>("gas")
                                 //     .and_then(|result| result.ok())
                                 //     .unwrap_or(),
@@ -299,12 +283,7 @@ impl BlockParser for AnyRpcBlock {
                                 input: other_fields
                                     .get_deserialized::<Bytes>("input")
                                     .and_then(|result| result.ok())
-                                    .unwrap_or(Bytes::default()),
-                                // input: fields // Try fields first, then fall back to memo if not found
-                                //     .get_deserialized::<Bytes>("input")
-                                //     .and_then(|result| result.ok())
-                                //     .or_else(|| memo.input.get().cloned())
-                                //     .unwrap_or(Bytes::default()),                                      
+                                    .unwrap_or(Bytes::default()),                               
                                 l1_batch_number: other_fields
                                     .get_deserialized::<String>("l1BatchNumber")
                                     .and_then(|result| result.ok())
@@ -335,7 +314,6 @@ impl BlockParser for AnyRpcBlock {
                                     .get_deserialized::<Uint<256, 4>>("value")
                                     .and_then(|result| result.ok())
                                     .unwrap_or(Uint::<256, 4>::ZERO),
-
                                 access_list: memo.access_list
                                     .get()
                                     .cloned()
