@@ -163,6 +163,7 @@ cython_debug/
 # Local data folder
 /rpc_data
 /data
+/data2
 
 # Logs
 logs/

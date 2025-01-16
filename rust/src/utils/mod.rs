@@ -27,7 +27,6 @@ pub fn load_config<P: AsRef<Path>>(file_name: P) -> Result<Config> {
     // Convert hyphens to underscores in all relevant fields
     config.project_name = config.project_name.replace('-', "_");
     config.chain_name = config.chain_name.replace('-', "_");
-    config.chain_schema = config.chain_schema.replace('-', "_");
 
     Ok(config)
 }

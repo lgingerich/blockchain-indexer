@@ -54,18 +54,21 @@ pub struct CommonTransformedLogData {
 }
 
 // Ethereum-specific log receipt
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct EthereumTransformedLogData {
+    #[serde(flatten)] // Flatten nested structs
     pub common: CommonTransformedLogData,
 }
 
 // ZKsync-specific log receipt
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ZKsyncTransformedLogData {
+    #[serde(flatten)] // Flatten nested structs
     pub common: CommonTransformedLogData,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
+#[serde(untagged)] // Serialize without enum variant name
 pub enum TransformedLogData {
     Ethereum(EthereumTransformedLogData),
     ZKsync(ZKsyncTransformedLogData),

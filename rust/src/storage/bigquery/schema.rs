@@ -354,14 +354,14 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
         TableFieldSchema {
             name: "nonce".to_string(),
             data_type: TableFieldType::Integer,
-            mode: Some(TableFieldMode::Required),
+            mode: Some(TableFieldMode::Nullable),
             description: None,
             ..Default::default()
         },
         TableFieldSchema {
             name: "gas_price".to_string(),
             data_type: TableFieldType::Integer,
-            mode: Some(TableFieldMode::Required),
+            mode: Some(TableFieldMode::Nullable),
             description: None,
             ..Default::default()
         },
@@ -375,21 +375,21 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
         TableFieldSchema {
             name: "max_fee_per_gas".to_string(),
             data_type: TableFieldType::Integer,
-            mode: Some(TableFieldMode::Required),
+            mode: Some(TableFieldMode::Nullable),
             description: None,
             ..Default::default()
         },
         TableFieldSchema {
             name: "max_priority_fee_per_gas".to_string(),
             data_type: TableFieldType::Integer,
-            mode: Some(TableFieldMode::Required),
+            mode: Some(TableFieldMode::Nullable),
             description: None,
             ..Default::default()
         },
         TableFieldSchema {
             name: "value".to_string(),
             data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Required),
+            mode: Some(TableFieldMode::Nullable),
             description: None,
             ..Default::default()
         },
@@ -417,19 +417,12 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
             ..Default::default()
         },
         TableFieldSchema {
-            name: "blob_versioned_hashes".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Repeated),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
             name: "input".to_string(),
             data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Required),
+            mode: Some(TableFieldMode::Nullable),
             description: None,
             ..Default::default()
-        },
+        },        
         TableFieldSchema {
             name: "r".to_string(),
             data_type: TableFieldType::String,
@@ -451,29 +444,15 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
             description: None,
             ..Default::default()
         },
+        TableFieldSchema {
+            name: "blob_versioned_hashes".to_string(),
+            data_type: TableFieldType::String,
+            mode: Some(TableFieldMode::Repeated),
+            description: None,
+            ..Default::default()
+        },
 
         // Receipt fields
-        TableFieldSchema {
-            name: "status".to_string(),
-            data_type: TableFieldType::Boolean,
-            mode: Some(TableFieldMode::Nullable),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "cumulative_gas_used".to_string(),
-            data_type: TableFieldType::Integer,
-            mode: Some(TableFieldMode::Required),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "logs_bloom".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Required),
-            description: None,
-            ..Default::default()
-        },
         TableFieldSchema {
             name: "transaction_hash".to_string(),
             data_type: TableFieldType::String,
@@ -484,6 +463,13 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
         TableFieldSchema {
             name: "transaction_index".to_string(),
             data_type: TableFieldType::Integer,
+            mode: Some(TableFieldMode::Nullable),
+            description: None,
+            ..Default::default()
+        },        
+        TableFieldSchema {
+            name: "status".to_string(),
+            data_type: TableFieldType::Boolean,
             mode: Some(TableFieldMode::Nullable),
             description: None,
             ..Default::default()
@@ -501,14 +487,14 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
             mode: Some(TableFieldMode::Nullable),
             description: None,
             ..Default::default()
-        },
+        },        
         TableFieldSchema {
             name: "gas_used".to_string(),
             data_type: TableFieldType::Integer,
             mode: Some(TableFieldMode::Required),
             description: None,
             ..Default::default()
-        },
+        },        
         TableFieldSchema {
             name: "effective_gas_price".to_string(),
             data_type: TableFieldType::Integer,
@@ -550,11 +536,25 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
             mode: Some(TableFieldMode::Nullable),
             description: None,
             ..Default::default()
+        },        
+        TableFieldSchema {
+            name: "cumulative_gas_used".to_string(),
+            data_type: TableFieldType::Integer,
+            mode: Some(TableFieldMode::Required),
+            description: None,
+            ..Default::default()
         },
         TableFieldSchema {
             name: "authorization_list".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Repeated),
+            description: None,
+            ..Default::default()
+        },        
+        TableFieldSchema {
+            name: "logs_bloom".to_string(),
+            data_type: TableFieldType::String,
+            mode: Some(TableFieldMode::Required),
             description: None,
             ..Default::default()
         },
@@ -567,7 +567,7 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
                 TableFieldSchema {
                     name: "max_fee_per_blob_gas".to_string(),
                     data_type: TableFieldType::Integer,
-                    mode: Some(TableFieldMode::Required),
+                    mode: Some(TableFieldMode::Nullable),
                     description: None,
                     ..Default::default()
                 },

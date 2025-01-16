@@ -58,7 +58,7 @@ pub enum RpcHeaderData {
 /////////////////////////////////// Transformed Data ///////////////////////////////////
 
 // Base struct for common fields
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct CommonTransformedBlockData {
     pub chain_id: u64,
     pub hash: FixedBytes<32>,
@@ -89,14 +89,16 @@ pub struct CommonTransformedBlockData {
 }
 
 // Ethereum-specific header
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct EthereumTransformedBlockData {
+    #[serde(flatten)] // Flatten nested structs
     pub common: CommonTransformedBlockData,
 }
 
 // ZKsync-specific header
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ZKsyncTransformedBlockData {
+    #[serde(flatten)] // Flatten nested structs
     pub common: CommonTransformedBlockData,
     pub target_blobs_per_block: Option<u64>,
     pub l1_batch_number: Option<u64>,
@@ -104,7 +106,8 @@ pub struct ZKsyncTransformedBlockData {
     // pub seal_fields: Option<Vec<String>>, // TODO: Add this back in
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
+#[serde(untagged)] // Serialize without enum variant name
 pub enum TransformedBlockData {
     Ethereum(EthereumTransformedBlockData),
     ZKsync(ZKsyncTransformedBlockData),

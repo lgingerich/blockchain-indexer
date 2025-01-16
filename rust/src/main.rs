@@ -35,33 +35,23 @@ use crate::utils::load_config;
 use crate::models::common::Chain;
 
 // NEXT STEPS:
-// - Add support for ZKsync
+// - TO FIX (zksync block 28679967-28679976): HTTP Client error: HTTP status client error (413 Payload Too Large) for url (https://bigquery.googleapis.com/bigquery/v2/projects/elastic-chain-indexing/datasets/zksync/tables/traces/insertAll)
 // - Add better error handling on rpc calls?
 //      - Fix Tenderly RPC
 // - Add buffer to stay away from chain tip
 // - Add monitoring
 // - Add data quality checks (schema compliance, missing block detection, duplication detection, etc.)
 // - Unit tests
+    // - Tests for each tx type for each chain
 // - Rate limiting?
 // - Docker containerization
 // - CI/CD
 // - Kubernetes/Helm deployment for production
 
+
 // NOTES:
 // - Not sure I should implement RPC rotation. Seems like lots of failure modes.
-
-
-//////////////////////////////////// TODO ////////////////////////////////////
-// Add support for blocks and transactions (done)
-// Handle how to only use subset of fields for each chain
-// Handle `gas` field for zksync
-// Add tx_type to BigQuery schema creation (done)
-// Add to BigQuery schema creation (done)
-// Get tx type from receipt not blocks (done)
-// ERROR: For legacy zksync transactions, l1_batch_number is None. This should be filled.
-//////////////////////////////////////////////////////////////////////////////
-
-
+// - Some fields which are optional are being forced to be defined as mandatory because BQ throws errors on handling none/empty fields
 
 const MAX_BATCH_SIZE: usize = 10; // Number of blocks to fetch before inserting into BigQuery
 
@@ -120,14 +110,22 @@ async fn main() -> Result<()> {
     //     0
     // };
 
-
+    // ZKSYNC
     // Legacy (0): 	1451, 1535
     // DynamicFee (2): 4239, 9239
     // EIP-712 (113):	9073, 9416
     // Priority (255):	2030, 8958
     // 254: 			28679967, 35876713
 
-    let mut block_number = 15632012;
+    // Ethereum
+    // Legacy (0): 46147
+    // EIP-2930 (1): 12244145
+    // DynamicFee (2): 12965001
+    // EIP-4844 (3): 19426589
+
+
+
+    let mut block_number = 19426589;
     info!("Starting block number: {:?}", block_number);
 
     // Create RPC provider
@@ -217,49 +215,55 @@ async fn main() -> Result<()> {
 
         // Transform all data into final output formats (blocks, transactions, logs, traces)
         let transformed_data = indexer::transform_data(chain, parsed_data, &datasets).await?;
-        println!("Blocks: {:?}", transformed_data.blocks);
+        // println!("Transactions: {:?}", transformed_data.transactions);
+        // println!();
+        // let json = serde_json::to_string_pretty(&transformed_data.transactions)?;
+        // println!("JSON: {}", json);
 
-        // blocks_collection.extend(transformed_data.blocks);
-        // transactions_collection.extend(transformed_data.transactions);
-        // logs_collection.extend(transformed_data.logs); // TODO: block_timestamp is None for some (or all) logs
-        // traces_collection.extend(transformed_data.traces);
+        blocks_collection.extend(transformed_data.blocks);
+        transactions_collection.extend(transformed_data.transactions);
+        logs_collection.extend(transformed_data.logs); // TODO: block_timestamp is None for some (or all) logs
+        traces_collection.extend(transformed_data.traces);
 
-        // if blocks_collection.len() >= MAX_BATCH_SIZE {
-        //     // Insert data into BigQuery
-        //     // This waits for each dataset to be inserted before inserting the next one
-        //     // TODO: Add parallel insert
-        //     if datasets.contains(&"blocks".to_string()) {
-        //         storage::bigquery::insert_data_with_retry(dataset_id, "blocks", blocks_collection)
-        //             .await?;
-        //     }
-        //     if datasets.contains(&"transactions".to_string()) {
-        //         storage::bigquery::insert_data_with_retry(
-        //             dataset_id,
-        //             "transactions",
-        //             transactions_collection,
-        //         )
-        //         .await?;
-        //     }
-        //     if datasets.contains(&"logs".to_string()) {
-        //         storage::bigquery::insert_data_with_retry(dataset_id, "logs", logs_collection)
-        //             .await?;
-        //     }
-        //     if datasets.contains(&"traces".to_string()) {
-        //         storage::bigquery::insert_data_with_retry(dataset_id, "traces", traces_collection)
-        //             .await?;
-        //     }
+        if blocks_collection.len() >= MAX_BATCH_SIZE {
+            // Insert data into BigQuery
+            // This waits for each dataset to be inserted before inserting the next one
+            // TODO: Add parallel insert
+            if datasets.contains(&"blocks".to_string()) {
+                storage::bigquery::insert_data_with_retry(dataset_id, "blocks", blocks_collection)
+                    .await?;
+            }
+            // Add this before your insert
+            // println!("Debug JSON being sent to BigQuery:");
+            // println!("{}", serde_json::to_string_pretty(&transactions_collection).unwrap());
+            if datasets.contains(&"transactions".to_string()) {
+                storage::bigquery::insert_data_with_retry(
+                    dataset_id,
+                    "transactions",
+                    transactions_collection,
+                )
+                .await?;
+            }
+            if datasets.contains(&"logs".to_string()) {
+                storage::bigquery::insert_data_with_retry(dataset_id, "logs", logs_collection)
+                    .await?;
+            }
+            if datasets.contains(&"traces".to_string()) {
+                storage::bigquery::insert_data_with_retry(dataset_id, "traces", traces_collection)
+                    .await?;
+            }
 
-        //     // Reset collections
-        //     blocks_collection = vec![];
-        //     transactions_collection = vec![];
-        //     logs_collection = vec![];
-        //     traces_collection = vec![];
-        // }
+            // Reset collections
+            blocks_collection = vec![];
+            transactions_collection = vec![];
+            logs_collection = vec![];
+            traces_collection = vec![];
+        }
 
         // Increment the raw number and update BlockNumberOrTag
         block_number += 1;
         block_number_to_process = BlockNumberOrTag::Number(block_number);
-        tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+        // tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
     }
 
     // Ok(())

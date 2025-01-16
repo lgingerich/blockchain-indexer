@@ -324,6 +324,7 @@ async fn insert_data<T: serde::Serialize>(
     }
 }
 
+
 pub async fn insert_data_with_retry<T: serde::Serialize>(
     dataset_id: &str,
     table_id: &str,

@@ -55,7 +55,7 @@ impl ReceiptParser for Vec<AnyTransactionReceipt> {
                     contract_address: receipt.inner.contract_address,
                     cumulative_gas_used: receipt_with_bloom.receipt.cumulative_gas_used,
                     logs_bloom: receipt_with_bloom.logs_bloom,
-                    authorization_list: receipt.inner.authorization_list,
+                    authorization_list: receipt.inner.authorization_list.unwrap_or(Vec::new()),
                 };
 
                 let receipt = match chain {

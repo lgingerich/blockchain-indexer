@@ -62,16 +62,19 @@ pub struct CommonTransformedTraceData {
 // Ethereum-specific trace
 #[derive(Debug, Clone, Serialize)]
 pub struct EthereumTransformedTraceData {
+    #[serde(flatten)] // Flatten nested structs
     pub common: CommonTransformedTraceData,
 }
 
 // ZKsync-specific trace
 #[derive(Debug, Clone, Serialize)]
 pub struct ZKsyncTransformedTraceData {
+    #[serde(flatten)] // Flatten nested structs
     pub common: CommonTransformedTraceData,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
+#[serde(untagged)] // Serialize without enum variant name
 pub enum TransformedTraceData {
     Ethereum(EthereumTransformedTraceData),
     ZKsync(ZKsyncTransformedTraceData),

@@ -12,20 +12,20 @@ use crate::models::common::TransactionTo;
 #[derive(Debug, Clone)]
 pub struct CommonRpcTransactionData {
     pub hash: FixedBytes<32>,
-    pub nonce: Option<u64>,
+    pub nonce: u64,
     pub tx_type: u8,
-    pub gas_price: Option<u128>,
+    pub gas_price: u128,
     pub gas_limit: u64,
-    pub max_fee_per_gas: Option<u128>,
-    pub max_priority_fee_per_gas: Option<u128>,
+    pub max_fee_per_gas: u128,    
+    pub max_priority_fee_per_gas: u128,
     pub value: Option<Uint<256, 4>>,
-    pub access_list: Option<AccessList>,
+    pub access_list: AccessList,
     pub input: Option<Bytes>,
     pub r: Uint<256, 4>,
     pub s: Uint<256, 4>,
     pub v: bool,
-    pub blob_versioned_hashes: Option<Vec<FixedBytes<32>>>,
-    pub authorization_list: Option<Vec<SignedAuthorization>>,
+    pub blob_versioned_hashes: Vec<FixedBytes<32>>,
+    pub authorization_list: Vec<SignedAuthorization>,
     pub block_hash: Option<FixedBytes<32>>,
     pub block_number: Option<u64>,
     pub transaction_index: Option<u64>,
@@ -40,9 +40,9 @@ pub struct CommonRpcTransactionData {
 pub struct EthereumRpcTransactionData {
     pub common: CommonRpcTransactionData,
     pub max_fee_per_blob_gas: Option<u128>,
-    pub blobs: Option<Vec<FixedBytes<BYTES_PER_BLOB>>>,
-    pub commitments: Option<Vec<FixedBytes<48>>>,
-    pub proofs: Option<Vec<FixedBytes<48>>>,
+    pub blobs: Vec<FixedBytes<BYTES_PER_BLOB>>,
+    pub commitments: Vec<FixedBytes<48>>,
+    pub proofs: Vec<FixedBytes<48>>,
 }
 
 // ZKsync-specific transaction
@@ -78,7 +78,7 @@ pub struct CommonRpcTransactionReceiptData {
     pub to: Option<Address>,
     pub contract_address: Option<Address>,
     pub cumulative_gas_used: u128,
-    pub authorization_list: Option<Vec<SignedAuthorization>>,
+    pub authorization_list: Vec<SignedAuthorization>,
     pub logs_bloom: Bloom,
 }
 
@@ -111,18 +111,18 @@ pub struct CommonTransformedTransactionData {
     pub chain_id: u64,
 
     // Block fields
-    pub nonce: Option<u64>,
-    pub gas_price: Option<u128>,
+    pub nonce: u64,
+    pub gas_price: u128,
     pub gas_limit: u64,
-    pub max_fee_per_gas: Option<u128>,
-    pub max_priority_fee_per_gas: Option<u128>,
+    pub max_fee_per_gas: u128,   
+    pub max_priority_fee_per_gas: u128,
     pub value: Option<Uint<256, 4>>,
-    pub access_list: Option<AccessList>,
+    pub access_list: AccessList,
     pub input: Option<Bytes>,
     pub r: Uint<256, 4>,
     pub s: Uint<256, 4>,
     pub v: bool,
-    pub blob_versioned_hashes: Option<Vec<FixedBytes<32>>>,
+    pub blob_versioned_hashes: Vec<FixedBytes<32>>,
 
     // Receipt fields
     pub transaction_hash: FixedBytes<32>,
@@ -139,21 +139,23 @@ pub struct CommonTransformedTransactionData {
     pub to: Option<Address>,
     pub contract_address: Option<Address>,
     pub cumulative_gas_used: u128,
-    pub authorization_list: Option<Vec<SignedAuthorization>>,
+    pub authorization_list: Vec<SignedAuthorization>,
     pub logs_bloom: Bloom,
 }
 
 #[derive(Debug, Serialize)]
 pub struct EthereumTransformedTransactionData {
+    #[serde(flatten)] // Flatten nested structs
     pub common: CommonTransformedTransactionData,
     pub max_fee_per_blob_gas: Option<u128>,
-    pub blobs: Option<Vec<FixedBytes<BYTES_PER_BLOB>>>,
-    pub commitments: Option<Vec<FixedBytes<48>>>,
-    pub proofs: Option<Vec<FixedBytes<48>>>,
+    pub blobs: Vec<FixedBytes<BYTES_PER_BLOB>>,
+    pub commitments: Vec<FixedBytes<48>>,
+    pub proofs: Vec<FixedBytes<48>>,
 }
 
 #[derive(Debug, Serialize)]
 pub struct ZKsyncTransformedTransactionData {
+    #[serde(flatten)] // Flatten nested structs
     pub common: CommonTransformedTransactionData,
     pub l1_batch_number: Option<u64>,
     pub l1_batch_tx_index: Option<u64>,
@@ -161,6 +163,7 @@ pub struct ZKsyncTransformedTransactionData {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(untagged)] // Serialize without enum variant name
 pub enum TransformedTransactionData {
     Ethereum(EthereumTransformedTransactionData),
     ZKsync(ZKsyncTransformedTransactionData),

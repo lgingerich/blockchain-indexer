@@ -105,7 +105,7 @@ impl TransactionTransformer for ParsedData {
                             common,
                             l1_batch_number: zksync_tx.l1_batch_number,
                             l1_batch_tx_index: zksync_tx.l1_batch_tx_index,
-                        })
+                        })                    
                     }
                 }
             })

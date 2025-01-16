@@ -14,7 +14,6 @@ use crate::models::datasets::traces::{RpcTraceData, TransformedTraceData};
 pub struct Config {
     pub project_name: String,
     pub chain_name: String,
-    pub chain_schema: String,
     pub rpc_url: String,
     pub datasets: Vec<String>,
     pub chain_id: u64,
