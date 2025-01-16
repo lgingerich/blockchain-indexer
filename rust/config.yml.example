@@ -1,0 +1,11 @@
+project_name: "ethereum" # name used in cloud and logging stuff
+chain_name: "ethereum"
+chain_id: 1
+
+rpc_url: "https://eth.drpc.org"
+
+datasets:
+  - "blocks"
+  - "transactions"
+  - "logs"
+  - "traces"
