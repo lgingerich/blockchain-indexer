@@ -239,7 +239,7 @@ async fn insert_data<T: serde::Serialize>(
     data: &[T],
 ) -> Result<()> {
     let (client, project_id) = &*get_client().await?;
-    let tabledata_client = client.tabledata(); // Create BigqueryTabledataClient
+    let tabledata_client = client.tabledata();
 
     if data.is_empty() {
         info!(
@@ -249,79 +249,80 @@ async fn insert_data<T: serde::Serialize>(
         return Ok(());
     }
 
-    let rows = data
-        .iter()
-        .map(|item| TableRow {
-            insert_id: None,
-            json: item,
-        })
-        .collect();
+    // Process data in chunks of 1000 rows (you can adjust this value)
+    const BATCH_SIZE: usize = 1000;
+    for chunk in data.chunks(BATCH_SIZE) {
+        let rows = chunk
+            .iter()
+            .map(|item| TableRow {
+                insert_id: None,
+                json: item,
+            })
+            .collect();
 
-    let request = InsertAllRequest {
-        skip_invalid_rows: Some(true),
-        ignore_unknown_values: Some(true),
-        template_suffix: None,
-        rows,
-        trace_id: None,
-    };
+        let request = InsertAllRequest {
+            skip_invalid_rows: Some(true),
+            ignore_unknown_values: Some(true),
+            template_suffix: None,
+            rows,
+            trace_id: None,
+        };
 
-    match tabledata_client
-        .insert(project_id, dataset_id, table_id, &request)
-        .await
-    {
-        Ok(response) => {
-            if let Some(errors) = response.insert_errors {
-                if !errors.is_empty() {
-                    for error in errors {
-                        error!(
-                            "Row {} failed to insert with {} errors:",
-                            error.index,
-                            error.errors.len()
-                        );
-                        for err_msg in error.errors {
+        match tabledata_client
+            .insert(project_id, dataset_id, table_id, &request)
+            .await
+        {
+            Ok(response) => {
+                if let Some(errors) = response.insert_errors {
+                    if !errors.is_empty() {
+                        for error in errors {
                             error!(
-                                "Reason: {}, Location: {}, Message: {}, Debug Info: {}",
-                                err_msg.reason,
-                                err_msg.location,
-                                err_msg.message,
-                                err_msg.debug_info
+                                "Row {} failed to insert with {} errors:",
+                                error.index,
+                                error.errors.len()
                             );
+                            for err_msg in error.errors {
+                                error!(
+                                    "Reason: {}, Location: {}, Message: {}, Debug Info: {}",
+                                    err_msg.reason,
+                                    err_msg.location,
+                                    err_msg.message,
+                                    err_msg.debug_info
+                                );
+                            }
                         }
+                        return Err(anyhow!("Some rows failed to insert"));
                     }
-                    Err(anyhow!("Some rows failed to insert"))
-                } else {
-                    info!(
-                        "Successfully inserted all data into {}.{}.{}",
-                        project_id, dataset_id, table_id
-                    );
-                    Ok(())
                 }
-            } else {
                 info!(
-                    "Successfully inserted all data into {}.{}.{}",
-                    project_id, dataset_id, table_id
+                    "Successfully inserted batch of {} rows into {}.{}.{}",
+                    chunk.len(),
+                    project_id,
+                    dataset_id,
+                    table_id
                 );
-                Ok(())
             }
-        }
-        Err(e) => {
-            match e {
-                BigQueryError::Response(resp) => {
-                    error!("BigQuery API Error: {}", resp.message);
+            Err(e) => {
+                match e {
+                    BigQueryError::Response(resp) => {
+                        error!("BigQuery API Error: {}", resp.message);
+                    }
+                    BigQueryError::HttpClient(e) => {
+                        error!("HTTP Client error: {}", e);
+                    }
+                    BigQueryError::HttpMiddleware(e) => {
+                        error!("HTTP Middleware error: {}", e);
+                    }
+                    BigQueryError::TokenSource(e) => {
+                        error!("Token Source error: {}", e);
+                    }
                 }
-                BigQueryError::HttpClient(e) => {
-                    error!("HTTP Client error: {}", e);
-                }
-                BigQueryError::HttpMiddleware(e) => {
-                    error!("HTTP Middleware error: {}", e);
-                }
-                BigQueryError::TokenSource(e) => {
-                    error!("Token Source error: {}", e);
-                }
+                return Err(anyhow!("Data insertion failed"));
             }
-            Err(anyhow!("Data insertion failed"))
         }
     }
+
+    Ok(())
 }
 
 pub async fn insert_data_with_retry<T: serde::Serialize>(
