@@ -11,10 +11,7 @@ mod storage;
 mod utils;
 
 use alloy_eips::{BlockId, BlockNumberOrTag};
-use alloy_network::{
-    AnyNetwork,
-    primitives::BlockTransactionsKind,
-};
+use alloy_network::{primitives::BlockTransactionsKind, AnyNetwork};
 use alloy_provider::ProviderBuilder;
 use alloy_rpc_types_eth::{Block, TransactionReceipt};
 use alloy_rpc_types_trace::geth::{
@@ -27,12 +24,12 @@ use tracing::{error, info, warn};
 use tracing_subscriber::{self, EnvFilter};
 use url::Url;
 
+use crate::models::common::Chain;
 use crate::models::datasets::blocks::TransformedBlockData;
 use crate::models::datasets::logs::TransformedLogData;
 use crate::models::datasets::traces::TransformedTraceData;
 use crate::models::datasets::transactions::TransformedTransactionData;
 use crate::utils::load_config;
-use crate::models::common::Chain;
 
 // NEXT STEPS:
 // - TO FIX (zksync block 28679967-28679976): HTTP Client error: HTTP status client error (413 Payload Too Large) for url (https://bigquery.googleapis.com/bigquery/v2/projects/elastic-chain-indexing/datasets/zksync/tables/traces/insertAll)
@@ -42,12 +39,11 @@ use crate::models::common::Chain;
 // - Add monitoring
 // - Add data quality checks (schema compliance, missing block detection, duplication detection, etc.)
 // - Unit tests
-    // - Tests for each tx type for each chain
+// - Tests for each tx type for each chain
 // - Rate limiting?
 // - Docker containerization
 // - CI/CD
 // - Kubernetes/Helm deployment for production
-
 
 // NOTES:
 // - Not sure I should implement RPC rotation. Seems like lots of failure modes.
@@ -96,7 +92,8 @@ async fn main() -> Result<()> {
     let result_dataset = storage::bigquery::create_dataset_with_retry(dataset_id).await;
     for table in ["blocks", "logs", "transactions", "traces"] {
         if datasets.contains(&table.to_string()) {
-            let result_table = storage::bigquery::create_table_with_retry(dataset_id, table, chain).await;
+            let result_table =
+                storage::bigquery::create_table_with_retry(dataset_id, table, chain).await;
         }
     }
 
@@ -123,15 +120,15 @@ async fn main() -> Result<()> {
     // DynamicFee (2): 12965001
     // EIP-4844 (3): 19426589
 
-
-
     let mut block_number = 19426589;
     info!("Starting block number: {:?}", block_number);
 
     // Create RPC provider
     let rpc_url: Url = rpc.parse()?;
     info!("RPC URL: {:?}", rpc);
-    let provider = ProviderBuilder::new().network::<AnyNetwork>().on_http(rpc_url);
+    let provider = ProviderBuilder::new()
+        .network::<AnyNetwork>()
+        .on_http(rpc_url);
 
     // Get chain ID
     let chain_id = indexer::get_chain_id(&provider).await?;
@@ -163,13 +160,9 @@ async fn main() -> Result<()> {
         if need_block {
             let kind = BlockTransactionsKind::Full; // Hashes: only include tx hashes, Full: include full tx objects
             block = Some(
-                indexer::get_block_by_number(
-                    &provider,
-                    block_number_to_process,
-                    kind,
-                )
-                .await?
-                .ok_or_else(|| anyhow!("Provider returned no block"))?,
+                indexer::get_block_by_number(&provider, block_number_to_process, kind)
+                    .await?
+                    .ok_or_else(|| anyhow!("Provider returned no block"))?,
             );
         }
 

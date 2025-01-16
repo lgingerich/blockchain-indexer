@@ -5,11 +5,10 @@
 
 use anyhow::Result;
 
-use crate::models::common::{ParsedData, Chain};
+use crate::models::common::{Chain, ParsedData};
 use crate::models::datasets::transactions::{
-    RpcTransactionData, RpcTransactionReceiptData, TransformedTransactionData, 
-    CommonTransformedTransactionData,
-    EthereumTransformedTransactionData, ZKsyncTransformedTransactionData,
+    CommonTransformedTransactionData, EthereumTransformedTransactionData, RpcTransactionData,
+    RpcTransactionReceiptData, TransformedTransactionData, ZKsyncTransformedTransactionData,
 };
 
 pub trait TransactionTransformer {
@@ -41,12 +40,12 @@ impl TransactionTransformer for ParsedData {
 
                     // TODO: Improve this
                     // Use receipt fields if available, otherwise use transaction fields or defaults
-                    // 0 is used as the default value for tx_type if it does not exist, so 
+                    // 0 is used as the default value for tx_type if it does not exist, so
                     // if one field is not 0, it means we should use that field
                     tx_type: if common_receipt.tx_type != 0 {
                         common_receipt.tx_type
                     } else {
-                        common_tx.tx_type 
+                        common_tx.tx_type
                     },
                     // Fields from TransactionData
                     nonce: common_tx.nonce,
@@ -86,8 +85,8 @@ impl TransactionTransformer for ParsedData {
                             RpcTransactionData::Ethereum(t) => t,
                             _ => panic!("Expected Ethereum transaction for Ethereum chain"),
                         };
-                        
-                        TransformedTransactionData::Ethereum(EthereumTransformedTransactionData { 
+
+                        TransformedTransactionData::Ethereum(EthereumTransformedTransactionData {
                             common,
                             max_fee_per_blob_gas: eth_tx.max_fee_per_blob_gas,
                             blobs: eth_tx.blobs,
@@ -100,12 +99,12 @@ impl TransactionTransformer for ParsedData {
                             RpcTransactionData::ZKsync(t) => t,
                             _ => panic!("Expected ZKsync transaction for ZKsync chain"),
                         };
-                        
-                        TransformedTransactionData::ZKsync(ZKsyncTransformedTransactionData { 
+
+                        TransformedTransactionData::ZKsync(ZKsyncTransformedTransactionData {
                             common,
                             l1_batch_number: zksync_tx.l1_batch_number,
                             l1_batch_tx_index: zksync_tx.l1_batch_tx_index,
-                        })                    
+                        })
                     }
                 }
             })

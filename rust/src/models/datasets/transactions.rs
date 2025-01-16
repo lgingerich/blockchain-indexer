@@ -16,7 +16,7 @@ pub struct CommonRpcTransactionData {
     pub tx_type: u8,
     pub gas_price: u128,
     pub gas_limit: u64,
-    pub max_fee_per_gas: u128,    
+    pub max_fee_per_gas: u128,
     pub max_priority_fee_per_gas: u128,
     pub value: Option<Uint<256, 4>>,
     pub access_list: AccessList,
@@ -33,7 +33,6 @@ pub struct CommonRpcTransactionData {
     pub from: Address,
     pub to: TransactionTo,
 }
-
 
 // Ethereum-specific transaction
 #[derive(Debug, Clone)]
@@ -103,7 +102,6 @@ pub enum RpcTransactionReceiptData {
     ZKsync(ZKsyncRpcTransactionReceiptData),
 }
 
-
 /////////////////////////////////// Transformed Data ///////////////////////////////////
 
 #[derive(Debug, Serialize)]
@@ -114,7 +112,7 @@ pub struct CommonTransformedTransactionData {
     pub nonce: u64,
     pub gas_price: u128,
     pub gas_limit: u64,
-    pub max_fee_per_gas: u128,   
+    pub max_fee_per_gas: u128,
     pub max_priority_fee_per_gas: u128,
     pub value: Option<Uint<256, 4>>,
     pub access_list: AccessList,

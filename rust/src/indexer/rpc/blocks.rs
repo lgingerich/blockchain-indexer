@@ -3,7 +3,10 @@
 #![allow(unused_variables)]
 #![allow(dead_code)]
 
-use alloy_consensus::constants::{LEGACY_TX_TYPE_ID, EIP2930_TX_TYPE_ID, EIP1559_TX_TYPE_ID, EIP4844_TX_TYPE_ID, EIP7702_TX_TYPE_ID};
+use alloy_consensus::constants::{
+    EIP1559_TX_TYPE_ID, EIP2930_TX_TYPE_ID, EIP4844_TX_TYPE_ID, EIP7702_TX_TYPE_ID,
+    LEGACY_TX_TYPE_ID,
+};
 use alloy_consensus::{TxEip4844Variant, TxEnvelope};
 use alloy_eips::eip2930::AccessList;
 use alloy_eips::eip7702::SignedAuthorization;
@@ -16,15 +19,16 @@ use anyhow::{anyhow, Result};
 use chrono::DateTime;
 use tracing::info;
 
-use crate::utils::hex_to_u64;
-use crate::models::common::TransactionTo;
 use crate::models::common::Chain;
+use crate::models::common::TransactionTo;
 use crate::models::datasets::blocks::{
-    CommonRpcHeaderData, RpcHeaderData, EthereumRpcHeaderData, ZKsyncRpcHeaderData,
+    CommonRpcHeaderData, EthereumRpcHeaderData, RpcHeaderData, ZKsyncRpcHeaderData,
 };
 use crate::models::datasets::transactions::{
-    CommonRpcTransactionData, RpcTransactionData, EthereumRpcTransactionData, ZKsyncRpcTransactionData
+    CommonRpcTransactionData, EthereumRpcTransactionData, RpcTransactionData,
+    ZKsyncRpcTransactionData,
 };
+use crate::utils::hex_to_u64;
 
 // NOTE: No handling for uncle blocks
 pub trait BlockParser {
@@ -70,17 +74,15 @@ impl BlockParser for AnyRpcBlock {
         };
 
         let header = match chain {
-            Chain::Ethereum => {
-                RpcHeaderData::Ethereum(EthereumRpcHeaderData { common })
-            }
+            Chain::Ethereum => RpcHeaderData::Ethereum(EthereumRpcHeaderData { common }),
             Chain::ZKsync => {
-                RpcHeaderData::ZKsync(ZKsyncRpcHeaderData { 
+                RpcHeaderData::ZKsync(ZKsyncRpcHeaderData {
                     common,
                     target_blobs_per_block: other
                         .get_deserialized::<String>("targetBlobsPerBlock")
                         .and_then(|result| result.ok())
                         .and_then(hex_to_u64),
-                        l1_batch_number: other
+                    l1_batch_number: other
                         .get_deserialized::<String>("l1BatchNumber")
                         .and_then(|result| result.ok())
                         .and_then(hex_to_u64),
@@ -101,8 +103,8 @@ impl BlockParser for AnyRpcBlock {
         match self.transactions {
             BlockTransactions::Full(_) => {
                 Ok(self
-                .transactions   
-                .txns() 
+                .transactions
+                .txns()
                 .map(|transaction| {
 
                     let inner = transaction.inner.clone();
@@ -308,7 +310,7 @@ impl BlockParser for AnyRpcBlock {
                                         commitments: Vec::new(),
                                         proofs: Vec::new(),
                                     })
-                                }                                                                               
+                                }
                                 _ => RpcTransactionData::Ethereum(EthereumRpcTransactionData {
                                     common,
                                     max_fee_per_blob_gas: None,
@@ -327,14 +329,14 @@ impl BlockParser for AnyRpcBlock {
                                 Chain::Ethereum => common_tx,
                                 Chain::ZKsync => match common_tx {
                                     RpcTransactionData::Ethereum(t) => {
-                                        RpcTransactionData::ZKsync(ZKsyncRpcTransactionData { 
+                                        RpcTransactionData::ZKsync(ZKsyncRpcTransactionData {
                                             common: t.common,
                                             l1_batch_number: other.get_deserialized::<String>("l1BatchNumber")
                                                 .and_then(|result| result.ok())
                                                 .and_then(hex_to_u64),
                                             l1_batch_tx_index: other.get_deserialized::<String>("l1BatchTxIndex")
                                                 .and_then(|result| result.ok())
-                                                .and_then(hex_to_u64),                                            
+                                                .and_then(hex_to_u64),
                                         })
                                     },
                                     _ => unreachable!("Expected Ethereum transaction format for legacy transaction")
@@ -349,7 +351,7 @@ impl BlockParser for AnyRpcBlock {
                             let memo = &unknown.inner.memo;
                             let inner = &unknown.inner;
                             let ty = inner.ty;
-                            
+
                             let common_fields = CommonRpcTransactionData {
                                 hash: unknown.hash,
                                 nonce: other_fields
@@ -365,7 +367,7 @@ impl BlockParser for AnyRpcBlock {
                                 max_fee_per_gas: other_fields
                                     .get_deserialized::<u128>("maxFeePerGas")
                                     .and_then(|result| result.ok())
-                                    .unwrap_or(0),                            
+                                    .unwrap_or(0),
                                 max_priority_fee_per_gas: other_fields
                                     .get_deserialized::<u128>("maxPriorityFeePerGas")
                                     .and_then(|result| result.ok())
@@ -399,7 +401,7 @@ impl BlockParser for AnyRpcBlock {
                                 to: other_fields
                                     .get_deserialized::<TransactionTo>("to")
                                     .and_then(|result| result.ok())
-                                    .unwrap_or(TransactionTo::Address(Address::ZERO)),                                    
+                                    .unwrap_or(TransactionTo::Address(Address::ZERO)),
                             };
 
                             match chain {
@@ -407,7 +409,7 @@ impl BlockParser for AnyRpcBlock {
                                     unreachable!("Ethereum transactions should be handled by AnyTxEnvelope::Ethereum variant")
                                 }
                                 Chain::ZKsync => {
-                                    RpcTransactionData::ZKsync(ZKsyncRpcTransactionData { 
+                                    RpcTransactionData::ZKsync(ZKsyncRpcTransactionData {
                                         common: common_fields,
                                         l1_batch_number: other_fields
                                             .get_deserialized::<String>("l1BatchNumber")
@@ -416,7 +418,7 @@ impl BlockParser for AnyRpcBlock {
                                         l1_batch_tx_index: other_fields
                                             .get_deserialized::<String>("l1BatchTxIndex")
                                             .and_then(|result| result.ok())
-                                            .and_then(hex_to_u64),                                                                          
+                                            .and_then(hex_to_u64),
                                         // gas: fields // TODO: Handle this
                                         //     .get_deserialized::<>("gas")
                                         //     .and_then(|result| result.ok())

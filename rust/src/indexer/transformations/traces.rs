@@ -5,10 +5,10 @@
 
 use anyhow::Result;
 
-use crate::models::common::{ParsedData, Chain};
+use crate::models::common::{Chain, ParsedData};
 use crate::models::datasets::traces::{
-    RpcTraceData, CommonTransformedTraceData, TransformedTraceData,
-    EthereumTransformedTraceData, ZKsyncTransformedTraceData
+    CommonTransformedTraceData, EthereumTransformedTraceData, RpcTraceData, TransformedTraceData,
+    ZKsyncTransformedTraceData,
 };
 
 pub trait TraceTransformer {

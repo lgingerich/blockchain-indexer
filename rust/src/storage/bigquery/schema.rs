@@ -5,7 +5,6 @@ use google_cloud_bigquery::http::table::{
 use crate::models::common::Chain;
 use anyhow::{anyhow, Result};
 
-
 pub async fn create_schema(chain: Chain, table_name: &str) -> Result<TableSchema> {
     match table_name {
         "blocks" => Ok(block_schema(chain)),
@@ -144,7 +143,7 @@ pub fn block_schema(chain: Chain) -> TableSchema {
             mode: Some(TableFieldMode::Nullable),
             description: None,
             ..Default::default()
-        },        
+        },
         TableFieldSchema {
             name: "base_fee_per_gas".to_string(),
             data_type: TableFieldType::Integer,
@@ -217,7 +216,7 @@ pub fn block_schema(chain: Chain) -> TableSchema {
                     mode: Some(TableFieldMode::Nullable),
                     description: None,
                     ..Default::default()
-                },                
+                },
                 TableFieldSchema {
                     name: "l1_batch_number".to_string(),
                     data_type: TableFieldType::Integer,
@@ -422,7 +421,7 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
             mode: Some(TableFieldMode::Nullable),
             description: None,
             ..Default::default()
-        },        
+        },
         TableFieldSchema {
             name: "r".to_string(),
             data_type: TableFieldType::String,
@@ -451,7 +450,6 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
             description: None,
             ..Default::default()
         },
-
         // Receipt fields
         TableFieldSchema {
             name: "transaction_hash".to_string(),
@@ -466,7 +464,7 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
             mode: Some(TableFieldMode::Nullable),
             description: None,
             ..Default::default()
-        },        
+        },
         TableFieldSchema {
             name: "status".to_string(),
             data_type: TableFieldType::Boolean,
@@ -487,14 +485,14 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
             mode: Some(TableFieldMode::Nullable),
             description: None,
             ..Default::default()
-        },        
+        },
         TableFieldSchema {
             name: "gas_used".to_string(),
             data_type: TableFieldType::Integer,
             mode: Some(TableFieldMode::Required),
             description: None,
             ..Default::default()
-        },        
+        },
         TableFieldSchema {
             name: "effective_gas_price".to_string(),
             data_type: TableFieldType::Integer,
@@ -536,7 +534,7 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
             mode: Some(TableFieldMode::Nullable),
             description: None,
             ..Default::default()
-        },        
+        },
         TableFieldSchema {
             name: "cumulative_gas_used".to_string(),
             data_type: TableFieldType::Integer,
@@ -550,7 +548,7 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
             mode: Some(TableFieldMode::Repeated),
             description: None,
             ..Default::default()
-        },        
+        },
         TableFieldSchema {
             name: "logs_bloom".to_string(),
             data_type: TableFieldType::String,
@@ -610,7 +608,7 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
                     mode: Some(TableFieldMode::Nullable),
                     description: None,
                     ..Default::default()
-                },  
+                },
             ]);
         }
     }

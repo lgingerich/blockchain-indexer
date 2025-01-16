@@ -8,6 +8,7 @@ pub mod transformations;
 
 use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_network::{primitives::BlockTransactionsKind, Network};
+use alloy_network::{AnyRpcBlock, AnyTransactionReceipt};
 use alloy_provider::{ext::DebugApi, Provider, ReqwestProvider};
 use alloy_rpc_types_eth::{Block, TransactionReceipt};
 use alloy_rpc_types_trace::{
@@ -15,7 +16,6 @@ use alloy_rpc_types_trace::{
     geth::{GethDebugTracingOptions, GethTrace},
 };
 use alloy_transport::{RpcError, Transport};
-use alloy_network::{AnyRpcBlock, AnyTransactionReceipt};
 use anyhow::{anyhow, Result};
 use tracing::error;
 

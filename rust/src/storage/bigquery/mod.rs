@@ -20,11 +20,11 @@ use crate::storage::bigquery::schema::{
     block_schema, log_schema, trace_schema, transaction_schema,
 };
 
+use crate::models::common::Chain;
 use crate::models::datasets::blocks::TransformedBlockData;
 use crate::models::datasets::logs::TransformedLogData;
 use crate::models::datasets::traces::TransformedTraceData;
 use crate::models::datasets::transactions::TransformedTransactionData;
-use crate::models::common::Chain;
 use crate::utils::retry::{retry, RetryConfig};
 
 use std::sync::Arc;
@@ -323,7 +323,6 @@ async fn insert_data<T: serde::Serialize>(
         }
     }
 }
-
 
 pub async fn insert_data_with_retry<T: serde::Serialize>(
     dataset_id: &str,

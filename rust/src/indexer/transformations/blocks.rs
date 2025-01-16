@@ -6,7 +6,10 @@
 use anyhow::{anyhow, Result};
 
 use crate::models::common::{Chain, ParsedData};
-use crate::models::datasets::blocks::{RpcHeaderData, CommonTransformedBlockData, TransformedBlockData, EthereumTransformedBlockData, ZKsyncTransformedBlockData};
+use crate::models::datasets::blocks::{
+    CommonTransformedBlockData, EthereumTransformedBlockData, RpcHeaderData, TransformedBlockData,
+    ZKsyncTransformedBlockData,
+};
 
 pub trait BlockTransformer {
     fn transform_blocks(self, chain: Chain) -> Result<Vec<TransformedBlockData>>;
@@ -63,8 +66,8 @@ impl BlockTransformer for ParsedData {
                             RpcHeaderData::ZKsync(h) => h,
                             _ => panic!("Expected ZKsync header for ZKsync chain"),
                         };
-                        
-                        TransformedBlockData::ZKsync(ZKsyncTransformedBlockData { 
+
+                        TransformedBlockData::ZKsync(ZKsyncTransformedBlockData {
                             common,
                             target_blobs_per_block: zksync_data.target_blobs_per_block,
                             l1_batch_number: zksync_data.l1_batch_number,
@@ -73,7 +76,6 @@ impl BlockTransformer for ParsedData {
                     }
                 }
             })
-            .collect()
-        )
+            .collect())
     }
 }

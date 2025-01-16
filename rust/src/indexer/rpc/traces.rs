@@ -3,6 +3,7 @@
 #![allow(unused_variables)]
 #![allow(dead_code)]
 
+use crate::models::common::Chain;
 use alloy_consensus::{TxEip4844Variant, TxEnvelope};
 use alloy_eips::eip2930::AccessList;
 use alloy_eips::eip7702::SignedAuthorization;
@@ -10,14 +11,12 @@ use alloy_network::primitives::BlockTransactions;
 use alloy_primitives::{Address, Bytes, FixedBytes, Uint};
 use alloy_rpc_types_eth::{Block, Header};
 use alloy_rpc_types_trace::geth::{CallFrame, GethTrace, TraceResult};
-use crate::models::common::Chain;
 
 use anyhow::{anyhow, Result};
 use chrono::DateTime;
 
 use crate::models::datasets::traces::{
-    CommonRpcTraceData, RpcTraceData,
-    EthereumRpcTraceData, ZKsyncRpcTraceData
+    CommonRpcTraceData, EthereumRpcTraceData, RpcTraceData, ZKsyncRpcTraceData,
 };
 
 pub trait TraceParser {
@@ -65,8 +64,12 @@ fn flatten_call_frames(frame: CallFrame, chain: Chain) -> Vec<RpcTraceData> {
     };
 
     let trace_data = match chain {
-        Chain::Ethereum => RpcTraceData::Ethereum(EthereumRpcTraceData { common: common_data }),
-        Chain::ZKsync => RpcTraceData::ZKsync(ZKsyncRpcTraceData { common: common_data }),
+        Chain::Ethereum => RpcTraceData::Ethereum(EthereumRpcTraceData {
+            common: common_data,
+        }),
+        Chain::ZKsync => RpcTraceData::ZKsync(ZKsyncRpcTraceData {
+            common: common_data,
+        }),
     };
 
     // Add the current frame

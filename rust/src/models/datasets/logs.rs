@@ -1,7 +1,6 @@
 use alloy_primitives::{Address, Bytes, FixedBytes};
 use serde::Serialize;
 
-
 ////////////////////////////////////// RPC Data ////////////////////////////////////////
 // Base struct for common fields
 #[derive(Debug, Clone)]
@@ -73,4 +72,3 @@ pub enum TransformedLogData {
     Ethereum(EthereumTransformedLogData),
     ZKsync(ZKsyncTransformedLogData),
 }
-

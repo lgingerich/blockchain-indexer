@@ -7,8 +7,8 @@ use anyhow::Result;
 
 use crate::models::common::{Chain, ParsedData};
 use crate::models::datasets::logs::{
-    CommonTransformedLogData, TransformedLogData, RpcLogReceiptData, 
-    EthereumTransformedLogData, ZKsyncTransformedLogData,
+    CommonTransformedLogData, EthereumTransformedLogData, RpcLogReceiptData, TransformedLogData,
+    ZKsyncTransformedLogData,
 };
 
 pub trait LogTransformer {

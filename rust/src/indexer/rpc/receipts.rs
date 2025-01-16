@@ -9,16 +9,15 @@ use alloy_rpc_types_eth::{Log, TransactionReceipt};
 use anyhow::{anyhow, Result};
 use chrono::DateTime;
 
+use crate::models::common::Chain;
 use crate::models::datasets::logs::{
-    CommonRpcLogReceiptData, RpcLogReceiptData,
-    EthereumRpcLogReceiptData, ZKsyncRpcLogReceiptData
+    CommonRpcLogReceiptData, EthereumRpcLogReceiptData, RpcLogReceiptData, ZKsyncRpcLogReceiptData,
 };
 use crate::models::datasets::transactions::{
-    CommonRpcTransactionReceiptData, RpcTransactionReceiptData,
-    EthereumRpcTransactionReceiptData, ZKsyncRpcTransactionReceiptData
+    CommonRpcTransactionReceiptData, EthereumRpcTransactionReceiptData, RpcTransactionReceiptData,
+    ZKsyncRpcTransactionReceiptData,
 };
 use crate::utils::hex_to_u64;
-use crate::models::common::Chain;
 
 use alloy_network::AnyTransactionReceipt;
 
@@ -33,7 +32,7 @@ impl ReceiptParser for Vec<AnyTransactionReceipt> {
             .map(|receipt| {
                 // Access the inner ReceiptWithBloom through the AnyReceiptEnvelope
                 let receipt_with_bloom = &receipt.inner.inner.inner;
-                
+
                 let status = match receipt_with_bloom.receipt.status {
                     Eip658Value::Eip658(success) => Some(success),
                     Eip658Value::PostState(_) => None,
@@ -55,21 +54,25 @@ impl ReceiptParser for Vec<AnyTransactionReceipt> {
                     contract_address: receipt.inner.contract_address,
                     cumulative_gas_used: receipt_with_bloom.receipt.cumulative_gas_used,
                     logs_bloom: receipt_with_bloom.logs_bloom,
-                    authorization_list: receipt.inner.authorization_list.unwrap_or(Vec::new()),
+                    authorization_list: receipt.inner.authorization_list.unwrap_or_default(),
                 };
 
                 let receipt = match chain {
                     Chain::Ethereum => {
-                        RpcTransactionReceiptData::Ethereum(EthereumRpcTransactionReceiptData { common })
+                        RpcTransactionReceiptData::Ethereum(EthereumRpcTransactionReceiptData {
+                            common,
+                        })
                     }
                     Chain::ZKsync => {
-                        RpcTransactionReceiptData::ZKsync(ZKsyncRpcTransactionReceiptData { 
+                        RpcTransactionReceiptData::ZKsync(ZKsyncRpcTransactionReceiptData {
                             common,
-                            l1_batch_number: receipt.other
+                            l1_batch_number: receipt
+                                .other
                                 .get_deserialized::<String>("l1BatchNumber")
                                 .and_then(|result| result.ok())
                                 .and_then(hex_to_u64),
-                            l1_batch_tx_index: receipt.other
+                            l1_batch_tx_index: receipt
+                                .other
                                 .get_deserialized::<String>("l1BatchTxIndex")
                                 .and_then(|result| result.ok())
                                 .and_then(hex_to_u64),
