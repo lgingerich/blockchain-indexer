@@ -32,6 +32,7 @@ use crate::models::datasets::logs::TransformedLogData;
 use crate::models::datasets::traces::TransformedTraceData;
 use crate::models::datasets::transactions::TransformedTransactionData;
 use crate::utils::load_config;
+use crate::models::common::Chain;
 
 // NEXT STEPS:
 // - Add support for ZKsync
@@ -48,6 +49,18 @@ use crate::utils::load_config;
 
 // NOTES:
 // - Not sure I should implement RPC rotation. Seems like lots of failure modes.
+
+
+//////////////////////////////////// TODO ////////////////////////////////////
+// Add support for blocks and transactions (done)
+// Handle how to only use subset of fields for each chain
+// Handle `gas` field for zksync
+// Add tx_type to BigQuery schema creation (done)
+// Add to BigQuery schema creation (done)
+// Get tx type from receipt not blocks (done)
+// ERROR: For legacy zksync transactions, l1_batch_number is None. This should be filled.
+//////////////////////////////////////////////////////////////////////////////
+
 
 
 const MAX_BATCH_SIZE: usize = 10; // Number of blocks to fetch before inserting into BigQuery
@@ -78,6 +91,9 @@ async fn main() -> Result<()> {
     let rpc = config.rpc_url.as_str();
     let dataset_id = config.project_name.as_str();
     let datasets = config.datasets;
+    let chain_id = config.chain_id;
+
+    let chain = Chain::from_chain_id(chain_id);
 
     // Track which RPC responses we need
     let need_block =
@@ -90,21 +106,28 @@ async fn main() -> Result<()> {
     let result_dataset = storage::bigquery::create_dataset_with_retry(dataset_id).await;
     for table in ["blocks", "logs", "transactions", "traces"] {
         if datasets.contains(&table.to_string()) {
-            let result_table = storage::bigquery::create_table_with_retry(dataset_id, table).await;
+            let result_table = storage::bigquery::create_table_with_retry(dataset_id, table, chain).await;
         }
     }
 
     // Get last processed block number from storage
     // If it exists, start from the next block, else start from 0
-    let last_processed_block =
-        storage::bigquery::get_last_processed_block(dataset_id, &datasets).await?;
-    let mut block_number = if last_processed_block > 0 {
-        last_processed_block + 1
-    } else {
-        0
-    };
+    // let last_processed_block =
+    //     storage::bigquery::get_last_processed_block(dataset_id, &datasets).await?;
+    // let mut block_number = if last_processed_block > 0 {
+    //     last_processed_block + 1
+    // } else {
+    //     0
+    // };
 
-    // let mut block_number = 35876713;
+
+    // Legacy (0): 	1451, 1535
+    // DynamicFee (2): 4239, 9239
+    // EIP-712 (113):	9073, 9416
+    // Priority (255):	2030, 8958
+    // 254: 			28679967, 35876713
+
+    let mut block_number = 15632012;
     info!("Starting block number: {:?}", block_number);
 
     // Create RPC provider
@@ -162,6 +185,7 @@ async fn main() -> Result<()> {
                     .ok_or_else(|| anyhow!("Provider returned no receipts"))?,
             );
         }
+        // println!("Receipts: {:?}", receipts);
 
         // Create tracing options with CallTracer and nested calls
         // Only fetch traces data if `traces` is in the active datasets
@@ -186,48 +210,51 @@ async fn main() -> Result<()> {
             );
         }
 
-        // Extract and separate the raw RPC response into distinct datasets (block headers, transactions, withdrawals, receipts, logs, traces)
-        let parsed_data = indexer::parse_data(chain_id, block, receipts, traces).await?;
+        // Extract and separate the raw RPC response into distinct datasets (block headers, transactions, receipts, logs, traces)
+        let parsed_data = indexer::parse_data(chain, chain_id, block, receipts, traces).await?;
+        // println!("Parsed data: {:?}", parsed_data);
+        // println!();
 
         // Transform all data into final output formats (blocks, transactions, logs, traces)
-        let transformed_data = indexer::transform_data(parsed_data, &datasets).await?;
-        blocks_collection.extend(transformed_data.blocks);
-        transactions_collection.extend(transformed_data.transactions);
+        let transformed_data = indexer::transform_data(chain, parsed_data, &datasets).await?;
+        println!("Blocks: {:?}", transformed_data.blocks);
 
-        logs_collection.extend(transformed_data.logs); // TODO: block_timestamp is None for some (or all) logs
-        traces_collection.extend(transformed_data.traces);
+        // blocks_collection.extend(transformed_data.blocks);
+        // transactions_collection.extend(transformed_data.transactions);
+        // logs_collection.extend(transformed_data.logs); // TODO: block_timestamp is None for some (or all) logs
+        // traces_collection.extend(transformed_data.traces);
 
-        if blocks_collection.len() >= MAX_BATCH_SIZE {
-            // Insert data into BigQuery
-            // This waits for each dataset to be inserted before inserting the next one
-            // TODO: Add parallel insert
-            if datasets.contains(&"blocks".to_string()) {
-                storage::bigquery::insert_data_with_retry(dataset_id, "blocks", blocks_collection)
-                    .await?;
-            }
-            if datasets.contains(&"transactions".to_string()) {
-                storage::bigquery::insert_data_with_retry(
-                    dataset_id,
-                    "transactions",
-                    transactions_collection,
-                )
-                .await?;
-            }
-            if datasets.contains(&"logs".to_string()) {
-                storage::bigquery::insert_data_with_retry(dataset_id, "logs", logs_collection)
-                    .await?;
-            }
-            if datasets.contains(&"traces".to_string()) {
-                storage::bigquery::insert_data_with_retry(dataset_id, "traces", traces_collection)
-                    .await?;
-            }
+        // if blocks_collection.len() >= MAX_BATCH_SIZE {
+        //     // Insert data into BigQuery
+        //     // This waits for each dataset to be inserted before inserting the next one
+        //     // TODO: Add parallel insert
+        //     if datasets.contains(&"blocks".to_string()) {
+        //         storage::bigquery::insert_data_with_retry(dataset_id, "blocks", blocks_collection)
+        //             .await?;
+        //     }
+        //     if datasets.contains(&"transactions".to_string()) {
+        //         storage::bigquery::insert_data_with_retry(
+        //             dataset_id,
+        //             "transactions",
+        //             transactions_collection,
+        //         )
+        //         .await?;
+        //     }
+        //     if datasets.contains(&"logs".to_string()) {
+        //         storage::bigquery::insert_data_with_retry(dataset_id, "logs", logs_collection)
+        //             .await?;
+        //     }
+        //     if datasets.contains(&"traces".to_string()) {
+        //         storage::bigquery::insert_data_with_retry(dataset_id, "traces", traces_collection)
+        //             .await?;
+        //     }
 
-            // Reset collections
-            blocks_collection = vec![];
-            transactions_collection = vec![];
-            logs_collection = vec![];
-            traces_collection = vec![];
-        }
+        //     // Reset collections
+        //     blocks_collection = vec![];
+        //     transactions_collection = vec![];
+        //     logs_collection = vec![];
+        //     traces_collection = vec![];
+        // }
 
         // Increment the raw number and update BlockNumberOrTag
         block_number += 1;

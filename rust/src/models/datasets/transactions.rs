@@ -7,55 +7,67 @@ use serde::Serialize;
 
 use crate::models::common::TransactionTo;
 
-// Raw RPC response format from `eth_getBlockByNumber`
+////////////////////////////////////// RPC Data ////////////////////////////////////////
+///////////////////////////////// eth_getBlockByNumber /////////////////////////////////
 #[derive(Debug, Clone)]
-pub struct RpcTransactionData {
-    pub nonce: u64,
-    pub gas_price: u128,
+pub struct CommonRpcTransactionData {
+    pub hash: FixedBytes<32>,
+    pub nonce: Option<u64>,
+    pub tx_type: u8,
+    pub gas_price: Option<u128>,
     pub gas_limit: u64,
-    pub max_fee_per_gas: u128,
-    pub max_priority_fee_per_gas: u128,
-    pub to: TransactionTo,
-    pub value: Uint<256, 4>,
-    pub access_list: AccessList,
-    pub authorization_list: Vec<SignedAuthorization>,
-    pub blob_versioned_hashes: Vec<FixedBytes<32>>,
-    pub max_fee_per_blob_gas: u128,
-    pub blobs: Vec<FixedBytes<BYTES_PER_BLOB>>,
-    pub commitments: Vec<FixedBytes<48>>,
-    pub proofs: Vec<FixedBytes<48>>,
-    pub input: Bytes,
+    pub max_fee_per_gas: Option<u128>,
+    pub max_priority_fee_per_gas: Option<u128>,
+    pub value: Option<Uint<256, 4>>,
+    pub access_list: Option<AccessList>,
+    pub input: Option<Bytes>,
     pub r: Uint<256, 4>,
     pub s: Uint<256, 4>,
     pub v: bool,
-    pub hash: FixedBytes<32>,
-
+    pub blob_versioned_hashes: Option<Vec<FixedBytes<32>>>,
+    pub authorization_list: Option<Vec<SignedAuthorization>>,
     pub block_hash: Option<FixedBytes<32>>,
     pub block_number: Option<u64>,
     pub transaction_index: Option<u64>,
     pub effective_gas_price: Option<u128>,
     pub from: Address,
-
-
-    pub tx_type: u8,
-    // pub gas: 
-
-    // ZKsync fields
-    // Sometimes the below fields are in inner and other times in other
-    pub l1_batch_number: Option<u64>,
-    pub l1_batch_tx_index: Option<u64>,
-    // pub max_fee_per_gas: Option<u128>,
-    // pub max_priority_fee_per_gas: Option<u128>,
+    pub to: TransactionTo,
 }
 
-// Raw RPC response format from `eth_getTransactionReceipt`
+
+// Ethereum-specific transaction
 #[derive(Debug, Clone)]
-pub struct RpcTransactionReceiptData {
-    pub status: Option<bool>,
-    pub cumulative_gas_used: u128,
-    pub logs_bloom: Bloom,
+pub struct EthereumRpcTransactionData {
+    pub common: CommonRpcTransactionData,
+    pub max_fee_per_blob_gas: Option<u128>,
+    pub blobs: Option<Vec<FixedBytes<BYTES_PER_BLOB>>>,
+    pub commitments: Option<Vec<FixedBytes<48>>>,
+    pub proofs: Option<Vec<FixedBytes<48>>>,
+}
+
+// ZKsync-specific transaction
+#[derive(Debug, Clone)]
+pub struct ZKsyncRpcTransactionData {
+    pub common: CommonRpcTransactionData,
+    // pub gas: u64, // TODO: Add back in
+    pub l1_batch_number: Option<u64>,
+    pub l1_batch_tx_index: Option<u64>,
+}
+
+#[derive(Debug, Clone)]
+pub enum RpcTransactionData {
+    Ethereum(EthereumRpcTransactionData),
+    ZKsync(ZKsyncRpcTransactionData),
+}
+
+///////////////////////////////// eth_getBlockReceipt //////////////////////////////////
+
+#[derive(Debug, Clone)]
+pub struct CommonRpcTransactionReceiptData {
     pub transaction_hash: FixedBytes<32>,
     pub transaction_index: Option<u64>,
+    pub status: Option<bool>,
+    pub tx_type: u8,
     pub block_hash: Option<FixedBytes<32>>,
     pub block_number: Option<u64>,
     pub gas_used: u128,
@@ -65,53 +77,58 @@ pub struct RpcTransactionReceiptData {
     pub from: Address,
     pub to: Option<Address>,
     pub contract_address: Option<Address>,
+    pub cumulative_gas_used: u128,
     pub authorization_list: Option<Vec<SignedAuthorization>>,
-    pub tx_type: u8,
-
-    // ZKsync fields
-    pub l1_batch_number: Option<u64>,
-    pub l1_batch_tx_index: Option<u64>,
-    // pub l2_to_l1_logs: Option<Vec<L2ToL1Log>>,
+    pub logs_bloom: Bloom,
 }
 
-// Final output format
-// TODO: Verify fields and cleanup
+// Ethereum-specific receipt
+#[derive(Debug, Clone)]
+pub struct EthereumRpcTransactionReceiptData {
+    pub common: CommonRpcTransactionReceiptData,
+}
+
+// ZKsync-specific receipt
+#[derive(Debug, Clone)]
+pub struct ZKsyncRpcTransactionReceiptData {
+    pub common: CommonRpcTransactionReceiptData,
+    pub l1_batch_number: Option<u64>,
+    pub l1_batch_tx_index: Option<u64>,
+    // pub l2_to_l1_logs: Option<Vec<L2ToL1Log>>, // TODO: Add back in
+}
+
+#[derive(Debug, Clone)]
+pub enum RpcTransactionReceiptData {
+    Ethereum(EthereumRpcTransactionReceiptData),
+    ZKsync(ZKsyncRpcTransactionReceiptData),
+}
+
+
+/////////////////////////////////// Transformed Data ///////////////////////////////////
+
 #[derive(Debug, Serialize)]
-pub struct TransformedTransactionData {
-    // Block fields
+pub struct CommonTransformedTransactionData {
     pub chain_id: u64,
-    pub tx_type: u8,
-    // pub hash: FixedBytes<32>,
-    pub nonce: u64,
-    pub gas_price: u128,
+
+    // Block fields
+    pub nonce: Option<u64>,
+    pub gas_price: Option<u128>,
     pub gas_limit: u64,
-    pub max_fee_per_gas: u128,
-    pub max_priority_fee_per_gas: u128,
-    // pub from: Address,
-    // pub to: TransactionTo,
-    pub value: Uint<256, 4>,
+    pub max_fee_per_gas: Option<u128>,
+    pub max_priority_fee_per_gas: Option<u128>,
+    pub value: Option<Uint<256, 4>>,
     pub access_list: Option<AccessList>,
-    // pub authorization_list: Vec<SignedAuthorization>,
-    pub blob_versioned_hashes: Vec<FixedBytes<32>>,
-    pub max_fee_per_blob_gas: u128,
-    pub blobs: Vec<FixedBytes<BYTES_PER_BLOB>>,
-    pub commitments: Vec<FixedBytes<48>>,
-    pub proofs: Vec<FixedBytes<48>>,
-    pub input: Bytes,
+    pub input: Option<Bytes>,
     pub r: Uint<256, 4>,
     pub s: Uint<256, 4>,
     pub v: bool,
-    // pub block_hash: Option<FixedBytes<32>>,
-    // pub block_number: Option<u64>,
-    // pub transaction_index: Option<u64>,
-    // pub effective_gas_price: Option<u128>,
+    pub blob_versioned_hashes: Option<Vec<FixedBytes<32>>>,
 
     // Receipt fields
-    pub status: Option<bool>,
-    pub cumulative_gas_used: u128,
-    pub logs_bloom: Bloom,
     pub transaction_hash: FixedBytes<32>,
     pub transaction_index: Option<u64>,
+    pub status: Option<bool>,
+    pub tx_type: u8,
     pub block_hash: Option<FixedBytes<32>>,
     pub block_number: Option<u64>,
     pub gas_used: u128,
@@ -121,9 +138,30 @@ pub struct TransformedTransactionData {
     pub from: Address,
     pub to: Option<Address>,
     pub contract_address: Option<Address>,
-    // pub authorization_list: Option<Vec<SignedAuthorization>> // TODO: Implement this. Need to handle private fields and updating the BigQuery schema
+    pub cumulative_gas_used: u128,
+    pub authorization_list: Option<Vec<SignedAuthorization>>,
+    pub logs_bloom: Bloom,
+}
 
-    // ZKsync fields
+#[derive(Debug, Serialize)]
+pub struct EthereumTransformedTransactionData {
+    pub common: CommonTransformedTransactionData,
+    pub max_fee_per_blob_gas: Option<u128>,
+    pub blobs: Option<Vec<FixedBytes<BYTES_PER_BLOB>>>,
+    pub commitments: Option<Vec<FixedBytes<48>>>,
+    pub proofs: Option<Vec<FixedBytes<48>>>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ZKsyncTransformedTransactionData {
+    pub common: CommonTransformedTransactionData,
     pub l1_batch_number: Option<u64>,
     pub l1_batch_tx_index: Option<u64>,
+    // pub l2_to_l1_logs: Option<Vec<L2ToL1Log>>, // TODO: Add back in
+}
+
+#[derive(Debug, Serialize)]
+pub enum TransformedTransactionData {
+    Ethereum(EthereumTransformedTransactionData),
+    ZKsync(ZKsyncTransformedTransactionData),
 }

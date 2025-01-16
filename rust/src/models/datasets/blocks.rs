@@ -2,9 +2,10 @@ use alloy_primitives::{Address, Bloom, Bytes, FixedBytes, Uint};
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::Serialize;
 
-// Raw RPC response format
+////////////////////////////////////// RPC Data ////////////////////////////////////////
+// Base struct for common fields
 #[derive(Debug, Clone)]
-pub struct RpcHeaderData {
+pub struct CommonRpcHeaderData {
     pub hash: FixedBytes<32>,
     pub parent_hash: FixedBytes<32>,
     pub ommers_hash: FixedBytes<32>,
@@ -28,19 +29,37 @@ pub struct RpcHeaderData {
     pub excess_blob_gas: Option<u64>,
     pub parent_beacon_block_root: Option<FixedBytes<32>>,
     pub requests_hash: Option<FixedBytes<32>>,
-    pub target_blobs_per_block: Option<u64>,
     pub total_difficulty: Option<Uint<256, 4>>,
     pub size: Option<Uint<256, 4>>,
+}
 
-    // ZKsync fields
+// Ethereum-specific header
+#[derive(Debug, Clone)]
+pub struct EthereumRpcHeaderData {
+    pub common: CommonRpcHeaderData,
+}
+
+// ZKsync-specific header
+#[derive(Debug, Clone)]
+pub struct ZKsyncRpcHeaderData {
+    pub common: CommonRpcHeaderData,
+    pub target_blobs_per_block: Option<u64>,
     pub l1_batch_number: Option<u64>,
     pub l1_batch_timestamp: Option<DateTime<Utc>>,
     // pub seal_fields: Option<Vec<String>>, // TODO: Add this back in
 }
 
-// Final output format
-#[derive(Debug, Serialize)]
-pub struct TransformedBlockData {
+#[derive(Debug, Clone)]
+pub enum RpcHeaderData {
+    Ethereum(EthereumRpcHeaderData),
+    ZKsync(ZKsyncRpcHeaderData),
+}
+
+/////////////////////////////////// Transformed Data ///////////////////////////////////
+
+// Base struct for common fields
+#[derive(Debug, Clone)]
+pub struct CommonTransformedBlockData {
     pub chain_id: u64,
     pub hash: FixedBytes<32>,
     pub parent_hash: FixedBytes<32>,
@@ -65,16 +84,28 @@ pub struct TransformedBlockData {
     pub excess_blob_gas: Option<u64>,
     pub parent_beacon_block_root: Option<FixedBytes<32>>,
     pub requests_hash: Option<FixedBytes<32>>,
-    pub target_blobs_per_block: Option<u64>,
     pub total_difficulty: Option<Uint<256, 4>>,
     pub size: Option<Uint<256, 4>>,
+}
 
-    // ZKsync fields
+// Ethereum-specific header
+#[derive(Debug, Clone)]
+pub struct EthereumTransformedBlockData {
+    pub common: CommonTransformedBlockData,
+}
+
+// ZKsync-specific header
+#[derive(Debug, Clone)]
+pub struct ZKsyncTransformedBlockData {
+    pub common: CommonTransformedBlockData,
+    pub target_blobs_per_block: Option<u64>,
     pub l1_batch_number: Option<u64>,
     pub l1_batch_timestamp: Option<DateTime<Utc>>,
     // pub seal_fields: Option<Vec<String>>, // TODO: Add this back in
 }
 
-// Create type alias for alloy Withdrawal type
-// Do not expect to need custom modifications to this type
-pub type RpcWithdrawalData = alloy_rpc_types_eth::Withdrawal;
+#[derive(Debug, Clone)]
+pub enum TransformedBlockData {
+    Ethereum(EthereumTransformedBlockData),
+    ZKsync(ZKsyncTransformedBlockData),
+}

@@ -3,13 +3,14 @@
 #![allow(unused_variables)]
 #![allow(dead_code)]
 
+use alloy_consensus::constants::{LEGACY_TX_TYPE_ID, EIP2930_TX_TYPE_ID, EIP1559_TX_TYPE_ID, EIP4844_TX_TYPE_ID, EIP7702_TX_TYPE_ID};
 use alloy_consensus::{TxEip4844Variant, TxEnvelope};
 use alloy_eips::eip2930::AccessList;
 use alloy_eips::eip7702::SignedAuthorization;
 use alloy_network::primitives::BlockTransactions;
 use alloy_network::{AnyRpcBlock, AnyRpcHeader, AnyRpcTransaction, AnyTxEnvelope};
 use alloy_primitives::{Address, Bytes, FixedBytes, Uint};
-use alloy_rpc_types_eth::{Block, Header, Withdrawals};
+use alloy_rpc_types_eth::{Block, Header, Transaction};
 use alloy_serde::WithOtherFields;
 use anyhow::{anyhow, Result};
 use chrono::DateTime;
@@ -17,24 +18,27 @@ use tracing::info;
 
 use crate::utils::hex_to_u64;
 use crate::models::common::TransactionTo;
-
-use crate::models::datasets::blocks::{RpcHeaderData, RpcWithdrawalData};
-use crate::models::datasets::transactions::RpcTransactionData;
+use crate::models::common::Chain;
+use crate::models::datasets::blocks::{
+    CommonRpcHeaderData, RpcHeaderData, EthereumRpcHeaderData, ZKsyncRpcHeaderData,
+};
+use crate::models::datasets::transactions::{
+    CommonRpcTransactionData, RpcTransactionData, EthereumRpcTransactionData, ZKsyncRpcTransactionData
+};
 
 // NOTE: No handling for uncle blocks
 pub trait BlockParser {
-    fn parse_header(self) -> Result<Vec<RpcHeaderData>>;
-    fn parse_transactions(self) -> Result<Vec<RpcTransactionData>>;
-    fn parse_withdrawals(self) -> Result<Vec<RpcWithdrawalData>>;
+    fn parse_header(self, chain: Chain) -> Result<Vec<RpcHeaderData>>;
+    fn parse_transactions(self, chain: Chain) -> Result<Vec<RpcTransactionData>>;
 }
 
 impl BlockParser for AnyRpcBlock {
-    fn parse_header(self) -> Result<Vec<RpcHeaderData>> {
+    fn parse_header(self, chain: Chain) -> Result<Vec<RpcHeaderData>> {
         let inner = self.header.inner.clone();
         let other = self.other.clone();
 
-        // TODO: Add error handling
-        Ok(vec![RpcHeaderData {
+        // Define common fields that exist across all chains
+        let common = CommonRpcHeaderData {
             hash: self.header.hash,
             parent_hash: inner.parent_hash,
             ommers_hash: inner.ommers_hash,
@@ -61,166 +65,215 @@ impl BlockParser for AnyRpcBlock {
             excess_blob_gas: inner.excess_blob_gas,
             parent_beacon_block_root: inner.parent_beacon_block_root,
             requests_hash: inner.requests_hash,
-            target_blobs_per_block: inner.target_blobs_per_block,
             total_difficulty: self.header.total_difficulty,
             size: self.header.size,
+        };
 
-            // ZKsync fields
-            l1_batch_number: other
-                .get_deserialized::<String>("l1BatchNumber")
-                .and_then(|result| result.ok())
-                .and_then(|hex| hex_to_u64(hex)),
-            l1_batch_timestamp: other
-                .get_deserialized::<String>("l1BatchTimestamp")
-                .and_then(|result| result.ok())
-                .and_then(|hex| hex_to_u64(hex))
-                .and_then(|timestamp| DateTime::from_timestamp(timestamp as i64, 0)),
-            // seal_fields: other.get_deserialized::<Vec<String>>("sealFields").and_then(|result| result.ok()), // TODO: Add this back in
+        let header = match chain {
+            Chain::Ethereum => {
+                RpcHeaderData::Ethereum(EthereumRpcHeaderData { common })
+            }
+            Chain::ZKsync => {
+                RpcHeaderData::ZKsync(ZKsyncRpcHeaderData { 
+                    common,
+                    target_blobs_per_block: other
+                        .get_deserialized::<String>("targetBlobsPerBlock")
+                        .and_then(|result| result.ok())
+                        .and_then(hex_to_u64),
+                        l1_batch_number: other
+                        .get_deserialized::<String>("l1BatchNumber")
+                        .and_then(|result| result.ok())
+                        .and_then(hex_to_u64),
+                    l1_batch_timestamp: other
+                        .get_deserialized::<String>("l1BatchTimestamp")
+                        .and_then(|result| result.ok())
+                        .and_then(hex_to_u64)
+                        .and_then(|timestamp| DateTime::from_timestamp(timestamp as i64, 0)),
+                    // seal_fields: other.get_deserialized::<Vec<String>>("sealFields").and_then(|result| result.ok()), // TODO: Add this back in
+                })
+            }
+        };
 
-        }])
+        Ok(vec![header])
     }
 
-    fn parse_transactions(self) -> Result<Vec<RpcTransactionData>> {
+    fn parse_transactions(self, chain: Chain) -> Result<Vec<RpcTransactionData>> {
         match self.transactions {
-            BlockTransactions::Full(_) => Ok(self
+            BlockTransactions::Full(_) => {
+                Ok(self
                 .transactions   
                 .txns() 
                 .map(|transaction| {
-                    let fields: RpcTransactionData = RpcTransactionData {
-                        nonce: 0,
-                        gas_price: 0,
+
+                    let inner = transaction.inner.clone();
+                    let block_hash = transaction.block_hash;
+                    let block_number = transaction.block_number;
+                    let transaction_index = transaction.transaction_index;
+                    let effective_gas_price = transaction.effective_gas_price;
+                    let from = transaction.from;
+
+                    // default values of mandatory fields are not too important as they will always get overrriden by the actual values
+                    let common = CommonRpcTransactionData {
+                        hash: FixedBytes::<32>::ZERO,
+                        nonce: None,
                         tx_type: 0,
+                        gas_price: None,
                         gas_limit: 0,
-                        max_fee_per_gas: 0,
-                        max_priority_fee_per_gas: 0,
-                        to: TransactionTo::Address(Address::ZERO),
-                        value: Uint::<256, 4>::ZERO,
-                        access_list: AccessList::default(),
-                        authorization_list: Vec::new(),
-                        blob_versioned_hashes: Vec::new(),
-                        max_fee_per_blob_gas: 0,
-                        blobs: Vec::new(),
-                        commitments: Vec::new(),
-                        proofs: Vec::new(),
-                        input: Bytes::default(),
+                        max_fee_per_gas: None,
+                        max_priority_fee_per_gas: None,
+                        value: None,
+                        access_list: None,
+                        input: None,
                         r: Uint::<256, 4>::ZERO,
                         s: Uint::<256, 4>::ZERO,
-                        v: false, // TODO: False likely isn't the correct default value
-                        hash: FixedBytes::<32>::ZERO,
-                        block_hash: Some(FixedBytes::<32>::ZERO),
-                        block_number: None,
-                        transaction_index: None,
-                        effective_gas_price: None,
-                        from: Address::ZERO,
-                        l1_batch_number: Some(0),
-                        l1_batch_tx_index: Some(0),
+                        v: false,
+                        blob_versioned_hashes: None,
+                        authorization_list: None,
+                        block_hash,
+                        block_number,
+                        transaction_index,
+                        effective_gas_price,
+                        from,
+                        to: TransactionTo::Address(Address::ZERO),
                     };
 
-                    match &transaction.inner.inner {
+                    match &inner.inner {
+                        // Ethereum will always enter this match arm
+                        // Other chains will only enter this match arm for tx_type = Legacy
                         AnyTxEnvelope::Ethereum(inner) => {
                             match inner {
                                 TxEnvelope::Legacy(signed) => {
                                     let tx = signed.tx();
                                     let signature = signed.signature();
 
-                                    RpcTransactionData {
-                                        nonce: tx.nonce,
-                                        gas_price: tx.gas_price,
-                                        gas_limit: tx.gas_limit,
-                                        to: TransactionTo::TxKind(tx.to),
-                                        value: tx.value,
-                                        input: tx.input.clone(), // TODO: Remove clone
-                                        r: signature.r(),
-                                        s: signature.s(),
-                                        v: signature.v(),
-                                        hash: *signed.hash(),
-                                        ..fields
-                                    }
+                                    RpcTransactionData::Ethereum(EthereumRpcTransactionData {
+                                        common: CommonRpcTransactionData {
+                                            hash: *signed.hash(),
+                                            nonce: Some(tx.nonce),
+                                            tx_type: LEGACY_TX_TYPE_ID,
+                                            gas_price: Some(tx.gas_price),
+                                            gas_limit: tx.gas_limit,
+                                            input: Some(tx.input.clone()), // TODO: Remove clone
+                                            value: Some(tx.value),
+                                            r: signature.r(),
+                                            s: signature.s(),
+                                            v: signature.v(),
+                                            to: TransactionTo::TxKind(tx.to),
+                                            ..common
+                                        },
+                                        max_fee_per_blob_gas: None,
+                                        blobs: None,
+                                        commitments: None,
+                                        proofs: None,
+                                    })
                                 }
                                 TxEnvelope::Eip2930(signed) => {
                                     let tx = signed.tx();
                                     let signature = signed.signature();
 
-                                    RpcTransactionData {
-                                        nonce: tx.nonce,
-                                        gas_price: tx.gas_price,
-                                        gas_limit: tx.gas_limit,
-                                        to: TransactionTo::TxKind(tx.to),
-                                        value: tx.value,
-                                        access_list: tx.access_list.clone(), // TODO: Remove clone
-                                        input: tx.input.clone(),             // TODO: Remove clone
-                                        r: signature.r(),
-                                        s: signature.s(),
-                                        v: signature.v(),
-                                        hash: *signed.hash(),
-                                        ..fields
-                                    }
+                                    RpcTransactionData::Ethereum(EthereumRpcTransactionData {
+                                        common: CommonRpcTransactionData {
+                                            hash: *signed.hash(),
+                                            nonce: Some(tx.nonce),
+                                            tx_type: EIP2930_TX_TYPE_ID,
+                                            gas_price: Some(tx.gas_price),
+                                            gas_limit: tx.gas_limit,
+                                            to: TransactionTo::TxKind(tx.to),
+                                            value: Some(tx.value),
+                                            access_list: Some(tx.access_list.clone()), // TODO: Remove clone
+                                            input: Some(tx.input.clone()),             // TODO: Remove clone
+                                            r: signature.r(),
+                                            s: signature.s(),
+                                            v: signature.v(),
+                                            ..common
+                                        },
+                                        max_fee_per_blob_gas: None,
+                                        blobs: None,
+                                        commitments: None,
+                                        proofs: None,
+                                    })
                                 }
                                 TxEnvelope::Eip1559(signed) => {
                                     let tx = signed.tx();
                                     let signature = signed.signature();
 
-                                    RpcTransactionData {
-                                        nonce: tx.nonce,
-                                        gas_limit: tx.gas_limit,
-                                        max_fee_per_gas: tx.max_fee_per_gas,
-                                        max_priority_fee_per_gas: tx.max_priority_fee_per_gas,
-                                        to: TransactionTo::TxKind(tx.to),
-                                        value: tx.value,
-                                        access_list: tx.access_list.clone(), // TODO: Remove clone
-                                        input: tx.input.clone(),             // TODO: Remove clone
-                                        r: signature.r(),
-                                        s: signature.s(),
-                                        v: signature.v(),
-                                        hash: *signed.hash(),
-                                        ..fields
-                                    }
+                                    RpcTransactionData::Ethereum(EthereumRpcTransactionData {
+                                        common: CommonRpcTransactionData {
+                                            nonce: Some(tx.nonce),
+                                            // tx_type: tx.tx_type(), // TODO: Not publicly accessible. Fix
+                                            tx_type: EIP1559_TX_TYPE_ID,
+                                            gas_limit: tx.gas_limit,
+                                            max_fee_per_gas: Some(tx.max_fee_per_gas),
+                                            max_priority_fee_per_gas: Some(tx.max_priority_fee_per_gas),
+                                            to: TransactionTo::TxKind(tx.to),
+                                            value: Some(tx.value),
+                                            access_list: Some(tx.access_list.clone()), // TODO: Remove clone
+                                            input: Some(tx.input.clone()),             // TODO: Remove clone
+                                            r: signature.r(),
+                                            s: signature.s(),
+                                            v: signature.v(),
+                                            hash: *signed.hash(),
+                                            ..common
+                                        },
+                                        max_fee_per_blob_gas: None,
+                                        blobs: None,
+                                        commitments: None,
+                                        proofs: None,
+                                    })
                                 }
                                 TxEnvelope::Eip4844(signed) => {
                                     let signature = signed.signature();
 
                                     match signed.tx() {
-                                        TxEip4844Variant::TxEip4844(tx) => RpcTransactionData {
-                                            nonce: tx.nonce,
-                                            gas_limit: tx.gas_limit,
-                                            max_fee_per_gas: tx.max_fee_per_gas,
-                                            max_priority_fee_per_gas: tx.max_priority_fee_per_gas,
-                                            to: TransactionTo::Address(tx.to),
-                                            value: tx.value,
-                                            access_list: tx.access_list.clone(), // TODO: Remove clone
-                                            blob_versioned_hashes: tx.blob_versioned_hashes.clone(), // TODO: Remove clone
-                                            max_fee_per_blob_gas: tx.max_fee_per_blob_gas,
-                                            input: tx.input.clone(), // TODO: Remove clone
-                                            r: signature.r(),
-                                            s: signature.s(),
-                                            v: signature.v(),
-                                            hash: *signed.hash(),
-                                            ..fields
-                                        },
-                                        TxEip4844Variant::TxEip4844WithSidecar(tx_with_sidecar) => {
-                                            let tx = &tx_with_sidecar.tx;
-                                            RpcTransactionData {
-                                                nonce: tx.nonce,
+                                        TxEip4844Variant::TxEip4844(tx) => RpcTransactionData::Ethereum(EthereumRpcTransactionData {
+                                            common: CommonRpcTransactionData {
+                                                nonce: Some(tx.nonce),
+                                                tx_type: EIP4844_TX_TYPE_ID,
                                                 gas_limit: tx.gas_limit,
-                                                max_fee_per_gas: tx.max_fee_per_gas,
-                                                max_priority_fee_per_gas: tx.max_priority_fee_per_gas,
-                                                value: tx.value,
-                                                access_list: tx.access_list.clone(), // TODO: Remove clone
-                                                blob_versioned_hashes: tx
-                                                    .blob_versioned_hashes
-                                                    .clone()
-                                                    .clone(), // TODO: Remove clone
-                                                max_fee_per_blob_gas: tx.max_fee_per_blob_gas,
-                                                blobs: tx_with_sidecar.sidecar.blobs.clone(), // TODO: Remove clone
-                                                commitments: tx_with_sidecar.sidecar.commitments.clone(), // TODO: Remove clone
-                                                proofs: tx_with_sidecar.sidecar.proofs.clone(), // TODO: Remove clone
-                                                input: tx.input.clone(), // TODO: Remove clone
+                                                max_fee_per_gas: Some(tx.max_fee_per_gas),
+                                                max_priority_fee_per_gas: Some(tx.max_priority_fee_per_gas),
+                                                to: TransactionTo::Address(tx.to),
+                                                value: Some(tx.value),
+                                                access_list: Some(tx.access_list.clone()), // TODO: Remove clone
+                                                blob_versioned_hashes: Some(tx.blob_versioned_hashes.clone()), // TODO: Remove clone
+                                                input: Some(tx.input.clone()),             // TODO: Remove clone
                                                 r: signature.r(),
                                                 s: signature.s(),
                                                 v: signature.v(),
                                                 hash: *signed.hash(),
-                                                ..fields
-                                            }
+                                                ..common
+                                            },
+                                            max_fee_per_blob_gas: Some(tx.max_fee_per_blob_gas),
+                                            blobs: None,
+                                            commitments: None,
+                                            proofs: None,
+                                        }),
+                                        TxEip4844Variant::TxEip4844WithSidecar(tx_with_sidecar) => {
+                                            let tx = &tx_with_sidecar.tx;
+
+                                            RpcTransactionData::Ethereum(EthereumRpcTransactionData {
+                                                common: CommonRpcTransactionData {
+                                                    nonce: Some(tx.nonce),
+                                                    tx_type: EIP4844_TX_TYPE_ID,
+                                                    gas_limit: tx.gas_limit,
+                                                    max_fee_per_gas: Some(tx.max_fee_per_gas),
+                                                    max_priority_fee_per_gas: Some(tx.max_priority_fee_per_gas),
+                                                    to: TransactionTo::Address(tx.to),
+                                                    value: Some(tx.value),
+                                                    access_list: Some(tx.access_list.clone()), // TODO: Remove clone
+                                                    blob_versioned_hashes: Some(tx.blob_versioned_hashes.clone()), // TODO: Remove clone
+                                                    input: Some(tx.input.clone()), // TODO: Remove clone
+                                                    r: signature.r(),
+                                                    s: signature.s(),
+                                                    v: signature.v(),
+                                                    hash: *signed.hash(),
+                                                    ..common
+                                                },
+                                                max_fee_per_blob_gas: Some(tx.max_fee_per_blob_gas),
+                                                blobs: Some(tx_with_sidecar.sidecar.blobs.clone()), // TODO: Remove clone
+                                                commitments: Some(tx_with_sidecar.sidecar.commitments.clone()), // TODO: Remove clone
+                                                proofs: Some(tx_with_sidecar.sidecar.proofs.clone()), // TODO: Remove clone
+                                            })
                                         }
                                     }
                                 }
@@ -228,110 +281,120 @@ impl BlockParser for AnyRpcBlock {
                                     let tx = signed.tx();
                                     let signature = signed.signature();
 
-                                    RpcTransactionData {
-                                        nonce: tx.nonce,
-                                        gas_limit: tx.gas_limit,
-                                        max_fee_per_gas: tx.max_fee_per_gas,
-                                        max_priority_fee_per_gas: tx.max_priority_fee_per_gas,
-                                        to: TransactionTo::Address(tx.to),
-                                        value: tx.value,
-                                        access_list: tx.access_list.clone(), // TODO: Remove clone
-                                        authorization_list: tx.authorization_list.clone(), // TODO: Remove clone
-                                        input: tx.input.clone(), // TODO: Remove clone
-                                        r: signature.r(),
-                                        s: signature.s(),
-                                        v: signature.v(),
-                                        hash: *signed.hash(),
-                                        ..fields
-                                    }
-                                }
-                                // TODO: Use better default values for undefined TxEnvelope types
-                                // Can I do an if...else? Try to access common fields that are likely to exist in all transaction types, and if they don't exist, use empty/zero defaults
-                                // Maybe I only give defaults for fields guaranteed to exist in all transaction types?
-                                _ => RpcTransactionData {
-                                    nonce: 0,
-                                    gas_limit: 0,
-                                    value: Uint::<256, 4>::ZERO,
-                                    input: Bytes::new(),
-                                    r: Uint::<256, 4>::ZERO,
-                                    s: Uint::<256, 4>::ZERO,
-                                    v: false,
-                                    hash: FixedBytes::<32>::ZERO,
-                                    ..fields
-                                },
+                                    RpcTransactionData::Ethereum(EthereumRpcTransactionData {
+                                        common: CommonRpcTransactionData {
+                                            nonce: Some(tx.nonce),
+                                            tx_type: EIP7702_TX_TYPE_ID,
+                                            gas_limit: tx.gas_limit,
+                                            max_fee_per_gas: Some(tx.max_fee_per_gas),
+                                            max_priority_fee_per_gas: Some(tx.max_priority_fee_per_gas),
+                                            to: TransactionTo::Address(tx.to),
+                                            value: Some(tx.value),
+                                            access_list: Some(tx.access_list.clone()), // TODO: Remove clone
+                                            authorization_list: Some(tx.authorization_list.clone()), // TODO: Remove clone
+                                            input: Some(tx.input.clone()),             // TODO: Remove clone
+                                            r: signature.r(),
+                                            s: signature.s(),
+                                            v: signature.v(),
+                                            hash: *signed.hash(),
+                                            ..common
+                                        },
+                                        max_fee_per_blob_gas: None,
+                                        blobs: None,
+                                        commitments: None,
+                                        proofs: None,
+                                    })
+                                }                                                                               
+                                _ => RpcTransactionData::Ethereum(EthereumRpcTransactionData {
+                                    common,
+                                    max_fee_per_blob_gas: None,
+                                    blobs: None,
+                                    commitments: None,
+                                    proofs: None,
+                                })
                             }
                         }
+                        // Ethereum should never enter this match arm
+                        // Other chains will enter this match arm for tx_type != Legacy
                         AnyTxEnvelope::Unknown(unknown) => {
-                            info!("Unknown transaction envelope: {:?}", unknown);
 
                             let other_fields = &unknown.inner.fields;
                             let memo = &unknown.inner.memo;
                             let inner = &unknown.inner;
                             let ty = inner.ty;
                             
-                            RpcTransactionData {
+                            let common_fields = CommonRpcTransactionData {
                                 hash: unknown.hash,
-                                tx_type: ty.0, // Gets the first element of the tuple as u8
-                                // gas: fields // TODO: Handle this
-                                //     .get_deserialized::<>("gas")
-                                //     .and_then(|result| result.ok())
-                                //     .unwrap_or(),
-                                gas_price: other_fields
-                                    .get_deserialized::<u128>("gasPrice")
-                                    .and_then(|result| result.ok())
-                                    .unwrap_or(0),
-                                input: other_fields
-                                    .get_deserialized::<Bytes>("input")
-                                    .and_then(|result| result.ok())
-                                    .unwrap_or(Bytes::default()),                               
-                                l1_batch_number: other_fields
-                                    .get_deserialized::<String>("l1BatchNumber")
-                                    .and_then(|result| result.ok())
-                                    .and_then(|hex| hex_to_u64(hex)),
-                                    // .unwrap_or(0),
-                                l1_batch_tx_index: other_fields
-                                    .get_deserialized::<String>("l1BatchTxIndex")
-                                    .and_then(|result| result.ok())
-                                    .and_then(|hex| hex_to_u64(hex)),
-                                    // .unwrap_or(TransactionTo::Address(Address::ZERO)),                                                                    
-                                max_fee_per_gas: other_fields
-                                    .get_deserialized::<u128>("maxFeePerGas")
-                                    .and_then(|result| result.ok())
-                                    .unwrap_or(0), // not sure if this field should be option or not                                 
-                                max_priority_fee_per_gas: other_fields
-                                    .get_deserialized::<u128>("maxPriorityFeePerGas")
-                                    .and_then(|result| result.ok())
-                                    .unwrap_or(0),                                    
                                 nonce: other_fields
                                     .get_deserialized::<u64>("nonce")
-                                    .and_then(|result| result.ok())
-                                    .unwrap_or(0),                                
+                                    .and_then(|result| result.ok()),
+                                tx_type: ty.0, // Gets the first element of the tuple as u8
+                                gas_price: other_fields
+                                    .get_deserialized::<u128>("gasPrice")
+                                    .and_then(|result| result.ok()),
+                                gas_limit: 0, // TODO: Fill this in
+                                max_fee_per_gas: other_fields
+                                    .get_deserialized::<u128>("maxFeePerGas")
+                                    .and_then(|result| result.ok()),                            
+                                max_priority_fee_per_gas: other_fields
+                                    .get_deserialized::<u128>("maxPriorityFeePerGas")
+                                    .and_then(|result| result.ok()),
+                                value: other_fields
+                                    .get_deserialized::<Uint<256, 4>>("value")
+                                    .and_then(|result| result.ok()),
+                                access_list: memo.access_list
+                                    .get()
+                                    .cloned(),
+                                input: other_fields
+                                    .get_deserialized::<Bytes>("input")
+                                    .and_then(|result| result.ok()),
+                                r: Uint::<256, 4>::ZERO, // TODO: Fill this in
+                                s: Uint::<256, 4>::ZERO, // TODO: Fill this in
+                                v: false, // TODO: Fill this in
+                                blob_versioned_hashes: memo.blob_versioned_hashes
+                                    .get()
+                                    .cloned(),
+                                authorization_list: memo.authorization_list
+                                    .get()
+                                    .cloned(),
+                                block_hash,
+                                block_number,
+                                transaction_index,
+                                effective_gas_price,
+                                from,
                                 to: other_fields
                                     .get_deserialized::<TransactionTo>("to")
                                     .and_then(|result| result.ok())
-                                    .unwrap_or(TransactionTo::Address(Address::ZERO)),
-                                value: other_fields
-                                    .get_deserialized::<Uint<256, 4>>("value")
-                                    .and_then(|result| result.ok())
-                                    .unwrap_or(Uint::<256, 4>::ZERO),
-                                access_list: memo.access_list
-                                    .get()
-                                    .cloned()
-                                    .unwrap_or_default(),
-                                blob_versioned_hashes: memo.blob_versioned_hashes
-                                    .get()
-                                    .cloned()
-                                    .unwrap_or_default(),                                    
-                                authorization_list: memo.authorization_list
-                                    .get()
-                                    .cloned()
-                                    .unwrap_or_default(),
-                                ..fields
+                                    .unwrap_or(TransactionTo::Address(Address::ZERO)),                                    
+                            };
+
+                            match chain {
+                                Chain::Ethereum => {
+                                    unreachable!("Ethereum transactions should be handled by AnyTxEnvelope::Ethereum variant")
+                                }
+                                Chain::ZKsync => {
+                                    RpcTransactionData::ZKsync(ZKsyncRpcTransactionData { 
+                                        common: common_fields,
+                                        l1_batch_number: other_fields
+                                            .get_deserialized::<String>("l1BatchNumber")
+                                            .and_then(|result| result.ok())
+                                            .and_then(hex_to_u64),
+                                        l1_batch_tx_index: other_fields
+                                            .get_deserialized::<String>("l1BatchTxIndex")
+                                            .and_then(|result| result.ok())
+                                            .and_then(hex_to_u64),                                                                          
+                                        // gas: fields // TODO: Handle this
+                                        //     .get_deserialized::<>("gas")
+                                        //     .and_then(|result| result.ok())
+                                        //     .unwrap_or(),
+                                    })
+                                }
                             }
                         }
                     }
                 })
-                .collect()),
+                .collect())
+            }
             BlockTransactions::Hashes(_) => {
                 Err(anyhow!(
                     "Block contains only transaction hashes, full transaction data required"
@@ -341,24 +404,5 @@ impl BlockParser for AnyRpcBlock {
                 Err(anyhow!("Uncle blocks not supported")) // TODO: Handle better
             }
         }
-    }
-
-    fn parse_withdrawals(self) -> Result<Vec<RpcWithdrawalData>> {
-        Ok(self
-            .withdrawals
-            .clone()
-            .map(|withdrawals| {
-                withdrawals
-                    .0
-                    .into_iter()
-                    .map(|withdrawal| RpcWithdrawalData {
-                        index: withdrawal.index,
-                        validator_index: withdrawal.validator_index,
-                        address: withdrawal.address,
-                        amount: withdrawal.amount,
-                    })
-                    .collect::<Vec<RpcWithdrawalData>>()
-            })
-            .unwrap_or_default())
     }
 }

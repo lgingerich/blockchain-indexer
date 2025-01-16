@@ -8,20 +8,24 @@ use alloy_eips::eip2930::AccessList;
 use alloy_eips::eip7702::SignedAuthorization;
 use alloy_network::primitives::BlockTransactions;
 use alloy_primitives::{Address, Bytes, FixedBytes, Uint};
-use alloy_rpc_types_eth::{Block, Header, Withdrawals};
+use alloy_rpc_types_eth::{Block, Header};
 use alloy_rpc_types_trace::geth::{CallFrame, GethTrace, TraceResult};
+use crate::models::common::Chain;
 
 use anyhow::{anyhow, Result};
 use chrono::DateTime;
 
-use crate::models::datasets::traces::RpcTraceData;
+use crate::models::datasets::traces::{
+    CommonRpcTraceData, RpcTraceData,
+    EthereumRpcTraceData, ZKsyncRpcTraceData
+};
 
 pub trait TraceParser {
-    fn parse_traces(self) -> Result<Vec<RpcTraceData>>;
+    fn parse_traces(self, chain: Chain) -> Result<Vec<RpcTraceData>>;
 }
 
 impl TraceParser for Vec<TraceResult> {
-    fn parse_traces(self) -> Result<Vec<RpcTraceData>> {
+    fn parse_traces(self, chain: Chain) -> Result<Vec<RpcTraceData>> {
         Ok(self
             .into_iter()
             .flat_map(|trace_result| {
@@ -30,7 +34,7 @@ impl TraceParser for Vec<TraceResult> {
                         match result {
                             GethTrace::CallTracer(frame) => {
                                 // Process the frame and all its nested calls
-                                flatten_call_frames(frame)
+                                flatten_call_frames(frame, chain)
                             }
                             _ => Vec::new(), // Skip other trace types
                         }
@@ -43,11 +47,10 @@ impl TraceParser for Vec<TraceResult> {
 }
 
 /// Recursively flattens a CallFrame and its nested calls into a vector of TraceData
-fn flatten_call_frames(frame: CallFrame) -> Vec<RpcTraceData> {
+fn flatten_call_frames(frame: CallFrame, chain: Chain) -> Vec<RpcTraceData> {
     let mut traces = Vec::new();
 
-    // Add the current frame
-    traces.push(RpcTraceData {
+    let common_data = CommonRpcTraceData {
         from: frame.from,
         gas: frame.gas,
         gas_used: frame.gas_used,
@@ -59,11 +62,19 @@ fn flatten_call_frames(frame: CallFrame) -> Vec<RpcTraceData> {
         logs: frame.logs,
         value: frame.value,
         typ: frame.typ,
-    });
+    };
+
+    let trace_data = match chain {
+        Chain::Ethereum => RpcTraceData::Ethereum(EthereumRpcTraceData { common: common_data }),
+        Chain::ZKsync => RpcTraceData::ZKsync(ZKsyncRpcTraceData { common: common_data }),
+    };
+
+    // Add the current frame
+    traces.push(trace_data);
 
     // Recursively process nested calls
     for nested_call in frame.calls {
-        traces.extend(flatten_call_frames(nested_call));
+        traces.extend(flatten_call_frames(nested_call, chain));
     }
 
     traces
