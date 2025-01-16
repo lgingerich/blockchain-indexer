@@ -29,27 +29,34 @@ use crate::models::datasets::blocks::TransformedBlockData;
 use crate::models::datasets::logs::TransformedLogData;
 use crate::models::datasets::traces::TransformedTraceData;
 use crate::models::datasets::transactions::TransformedTransactionData;
-use crate::utils::load_config;
+use crate::utils::{hex_to_u64, load_config};
 
 // NEXT STEPS:
-// - TO FIX (zksync block 28679967-28679976): HTTP Client error: HTTP status client error (413 Payload Too Large) for url (https://bigquery.googleapis.com/bigquery/v2/projects/elastic-chain-indexing/datasets/zksync/tables/traces/insertAll)
-// - Add better error handling on rpc calls?
-//      - Fix Tenderly RPC
-// - Add buffer to stay away from chain tip
+
 // - Add monitoring
 // - Add data quality checks (schema compliance, missing block detection, duplication detection, etc.)
 // - Unit tests
-// - Tests for each tx type for each chain
+//      - Tests for each tx type for each chain
 // - Rate limiting?
 // - Docker containerization
 // - CI/CD
 // - Kubernetes/Helm deployment for production
+// - Fix Tenderly RPC
 
 // NOTES:
 // - Not sure I should implement RPC rotation. Seems like lots of failure modes.
 // - Some fields which are optional are being forced to be defined as mandatory because BQ throws errors on handling none/empty fields
 
+
+
+
+
 const MAX_BATCH_SIZE: usize = 10; // Number of blocks to fetch before inserting into BigQuery
+
+// Number of blocks to stay away from chain tip. The indexer does not handle reorgs. 
+// Not all fields are immediately available for L2s.
+// Assume they are available 12 hours after the block is created.
+const CHAIN_TIP_BUFFER: usize = 60 * 60 * 12; 
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -120,7 +127,7 @@ async fn main() -> Result<()> {
     // DynamicFee (2): 12965001
     // EIP-4844 (3): 19426589
 
-    let mut block_number = 19426589;
+    let mut block_number = 53847677;
     info!("Starting block number: {:?}", block_number);
 
     // Create RPC provider
@@ -150,10 +157,24 @@ async fn main() -> Result<()> {
         let mut receipts = None;
         let mut traces = None;
 
-        // // Get latest block number
-        // let latest_block: BlockNumberOrTag = indexer::get_latest_block_number(&provider).await?;
+        // Get latest block number
+        // Note: Since the indexer is not real-time, this never gets used other than to check if we're too close to the tip
+        let latest_block: BlockNumberOrTag = indexer::get_latest_block_number(&provider).await?;
 
         info!("Block number to process: {:?}", block_number_to_process);
+
+        // If indexer gets too close to tip, back off and retry
+        // Real-time processing is not implemented
+        if block_number_to_process.as_number().unwrap() as usize > ((latest_block.as_number().unwrap() as usize) - CHAIN_TIP_BUFFER) {
+            info!(
+                "Buffer limit reached. Waiting for current block to be {} blocks behind tip: {:?} — current distance: {:?} - sleeping for 1s",
+                CHAIN_TIP_BUFFER,
+                hex_to_u64(latest_block.to_string()).unwrap(),
+                (hex_to_u64(latest_block.to_string()).unwrap() - hex_to_u64(block_number_to_process.to_string()).unwrap())
+            );
+            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            continue;
+        }
 
         // Get block by number
         // Only fetch block data if `blocks` or `transactions` are in the active datasets
@@ -176,7 +197,6 @@ async fn main() -> Result<()> {
                     .ok_or_else(|| anyhow!("Provider returned no receipts"))?,
             );
         }
-        // println!("Receipts: {:?}", receipts);
 
         // Create tracing options with CallTracer and nested calls
         // Only fetch traces data if `traces` is in the active datasets
@@ -203,15 +223,9 @@ async fn main() -> Result<()> {
 
         // Extract and separate the raw RPC response into distinct datasets (block headers, transactions, receipts, logs, traces)
         let parsed_data = indexer::parse_data(chain, chain_id, block, receipts, traces).await?;
-        // println!("Parsed data: {:?}", parsed_data);
-        // println!();
 
         // Transform all data into final output formats (blocks, transactions, logs, traces)
         let transformed_data = indexer::transform_data(chain, parsed_data, &datasets).await?;
-        // println!("Transactions: {:?}", transformed_data.transactions);
-        // println!();
-        // let json = serde_json::to_string_pretty(&transformed_data.transactions)?;
-        // println!("JSON: {}", json);
 
         blocks_collection.extend(transformed_data.blocks);
         transactions_collection.extend(transformed_data.transactions);
@@ -226,9 +240,6 @@ async fn main() -> Result<()> {
                 storage::bigquery::insert_data_with_retry(dataset_id, "blocks", blocks_collection)
                     .await?;
             }
-            // Add this before your insert
-            // println!("Debug JSON being sent to BigQuery:");
-            // println!("{}", serde_json::to_string_pretty(&transactions_collection).unwrap());
             if datasets.contains(&"transactions".to_string()) {
                 storage::bigquery::insert_data_with_retry(
                     dataset_id,
