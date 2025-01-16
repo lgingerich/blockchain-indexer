@@ -5,31 +5,51 @@
 
 use anyhow::Result;
 
-use crate::models::common::ParsedData;
-use crate::models::datasets::traces::TransformedTraceData;
+use crate::models::common::{Chain, ParsedData};
+use crate::models::datasets::traces::{
+    CommonTransformedTraceData, EthereumTransformedTraceData, RpcTraceData, TransformedTraceData,
+    ZKsyncTransformedTraceData,
+};
 
 pub trait TraceTransformer {
-    fn transform_traces(self) -> Result<Vec<TransformedTraceData>>;
+    fn transform_traces(self, chain: Chain) -> Result<Vec<TransformedTraceData>>;
 }
 
 impl TraceTransformer for ParsedData {
-    fn transform_traces(self) -> Result<Vec<TransformedTraceData>> {
+    fn transform_traces(self, chain: Chain) -> Result<Vec<TransformedTraceData>> {
         Ok(self
             .traces
             .into_iter()
-            .map(|trace| TransformedTraceData {
-                chain_id: self.chain_id,
-                from: trace.from,
-                gas: trace.gas,
-                gas_used: trace.gas_used,
-                to: trace.to,
-                input: trace.input,
-                output: trace.output,
-                error: trace.error,
-                revert_reason: trace.revert_reason,
-                logs: trace.logs,
-                value: trace.value,
-                typ: trace.typ,
+            .map(|trace| {
+                // First match on the log to get the common data
+                let common_data = match &trace {
+                    RpcTraceData::Ethereum(t) => &t.common,
+                    RpcTraceData::ZKsync(t) => &t.common,
+                };
+
+                let common = CommonTransformedTraceData {
+                    chain_id: self.chain_id,
+                    from: common_data.from,
+                    gas: common_data.gas,
+                    gas_used: common_data.gas_used,
+                    to: common_data.to,
+                    input: common_data.input.clone(),
+                    output: common_data.output.clone(),
+                    error: common_data.error.clone(),
+                    revert_reason: common_data.revert_reason.clone(),
+                    logs: common_data.logs.clone(),
+                    value: common_data.value,
+                    typ: common_data.typ.clone(),
+                };
+
+                match chain {
+                    Chain::Ethereum => {
+                        TransformedTraceData::Ethereum(EthereumTransformedTraceData { common })
+                    }
+                    Chain::ZKsync => {
+                        TransformedTraceData::ZKsync(ZKsyncTransformedTraceData { common })
+                    }
+                }
             })
             .collect())
     }

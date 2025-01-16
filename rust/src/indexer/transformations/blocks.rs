@@ -5,47 +5,76 @@
 
 use anyhow::{anyhow, Result};
 
-use crate::models::common::ParsedData;
-use crate::models::datasets::blocks::TransformedBlockData;
+use crate::models::common::{Chain, ParsedData};
+use crate::models::datasets::blocks::{
+    CommonTransformedBlockData, EthereumTransformedBlockData, RpcHeaderData, TransformedBlockData,
+    ZKsyncTransformedBlockData,
+};
 
 pub trait BlockTransformer {
-    fn transform_blocks(self) -> Result<Vec<TransformedBlockData>>;
+    fn transform_blocks(self, chain: Chain) -> Result<Vec<TransformedBlockData>>;
 }
 
 // TODO: Confirm I want all these fields
 impl BlockTransformer for ParsedData {
-    fn transform_blocks(self) -> Result<Vec<TransformedBlockData>> {
+    fn transform_blocks(self, chain: Chain) -> Result<Vec<TransformedBlockData>> {
         Ok(self
             .header
             .into_iter()
-            .map(|header| TransformedBlockData {
-                chain_id: self.chain_id,
-                hash: header.hash,
-                parent_hash: header.parent_hash,
-                ommers_hash: header.ommers_hash,
-                beneficiary: header.beneficiary,
-                state_root: header.state_root,
-                transactions_root: header.transactions_root,
-                receipts_root: header.receipts_root,
-                logs_bloom: header.logs_bloom,
-                difficulty: header.difficulty,
-                block_number: header.block_number,
-                gas_limit: header.gas_limit,
-                gas_used: header.gas_used,
-                block_time: header.block_time,
-                block_date: header.block_date,
-                extra_data: header.extra_data,
-                mix_hash: header.mix_hash,
-                nonce: header.nonce,
-                base_fee_per_gas: header.base_fee_per_gas,
-                withdrawals_root: header.withdrawals_root,
-                blob_gas_used: header.blob_gas_used,
-                excess_blob_gas: header.excess_blob_gas,
-                parent_beacon_block_root: header.parent_beacon_block_root,
-                requests_hash: header.requests_hash,
-                target_blobs_per_block: header.target_blobs_per_block,
-                total_difficulty: header.total_difficulty,
-                size: header.size,
+            .map(|header| {
+                // First match on the header to get the common data
+                let common_data = match &header {
+                    RpcHeaderData::Ethereum(h) => &h.common,
+                    RpcHeaderData::ZKsync(h) => &h.common,
+                };
+
+                let common = CommonTransformedBlockData {
+                    chain_id: self.chain_id,
+                    hash: common_data.hash,
+                    parent_hash: common_data.parent_hash,
+                    ommers_hash: common_data.ommers_hash,
+                    beneficiary: common_data.beneficiary,
+                    state_root: common_data.state_root,
+                    transactions_root: common_data.transactions_root,
+                    receipts_root: common_data.receipts_root,
+                    logs_bloom: common_data.logs_bloom,
+                    difficulty: common_data.difficulty,
+                    block_number: common_data.block_number,
+                    gas_limit: common_data.gas_limit,
+                    gas_used: common_data.gas_used,
+                    block_time: common_data.block_time,
+                    block_date: common_data.block_date,
+                    extra_data: common_data.extra_data.clone(),
+                    mix_hash: common_data.mix_hash,
+                    nonce: common_data.nonce,
+                    base_fee_per_gas: common_data.base_fee_per_gas,
+                    withdrawals_root: common_data.withdrawals_root,
+                    blob_gas_used: common_data.blob_gas_used,
+                    excess_blob_gas: common_data.excess_blob_gas,
+                    parent_beacon_block_root: common_data.parent_beacon_block_root,
+                    requests_hash: common_data.requests_hash,
+                    total_difficulty: common_data.total_difficulty,
+                    size: common_data.size,
+                };
+
+                match chain {
+                    Chain::Ethereum => {
+                        TransformedBlockData::Ethereum(EthereumTransformedBlockData { common })
+                    }
+                    Chain::ZKsync => {
+                        let zksync_data = match header {
+                            RpcHeaderData::ZKsync(h) => h,
+                            _ => panic!("Expected ZKsync header for ZKsync chain"),
+                        };
+
+                        TransformedBlockData::ZKsync(ZKsyncTransformedBlockData {
+                            common,
+                            target_blobs_per_block: zksync_data.target_blobs_per_block,
+                            l1_batch_number: zksync_data.l1_batch_number,
+                            l1_batch_timestamp: zksync_data.l1_batch_timestamp,
+                        })
+                    }
+                }
             })
             .collect())
     }

@@ -7,6 +7,10 @@ use tracing::info;
 
 use crate::models::common::Config;
 
+pub fn hex_to_u64(hex: String) -> Option<u64> {
+    u64::from_str_radix(hex.trim_start_matches("0x"), 16).ok()
+}
+
 pub fn load_config<P: AsRef<Path>>(file_name: P) -> Result<Config> {
     // Build the path to the config file
     let manifest_dir = env!("CARGO_MANIFEST_DIR").to_string();
@@ -23,7 +27,6 @@ pub fn load_config<P: AsRef<Path>>(file_name: P) -> Result<Config> {
     // Convert hyphens to underscores in all relevant fields
     config.project_name = config.project_name.replace('-', "_");
     config.chain_name = config.chain_name.replace('-', "_");
-    config.chain_schema = config.chain_schema.replace('-', "_");
 
     Ok(config)
 }

@@ -2,6 +2,8 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
 #![allow(dead_code)]
+#![allow(unused_mut)]
+#![allow(unused_assignments)]
 
 mod indexer;
 mod models;
@@ -9,7 +11,7 @@ mod storage;
 mod utils;
 
 use alloy_eips::{BlockId, BlockNumberOrTag};
-use alloy_network::primitives::BlockTransactionsKind;
+use alloy_network::{primitives::BlockTransactionsKind, AnyNetwork};
 use alloy_provider::ProviderBuilder;
 use alloy_rpc_types_eth::{Block, TransactionReceipt};
 use alloy_rpc_types_trace::geth::{
@@ -22,6 +24,7 @@ use tracing::{error, info, warn};
 use tracing_subscriber::{self, EnvFilter};
 use url::Url;
 
+use crate::models::common::Chain;
 use crate::models::datasets::blocks::TransformedBlockData;
 use crate::models::datasets::logs::TransformedLogData;
 use crate::models::datasets::traces::TransformedTraceData;
@@ -29,13 +32,14 @@ use crate::models::datasets::transactions::TransformedTransactionData;
 use crate::utils::load_config;
 
 // NEXT STEPS:
-// - Add support for ZKsync
+// - TO FIX (zksync block 28679967-28679976): HTTP Client error: HTTP status client error (413 Payload Too Large) for url (https://bigquery.googleapis.com/bigquery/v2/projects/elastic-chain-indexing/datasets/zksync/tables/traces/insertAll)
 // - Add better error handling on rpc calls?
 //      - Fix Tenderly RPC
 // - Add buffer to stay away from chain tip
 // - Add monitoring
 // - Add data quality checks (schema compliance, missing block detection, duplication detection, etc.)
 // - Unit tests
+// - Tests for each tx type for each chain
 // - Rate limiting?
 // - Docker containerization
 // - CI/CD
@@ -43,7 +47,7 @@ use crate::utils::load_config;
 
 // NOTES:
 // - Not sure I should implement RPC rotation. Seems like lots of failure modes.
-
+// - Some fields which are optional are being forced to be defined as mandatory because BQ throws errors on handling none/empty fields
 
 const MAX_BATCH_SIZE: usize = 10; // Number of blocks to fetch before inserting into BigQuery
 
@@ -73,6 +77,9 @@ async fn main() -> Result<()> {
     let rpc = config.rpc_url.as_str();
     let dataset_id = config.project_name.as_str();
     let datasets = config.datasets;
+    let chain_id = config.chain_id;
+
+    let chain = Chain::from_chain_id(chain_id);
 
     // Track which RPC responses we need
     let need_block =
@@ -85,27 +92,43 @@ async fn main() -> Result<()> {
     let result_dataset = storage::bigquery::create_dataset_with_retry(dataset_id).await;
     for table in ["blocks", "logs", "transactions", "traces"] {
         if datasets.contains(&table.to_string()) {
-            let result_table = storage::bigquery::create_table_with_retry(dataset_id, table).await;
+            let result_table =
+                storage::bigquery::create_table_with_retry(dataset_id, table, chain).await;
         }
     }
 
     // Get last processed block number from storage
     // If it exists, start from the next block, else start from 0
-    let last_processed_block =
-        storage::bigquery::get_last_processed_block(dataset_id, &datasets).await?;
-    let mut block_number = if last_processed_block > 0 {
-        last_processed_block + 1
-    } else {
-        0
-    };
+    // let last_processed_block =
+    //     storage::bigquery::get_last_processed_block(dataset_id, &datasets).await?;
+    // let mut block_number = if last_processed_block > 0 {
+    //     last_processed_block + 1
+    // } else {
+    //     0
+    // };
 
+    // ZKSYNC
+    // Legacy (0): 	1451, 1535
+    // DynamicFee (2): 4239, 9239
+    // EIP-712 (113):	9073, 9416
+    // Priority (255):	2030, 8958
+    // 254: 			28679967, 35876713
+
+    // Ethereum
+    // Legacy (0): 46147
+    // EIP-2930 (1): 12244145
+    // DynamicFee (2): 12965001
+    // EIP-4844 (3): 19426589
+
+    let mut block_number = 19426589;
     info!("Starting block number: {:?}", block_number);
 
     // Create RPC provider
     let rpc_url: Url = rpc.parse()?;
     info!("RPC URL: {:?}", rpc);
-    let provider = ProviderBuilder::new().on_http(rpc_url);
-    // let provider = ProviderBuilder::new().network::<AnyNetwork>().on_http(rpc_url);
+    let provider = ProviderBuilder::new()
+        .network::<AnyNetwork>()
+        .on_http(rpc_url);
 
     // Get chain ID
     let chain_id = indexer::get_chain_id(&provider).await?;
@@ -137,16 +160,12 @@ async fn main() -> Result<()> {
         if need_block {
             let kind = BlockTransactionsKind::Full; // Hashes: only include tx hashes, Full: include full tx objects
             block = Some(
-                indexer::get_block_by_number(
-                    &provider,
-                    block_number_to_process,
-                    kind,
-                )
-                .await?
-                .ok_or_else(|| anyhow!("Provider returned no block"))?,
+                indexer::get_block_by_number(&provider, block_number_to_process, kind)
+                    .await?
+                    .ok_or_else(|| anyhow!("Provider returned no block"))?,
             );
         }
-        println!("Block: {:?}", block);
+
         // Get receipts by block number
         // Only fetch receipts data if `logs` or `transactions` are in the active datasets
         if need_receipts {
@@ -157,6 +176,7 @@ async fn main() -> Result<()> {
                     .ok_or_else(|| anyhow!("Provider returned no receipts"))?,
             );
         }
+        // println!("Receipts: {:?}", receipts);
 
         // Create tracing options with CallTracer and nested calls
         // Only fetch traces data if `traces` is in the active datasets
@@ -181,15 +201,20 @@ async fn main() -> Result<()> {
             );
         }
 
-        // Extract and separate the raw RPC response into distinct datasets (block headers, transactions, withdrawals, receipts, logs, traces)
-        let parsed_data = indexer::parse_data(chain_id, block, receipts, traces).await?;
+        // Extract and separate the raw RPC response into distinct datasets (block headers, transactions, receipts, logs, traces)
+        let parsed_data = indexer::parse_data(chain, chain_id, block, receipts, traces).await?;
         // println!("Parsed data: {:?}", parsed_data);
+        // println!();
+
         // Transform all data into final output formats (blocks, transactions, logs, traces)
-        let transformed_data = indexer::transform_data(parsed_data, &datasets).await?;
+        let transformed_data = indexer::transform_data(chain, parsed_data, &datasets).await?;
+        // println!("Transactions: {:?}", transformed_data.transactions);
+        // println!();
+        // let json = serde_json::to_string_pretty(&transformed_data.transactions)?;
+        // println!("JSON: {}", json);
 
         blocks_collection.extend(transformed_data.blocks);
         transactions_collection.extend(transformed_data.transactions);
-
         logs_collection.extend(transformed_data.logs); // TODO: block_timestamp is None for some (or all) logs
         traces_collection.extend(transformed_data.traces);
 
@@ -201,6 +226,9 @@ async fn main() -> Result<()> {
                 storage::bigquery::insert_data_with_retry(dataset_id, "blocks", blocks_collection)
                     .await?;
             }
+            // Add this before your insert
+            // println!("Debug JSON being sent to BigQuery:");
+            // println!("{}", serde_json::to_string_pretty(&transactions_collection).unwrap());
             if datasets.contains(&"transactions".to_string()) {
                 storage::bigquery::insert_data_with_retry(
                     dataset_id,
@@ -228,6 +256,7 @@ async fn main() -> Result<()> {
         // Increment the raw number and update BlockNumberOrTag
         block_number += 1;
         block_number_to_process = BlockNumberOrTag::Number(block_number);
+        // tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
     }
 
     // Ok(())

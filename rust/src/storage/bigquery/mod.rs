@@ -20,11 +20,11 @@ use crate::storage::bigquery::schema::{
     block_schema, log_schema, trace_schema, transaction_schema,
 };
 
+use crate::models::common::Chain;
 use crate::models::datasets::blocks::TransformedBlockData;
 use crate::models::datasets::logs::TransformedLogData;
 use crate::models::datasets::traces::TransformedTraceData;
 use crate::models::datasets::transactions::TransformedTransactionData;
-// use crate::utils::exponential_backoff;
 use crate::utils::retry::{retry, RetryConfig};
 
 use std::sync::Arc;
@@ -147,14 +147,14 @@ pub async fn create_dataset_with_retry(dataset_id: &str) -> Result<()> {
     .await
 }
 
-async fn create_table(dataset_id: &str, table_id: &str) -> Result<()> {
+async fn create_table(dataset_id: &str, table_id: &str, chain: Chain) -> Result<()> {
     let (client, project_id) = &*get_client().await?;
     let table_client = client.table(); // Create BigqueryTableClient
     let schema = match table_id {
-        "blocks" => block_schema(),
-        "logs" => log_schema(),
-        "transactions" => transaction_schema(),
-        "traces" => trace_schema(),
+        "blocks" => block_schema(chain),
+        "logs" => log_schema(chain),
+        "transactions" => transaction_schema(chain),
+        "traces" => trace_schema(chain),
         _ => return Err(anyhow!("Invalid table ID: {}", table_id)),
     };
 
@@ -203,7 +203,7 @@ async fn create_table(dataset_id: &str, table_id: &str) -> Result<()> {
     }
 }
 
-pub async fn create_table_with_retry(dataset_id: &str, table_id: &str) -> Result<()> {
+pub async fn create_table_with_retry(dataset_id: &str, table_id: &str, chain: Chain) -> Result<()> {
     let (client, project_id) = &*get_client().await?;
     let retry_config = RetryConfig::default();
 
@@ -219,7 +219,7 @@ pub async fn create_table_with_retry(dataset_id: &str, table_id: &str) -> Result
             }
 
             // Create and verify table
-            create_table(dataset_id, table_id).await?;
+            create_table(dataset_id, table_id, chain).await?;
             if verify_table(client, project_id, dataset_id, table_id).await? {
                 info!("Table '{}.{}' created and verified", dataset_id, table_id);
                 Ok(())
