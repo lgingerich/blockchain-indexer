@@ -19,6 +19,18 @@ Features include:
 - Terraform (for cloud deployment)
 
 
+## TO DO
+
+### Features
+- [ ] Add support for more chains (e.g. Optimism, Arbitrum)
+- [ ] Add support for more storage options (e.g. S3, Postgres)
+- [ ] Add reorg handling
+
+### Performance Improvements
+- [ ] Make data storage inserts non-blocking
+- [ ] Add batched RPC calls
+
+
 ## Indexer Configuration
 
 The indexer is configured through a single `config.yml` file. To get started:
