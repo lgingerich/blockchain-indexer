@@ -7,7 +7,7 @@
 
 mod indexer;
 mod models;
-mod observability;
+mod metrics;
 mod storage;
 mod utils;
 
@@ -33,7 +33,7 @@ use crate::models::datasets::logs::TransformedLogData;
 use crate::models::datasets::traces::TransformedTraceData;
 use crate::models::datasets::transactions::TransformedTransactionData;
 use crate::utils::{hex_to_u64, load_config};
-use crate::observability::metrics::Metrics;
+use crate::metrics::Metrics;
 
 // NEXT STEPS:
 
@@ -86,15 +86,12 @@ async fn main() -> Result<()> {
     let rpc = config.rpc_url.as_str();
     let datasets = config.datasets;
     
-    
-    
-
     let chain = Chain::from_chain_id(chain_id);
 
     // Initialize metrics
     let metrics = Metrics::new()?;
     // Start metrics server
-    metrics.start_metrics_server("127.0.0.1", 9090).await;
+    metrics.start_metrics_server("127.0.0.1", 9100).await; // Prometheus port is currently hardcoded to 9100 in prometheus.yml
 
     // Track which RPC responses we need
     let need_block =

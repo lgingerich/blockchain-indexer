@@ -25,7 +25,7 @@ use crate::indexer::transformations::{
     transactions::TransactionTransformer,
 };
 use crate::models::common::{Chain, ParsedData, TransformedData};
-use crate::observability::metrics::Metrics;
+use crate::metrics::Metrics;
 use crate::utils::retry::{retry, RetryConfig};
 use opentelemetry::KeyValue;
 
