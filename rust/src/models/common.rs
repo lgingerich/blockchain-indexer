@@ -18,9 +18,11 @@ pub struct Config {
     pub rpc_url: String,
     pub datasets: Vec<String>,
     pub chain_id: u64,
+    pub chain_tip_buffer: u64,
 }
 
-#[derive(Debug, Clone, Copy)]
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Chain {
     Ethereum,
     ZKsync,

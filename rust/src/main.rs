@@ -25,7 +25,7 @@ use tracing_subscriber::{self, EnvFilter};
 use url::Url;
 
 use crate::models::common::Chain;
-use crate::models::datasets::blocks::TransformedBlockData;
+use crate::models::datasets::blocks::{RpcHeaderData, TransformedBlockData};
 use crate::models::datasets::logs::TransformedLogData;
 use crate::models::datasets::traces::TransformedTraceData;
 use crate::models::datasets::transactions::TransformedTransactionData;
@@ -48,15 +48,7 @@ use crate::utils::{hex_to_u64, load_config};
 // - Some fields which are optional are being forced to be defined as mandatory because BQ throws errors on handling none/empty fields
 
 
-
-
-
 const MAX_BATCH_SIZE: usize = 10; // Number of blocks to fetch before inserting into BigQuery
-
-// Number of blocks to stay away from chain tip. The indexer does not handle reorgs. 
-// Not all fields are immediately available for L2s.
-// Assume they are available 12 hours after the block is created.
-const CHAIN_TIP_BUFFER: usize = 60 * 60 * 12; 
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -85,6 +77,7 @@ async fn main() -> Result<()> {
     let dataset_id = config.project_name.as_str();
     let datasets = config.datasets;
     let chain_id = config.chain_id;
+    let chain_tip_buffer = config.chain_tip_buffer;
 
     let chain = Chain::from_chain_id(chain_id);
 
@@ -102,17 +95,17 @@ async fn main() -> Result<()> {
             let result_table =
                 storage::bigquery::create_table_with_retry(dataset_id, table, chain).await;
         }
-    }
+    };
 
     // Get last processed block number from storage
     // If it exists, start from the next block, else start from 0
-    // let last_processed_block =
-    //     storage::bigquery::get_last_processed_block(dataset_id, &datasets).await?;
-    // let mut block_number = if last_processed_block > 0 {
-    //     last_processed_block + 1
-    // } else {
-    //     0
-    // };
+    let last_processed_block =
+        storage::bigquery::get_last_processed_block(dataset_id, &datasets).await?;
+    let mut block_number = if last_processed_block > 0 {
+        last_processed_block + 1
+    } else {
+        0
+    };
 
     // ZKSYNC
     // Legacy (0): 	1451, 1535
@@ -127,7 +120,7 @@ async fn main() -> Result<()> {
     // DynamicFee (2): 12965001
     // EIP-4844 (3): 19426589
 
-    let mut block_number = 53847677;
+    let mut block_number = 53900157;
     info!("Starting block number: {:?}", block_number);
 
     // Create RPC provider
@@ -150,7 +143,6 @@ async fn main() -> Result<()> {
 
     println!();
     info!("========================= STARTING INDEXER =========================");
-    // while block_number <= 15_000_000 {
     loop {
         // Initialize intermediate data
         let mut block = None;
@@ -164,11 +156,11 @@ async fn main() -> Result<()> {
         info!("Block number to process: {:?}", block_number_to_process);
 
         // If indexer gets too close to tip, back off and retry
-        // Real-time processing is not implemented
-        if block_number_to_process.as_number().unwrap() as usize > ((latest_block.as_number().unwrap() as usize) - CHAIN_TIP_BUFFER) {
+        // Note: Real-time processing is not implemented
+        if block_number_to_process.as_number().unwrap() > (latest_block.as_number().unwrap() - chain_tip_buffer) {
             info!(
                 "Buffer limit reached. Waiting for current block to be {} blocks behind tip: {:?} — current distance: {:?} - sleeping for 1s",
-                CHAIN_TIP_BUFFER,
+                chain_tip_buffer,
                 hex_to_u64(latest_block.to_string()).unwrap(),
                 (hex_to_u64(latest_block.to_string()).unwrap() - hex_to_u64(block_number_to_process.to_string()).unwrap())
             );
@@ -223,6 +215,22 @@ async fn main() -> Result<()> {
 
         // Extract and separate the raw RPC response into distinct datasets (block headers, transactions, receipts, logs, traces)
         let parsed_data = indexer::parse_data(chain, chain_id, block, receipts, traces).await?;
+        
+        // For ZKSync, wait until L1 batch number is available
+        // This is possibly necessary for other L2s as well
+        // Note: For future real-time support, this will need to be improved
+        if chain == Chain::ZKsync {
+            if let Some(RpcHeaderData::ZKsync(zk_header)) = parsed_data.header.first() {
+                if zk_header.l1_batch_number.is_none() {
+                    info!(
+                        "L1 batch number not yet available for block {}. Waiting...",
+                        block_number
+                    );
+                    tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+                    continue;
+                }
+            }
+        }
 
         // Transform all data into final output formats (blocks, transactions, logs, traces)
         let transformed_data = indexer::transform_data(chain, parsed_data, &datasets).await?;
@@ -269,6 +277,4 @@ async fn main() -> Result<()> {
         block_number_to_process = BlockNumberOrTag::Number(block_number);
         // tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
     }
-
-    // Ok(())
 }
