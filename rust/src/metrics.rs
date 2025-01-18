@@ -104,14 +104,25 @@ impl Metrics {
         })
     }
 
-    pub async fn start_metrics_server(&self, addr: &str, port: u16) {  // Take &self instead of self
+    pub async fn start_metrics_server(&self, addr: &str, port: u16) {
         let addr = format!("{}:{}", addr, port).parse::<SocketAddr>().unwrap();
         let registry = self.registry.clone();
         
         let app = Router::new()
             .route("/metrics", get(move || metrics_handler(registry.clone())));
 
-        info!("Starting metrics server on https://{}/metrics", addr);
+        // Determine the access URL based on the binding address. Only used for logging.
+
+        let access_url = if addr.ip().to_string() == "0.0.0.0" {
+            format!("http://localhost:{}/metrics", port)
+        } else {
+            format!("http://{}:{}/metrics", addr.ip(), port)
+        };
+
+        info!("Starting metrics server - binding to {} (accessible at {})", 
+            addr, 
+            access_url
+        );
 
         let listener = tokio::net::TcpListener::bind(addr)
             .await

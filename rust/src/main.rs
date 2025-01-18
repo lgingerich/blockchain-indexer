@@ -91,7 +91,7 @@ async fn main() -> Result<()> {
     // Initialize metrics
     let metrics = Metrics::new()?;
     // Start metrics server
-    metrics.start_metrics_server("127.0.0.1", 9100).await; // Prometheus port is currently hardcoded to 9100 in prometheus.yml
+    metrics.start_metrics_server("0.0.0.0", 9100).await; // Prometheus port is currently hardcoded to 9100 in prometheus.yml
 
     // Track which RPC responses we need
     let need_block =
