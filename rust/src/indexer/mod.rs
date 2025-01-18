@@ -24,8 +24,8 @@ use crate::indexer::transformations::{
     blocks::BlockTransformer, logs::LogTransformer, traces::TraceTransformer,
     transactions::TransactionTransformer,
 };
-use crate::models::common::{Chain, ParsedData, TransformedData};
 use crate::metrics::Metrics;
+use crate::models::common::{Chain, ParsedData, TransformedData};
 use crate::utils::retry::{retry, RetryConfig};
 use opentelemetry::KeyValue;
 
@@ -39,16 +39,24 @@ where
     retry(
         || async {
             let start = std::time::Instant::now();
-            metrics.rpc_requests.add(1, &[KeyValue::new("chain", metrics.chain_name.clone()), KeyValue::new("method", "get_chain_id")]);
-            
+            metrics.rpc_requests.add(
+                1,
+                &[
+                    KeyValue::new("chain", metrics.chain_name.clone()),
+                    KeyValue::new("method", "get_chain_id"),
+                ],
+            );
+
             let result = provider.get_chain_id().await;
-            
+
             // Record metrics
-            metrics.rpc_latency.record(start.elapsed().as_secs_f64(), &[]);
+            metrics
+                .rpc_latency
+                .record(start.elapsed().as_secs_f64(), &[]);
             if result.is_err() {
                 metrics.rpc_errors.add(1, &[]);
             }
-            
+
             result.map_err(|e| anyhow!("RPC error: {}", e))
         },
         &retry_config,
@@ -69,17 +77,27 @@ where
     retry(
         || async {
             let start = std::time::Instant::now();
-            metrics.rpc_requests.add(1, &[KeyValue::new("chain", metrics.chain_name.clone()), KeyValue::new("method", "get_latest_block_number")]);
-            
+            metrics.rpc_requests.add(
+                1,
+                &[
+                    KeyValue::new("chain", metrics.chain_name.clone()),
+                    KeyValue::new("method", "get_latest_block_number"),
+                ],
+            );
+
             let result = provider.get_block_number().await;
-            
+
             // Record metrics
-            metrics.rpc_latency.record(start.elapsed().as_secs_f64(), &[]);
+            metrics
+                .rpc_latency
+                .record(start.elapsed().as_secs_f64(), &[]);
             if result.is_err() {
                 metrics.rpc_errors.add(1, &[]);
             }
-            
-            result.map_err(|e| anyhow!("RPC error: {}", e)).map(BlockNumberOrTag::Number)
+
+            result
+                .map_err(|e| anyhow!("RPC error: {}", e))
+                .map(BlockNumberOrTag::Number)
         },
         &retry_config,
         "get_latest_block_number",
@@ -101,16 +119,24 @@ where
     retry(
         || async {
             let start = std::time::Instant::now();
-            metrics.rpc_requests.add(1, &[KeyValue::new("chain", metrics.chain_name.clone()), KeyValue::new("method", "get_block_by_number")]);
-            
+            metrics.rpc_requests.add(
+                1,
+                &[
+                    KeyValue::new("chain", metrics.chain_name.clone()),
+                    KeyValue::new("method", "get_block_by_number"),
+                ],
+            );
+
             let result = provider.get_block_by_number(block_number, kind).await;
-            
+
             // Record metrics
-            metrics.rpc_latency.record(start.elapsed().as_secs_f64(), &[]);
+            metrics
+                .rpc_latency
+                .record(start.elapsed().as_secs_f64(), &[]);
             if result.is_err() {
                 metrics.rpc_errors.add(1, &[]);
             }
-            
+
             result.map_err(|e| anyhow!("RPC error: {}", e))
         },
         &retry_config,
@@ -132,16 +158,24 @@ where
     retry(
         || async {
             let start = std::time::Instant::now();
-            metrics.rpc_requests.add(1, &[KeyValue::new("chain", metrics.chain_name.clone()), KeyValue::new("method", "get_block_receipts")]);
-            
+            metrics.rpc_requests.add(
+                1,
+                &[
+                    KeyValue::new("chain", metrics.chain_name.clone()),
+                    KeyValue::new("method", "get_block_receipts"),
+                ],
+            );
+
             let result = provider.get_block_receipts(block).await;
-            
+
             // Record metrics
-            metrics.rpc_latency.record(start.elapsed().as_secs_f64(), &[]);
+            metrics
+                .rpc_latency
+                .record(start.elapsed().as_secs_f64(), &[]);
             if result.is_err() {
                 metrics.rpc_errors.add(1, &[]);
             }
-            
+
             result.map_err(|e| anyhow!("RPC error: {}", e))
         },
         &retry_config,
@@ -164,16 +198,26 @@ where
     retry(
         || async {
             let start = std::time::Instant::now();
-            metrics.rpc_requests.add(1, &[KeyValue::new("chain", metrics.chain_name.clone()), KeyValue::new("method", "debug_trace_block_by_number")]);
-            
-            let result = provider.debug_trace_block_by_number(block_number, trace_options.clone()).await;
-            
+            metrics.rpc_requests.add(
+                1,
+                &[
+                    KeyValue::new("chain", metrics.chain_name.clone()),
+                    KeyValue::new("method", "debug_trace_block_by_number"),
+                ],
+            );
+
+            let result = provider
+                .debug_trace_block_by_number(block_number, trace_options.clone())
+                .await;
+
             // Record metrics
-            metrics.rpc_latency.record(start.elapsed().as_secs_f64(), &[]);
+            metrics
+                .rpc_latency
+                .record(start.elapsed().as_secs_f64(), &[]);
             if result.is_err() {
                 metrics.rpc_errors.add(1, &[]);
             }
-            
+
             result.map_err(|e| anyhow!("RPC error: {}", e))
         },
         &retry_config,

@@ -1,15 +1,15 @@
+use std::sync::Arc;
 use std::time::Duration;
 use tracing::info;
-use std::sync::Arc;
 
-use std::net::SocketAddr;
-use axum::{Router, routing::get};
+use axum::{routing::get, Router};
 use opentelemetry::{
-    metrics::{MeterProvider, Counter, Histogram, Gauge, ObservableCounter},
-    KeyValue
+    metrics::{Counter, Gauge, Histogram, MeterProvider, ObservableCounter},
+    KeyValue,
 };
 use opentelemetry_sdk::metrics::{MetricError, SdkMeterProvider};
 use prometheus::{Encoder, TextEncoder};
+use std::net::SocketAddr;
 
 pub struct Metrics {
     registry: Arc<prometheus::Registry>,
@@ -32,19 +32,16 @@ pub struct Metrics {
     pub rpc_latency: Histogram<f64>,
 }
 
-
-
-
 impl Metrics {
     pub fn new(chain_name: String) -> Result<Self, MetricError> {
         // Create a new prometheus registry
         let registry = prometheus::Registry::new();
-        
+
         // Configure OpenTelemetry to use this registry
         let exporter = opentelemetry_prometheus::exporter()
             .with_registry(registry.clone())
             .build()?;
-        
+
         // Set up a meter to create instruments
         let provider = SdkMeterProvider::builder().with_reader(exporter).build();
         let meter = provider.meter("indexer_metrics");
@@ -87,7 +84,9 @@ impl Metrics {
         let rpc_latency = meter
             .f64_histogram("indexer_rpc_latency_seconds")
             .with_description("RPC request latency")
-            .with_boundaries(vec![0.025, 0.05, 0.075, 0.1, 0.15, 0.2, 0.3, 0.5, 1.0, 5.0, 10.0])
+            .with_boundaries(vec![
+                0.025, 0.05, 0.075, 0.1, 0.15, 0.2, 0.3, 0.5, 1.0, 5.0, 10.0,
+            ])
             .with_unit("s")
             .build();
 
@@ -109,9 +108,8 @@ impl Metrics {
     pub async fn start_metrics_server(&self, addr: &str, port: u16) {
         let addr = format!("{}:{}", addr, port).parse::<SocketAddr>().unwrap();
         let registry = self.registry.clone();
-        
-        let app = Router::new()
-            .route("/metrics", get(move || metrics_handler(registry.clone())));
+
+        let app = Router::new().route("/metrics", get(move || metrics_handler(registry.clone())));
 
         // Determine the access URL based on the binding address. Only used for logging.
 
@@ -121,15 +119,13 @@ impl Metrics {
             format!("http://{}:{}/metrics", addr.ip(), port)
         };
 
-        info!("Starting metrics server - binding to {} (accessible at {})", 
-            addr, 
-            access_url
+        info!(
+            "Starting metrics server - binding to {} (accessible at {})",
+            addr, access_url
         );
 
-        let listener = tokio::net::TcpListener::bind(addr)
-            .await
-            .unwrap();
-        
+        let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+
         // Spawn the server in a separate task
         tokio::spawn(async move {
             axum::serve(listener, app).await.unwrap();

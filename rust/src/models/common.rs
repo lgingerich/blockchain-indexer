@@ -21,7 +21,6 @@ pub struct Config {
     pub chain_tip_buffer: u64,
 }
 
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Chain {
     Ethereum,

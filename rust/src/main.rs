@@ -6,8 +6,8 @@
 #![allow(unused_assignments)]
 
 mod indexer;
-mod models;
 mod metrics;
+mod models;
 mod storage;
 mod utils;
 
@@ -20,20 +20,20 @@ use alloy_rpc_types_trace::geth::{
     GethDebugTracingOptions, GethDefaultTracingOptions,
 };
 use alloy_rpc_types_trace::parity::ChangedType;
-use opentelemetry::KeyValue;
 use anyhow::{anyhow, Result};
+use opentelemetry::KeyValue;
+use tokio::time::Instant;
 use tracing::{error, info, warn};
 use tracing_subscriber::{self, EnvFilter};
 use url::Url;
-use tokio::time::Instant;
 
+use crate::metrics::Metrics;
 use crate::models::common::Chain;
 use crate::models::datasets::blocks::{RpcHeaderData, TransformedBlockData};
 use crate::models::datasets::logs::TransformedLogData;
 use crate::models::datasets::traces::TransformedTraceData;
 use crate::models::datasets::transactions::TransformedTransactionData;
 use crate::utils::{hex_to_u64, load_config};
-use crate::metrics::Metrics;
 
 // NEXT STEPS:
 
@@ -52,7 +52,6 @@ use crate::metrics::Metrics;
 // - Not sure I should implement RPC rotation. Seems like lots of failure modes.
 // - Some fields which are optional are being forced to be defined as mandatory because BQ throws errors on handling none/empty fields
 // - Currently all metrics get reset when the program starts. Some should be cumulative.
-
 
 const MAX_BATCH_SIZE: usize = 10; // Number of blocks to fetch before inserting into BigQuery
 
@@ -85,7 +84,7 @@ async fn main() -> Result<()> {
     let chain_tip_buffer = config.chain_tip_buffer;
     let rpc = config.rpc_url.as_str();
     let datasets = config.datasets;
-    
+
     let chain = Chain::from_chain_id(chain_id);
 
     // Initialize metrics
@@ -107,7 +106,7 @@ async fn main() -> Result<()> {
             let result_table =
                 storage::bigquery::create_table_with_retry(dataset_id, table, chain).await;
         }
-    };
+    }
 
     // Get last processed block number from storage
     // If it exists, start from the next block, else start from 0
@@ -163,13 +162,16 @@ async fn main() -> Result<()> {
 
         // Get latest block number
         // Note: Since the indexer is not real-time, this never gets used other than to check if we're too close to the tip
-        let latest_block: BlockNumberOrTag = indexer::get_latest_block_number(&provider, &metrics).await?;
+        let latest_block: BlockNumberOrTag =
+            indexer::get_latest_block_number(&provider, &metrics).await?;
 
         info!("Block number to process: {:?}", block_number_to_process);
 
         // If indexer gets too close to tip, back off and retry
         // Note: Real-time processing is not implemented
-        if block_number_to_process.as_number().unwrap() > (latest_block.as_number().unwrap() - chain_tip_buffer) {
+        if block_number_to_process.as_number().unwrap()
+            > (latest_block.as_number().unwrap() - chain_tip_buffer)
+        {
             info!(
                 "Buffer limit reached. Waiting for current block to be {} blocks behind tip: {:?} — current distance: {:?} - sleeping for 1s",
                 chain_tip_buffer,
@@ -179,7 +181,6 @@ async fn main() -> Result<()> {
             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
             continue;
         }
-
 
         // Start timing the block processing
         let block_start_time = Instant::now();
@@ -223,7 +224,7 @@ async fn main() -> Result<()> {
                     &provider,
                     block_number_to_process,
                     trace_options,
-                    &metrics
+                    &metrics,
                 )
                 .await?
                 .ok_or_else(|| anyhow!("Provider returned no traces"))?,
@@ -232,7 +233,7 @@ async fn main() -> Result<()> {
 
         // Extract and separate the raw RPC response into distinct datasets (block headers, transactions, receipts, logs, traces)
         let parsed_data = indexer::parse_data(chain, chain_id, block, receipts, traces).await?;
-        
+
         // For ZKSync, wait until L1 batch number is available
         // This is possibly necessary for other L2s as well
         // Note: For future real-time support, this will need to be improved
@@ -262,11 +263,25 @@ async fn main() -> Result<()> {
 
         // Update metrics
         // metrics.blocks_processed.add(1, &[KeyValue::new("chain", chain_name.clone())]);
-        metrics.blocks_processed.add(1, &[KeyValue::new("chain", metrics.chain_name.clone())]);
-        metrics.latest_processed_block.record(block_number_to_process.as_number().unwrap(), &[KeyValue::new("chain", metrics.chain_name.clone())]);
-        metrics.latest_block_processing_time.record(block_processing_duration, &[KeyValue::new("chain", metrics.chain_name.clone())]);
-        metrics.chain_tip_block.record(latest_block.as_number().unwrap(), &[KeyValue::new("chain", metrics.chain_name.clone())]);
-        metrics.chain_tip_lag.record(latest_block.as_number().unwrap() - block_number_to_process.as_number().unwrap(), &[KeyValue::new("chain", metrics.chain_name.clone())]);
+        metrics
+            .blocks_processed
+            .add(1, &[KeyValue::new("chain", metrics.chain_name.clone())]);
+        metrics.latest_processed_block.record(
+            block_number_to_process.as_number().unwrap(),
+            &[KeyValue::new("chain", metrics.chain_name.clone())],
+        );
+        metrics.latest_block_processing_time.record(
+            block_processing_duration,
+            &[KeyValue::new("chain", metrics.chain_name.clone())],
+        );
+        metrics.chain_tip_block.record(
+            latest_block.as_number().unwrap(),
+            &[KeyValue::new("chain", metrics.chain_name.clone())],
+        );
+        metrics.chain_tip_lag.record(
+            latest_block.as_number().unwrap() - block_number_to_process.as_number().unwrap(),
+            &[KeyValue::new("chain", metrics.chain_name.clone())],
+        );
 
         // When batch size is reached, save to storage
         if blocks_collection.len() >= MAX_BATCH_SIZE {
