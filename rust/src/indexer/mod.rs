@@ -29,7 +29,7 @@ use crate::metrics::Metrics;
 use crate::utils::retry::{retry, RetryConfig};
 use opentelemetry::KeyValue;
 
-pub async fn get_chain_id<T, N>(provider: &dyn Provider<T, N>, metrics: &Metrics, chain_name: &str) -> Result<u64>
+pub async fn get_chain_id<T, N>(provider: &dyn Provider<T, N>, metrics: &Metrics) -> Result<u64>
 where
     T: Transport + Clone,
     N: Network,
@@ -39,7 +39,7 @@ where
     retry(
         || async {
             let start = std::time::Instant::now();
-            metrics.rpc_requests.add(1, &[KeyValue::new("chain", chain_name.to_string()), KeyValue::new("method", "get_chain_id")]);
+            metrics.rpc_requests.add(1, &[KeyValue::new("chain", metrics.chain_name.clone()), KeyValue::new("method", "get_chain_id")]);
             
             let result = provider.get_chain_id().await;
             
@@ -60,7 +60,6 @@ where
 pub async fn get_latest_block_number<T, N>(
     provider: &dyn Provider<T, N>,
     metrics: &Metrics,
-    chain_name: &str,
 ) -> Result<BlockNumberOrTag>
 where
     T: Transport + Clone,
@@ -70,7 +69,7 @@ where
     retry(
         || async {
             let start = std::time::Instant::now();
-            metrics.rpc_requests.add(1, &[KeyValue::new("chain", chain_name.to_string()), KeyValue::new("method", "get_latest_block_number")]);
+            metrics.rpc_requests.add(1, &[KeyValue::new("chain", metrics.chain_name.clone()), KeyValue::new("method", "get_latest_block_number")]);
             
             let result = provider.get_block_number().await;
             
@@ -93,7 +92,6 @@ pub async fn get_block_by_number<T, N>(
     block_number: BlockNumberOrTag,
     kind: BlockTransactionsKind,
     metrics: &Metrics,
-    chain_name: &str,
 ) -> Result<Option<N::BlockResponse>>
 where
     T: Transport + Clone,
@@ -103,7 +101,7 @@ where
     retry(
         || async {
             let start = std::time::Instant::now();
-            metrics.rpc_requests.add(1, &[KeyValue::new("chain", chain_name.to_string()), KeyValue::new("method", "get_block_by_number")]);
+            metrics.rpc_requests.add(1, &[KeyValue::new("chain", metrics.chain_name.clone()), KeyValue::new("method", "get_block_by_number")]);
             
             let result = provider.get_block_by_number(block_number, kind).await;
             
@@ -125,7 +123,6 @@ pub async fn get_block_receipts<T, N>(
     provider: &dyn Provider<T, N>,
     block: BlockId,
     metrics: &Metrics,
-    chain_name: &str,
 ) -> Result<Option<Vec<N::ReceiptResponse>>>
 where
     T: Transport + Clone,
@@ -135,7 +132,7 @@ where
     retry(
         || async {
             let start = std::time::Instant::now();
-            metrics.rpc_requests.add(1, &[KeyValue::new("chain", chain_name.to_string()), KeyValue::new("method", "get_block_receipts")]);
+            metrics.rpc_requests.add(1, &[KeyValue::new("chain", metrics.chain_name.clone()), KeyValue::new("method", "get_block_receipts")]);
             
             let result = provider.get_block_receipts(block).await;
             
@@ -158,7 +155,6 @@ pub async fn debug_trace_block_by_number<T, N>(
     block_number: BlockNumberOrTag,
     trace_options: GethDebugTracingOptions,
     metrics: &Metrics,
-    chain_name: &str,
 ) -> Result<Option<Vec<TraceResult<GethTrace, String>>>>
 where
     T: Transport + Clone,
@@ -168,7 +164,7 @@ where
     retry(
         || async {
             let start = std::time::Instant::now();
-            metrics.rpc_requests.add(1, &[KeyValue::new("chain", chain_name.to_string()), KeyValue::new("method", "debug_trace_block_by_number")]);
+            metrics.rpc_requests.add(1, &[KeyValue::new("chain", metrics.chain_name.clone()), KeyValue::new("method", "debug_trace_block_by_number")]);
             
             let result = provider.debug_trace_block_by_number(block_number, trace_options.clone()).await;
             

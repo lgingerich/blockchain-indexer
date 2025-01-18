@@ -14,6 +14,7 @@ use prometheus::{Encoder, TextEncoder};
 pub struct Metrics {
     registry: Arc<prometheus::Registry>,
     provider: SdkMeterProvider,
+    pub chain_name: String,
 
     // Block processing metrics
     // pub blocks_processed: ObservableCounter<u64>,
@@ -35,7 +36,7 @@ pub struct Metrics {
 
 
 impl Metrics {
-    pub fn new() -> Result<Self, MetricError> {
+    pub fn new(chain_name: String) -> Result<Self, MetricError> {
         // Create a new prometheus registry
         let registry = prometheus::Registry::new();
         
@@ -93,6 +94,7 @@ impl Metrics {
         Ok(Self {
             registry: Arc::new(registry),
             provider,
+            chain_name,
             blocks_processed,
             latest_processed_block,
             latest_block_processing_time,
