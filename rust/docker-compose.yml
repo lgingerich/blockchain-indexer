@@ -1,0 +1,20 @@
+services:
+  indexer:
+    build: .
+    container_name: blockchain-indexer
+    ports:
+      - "9100:9100"  # Prometheus metrics port
+    volumes:
+      - ./config.yml:/app/config.yml
+      - ./logs:/app/logs
+      - ~/.config/gcloud/application_default_credentials.json:/root/.config/gcloud/application_default_credentials.json
+    environment:
+      - RUST_BACKTRACE=1
+      - RUST_LOG=info
+    restart: unless-stopped
+
+# Uncomment if you need to connect to a monitoring network
+# networks:
+#   monitoring:
+#     external: true
+#     name: monitoring
