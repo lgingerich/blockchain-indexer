@@ -1,10 +1,6 @@
 #![allow(dead_code)] // Allow unused fields in RPC data for completeness
 
-use alloy_eips::{
-    eip2930::AccessList,
-    eip4844::BYTES_PER_BLOB,
-    eip7702::SignedAuthorization,
-};
+use alloy_eips::{eip2930::AccessList, eip4844::BYTES_PER_BLOB, eip7702::SignedAuthorization};
 use alloy_primitives::{Address, Bloom, Bytes, FixedBytes, Uint};
 use serde::Serialize;
 

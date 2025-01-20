@@ -3,8 +3,7 @@ pub mod transformations;
 
 use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_network::{
-    AnyRpcBlock, AnyTransactionReceipt, Network,
-    primitives::BlockTransactionsKind,
+    primitives::BlockTransactionsKind, AnyRpcBlock, AnyTransactionReceipt, Network,
 };
 use alloy_provider::{ext::DebugApi, Provider};
 use alloy_rpc_types_trace::{

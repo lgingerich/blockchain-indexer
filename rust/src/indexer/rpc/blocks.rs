@@ -4,10 +4,7 @@ use alloy_consensus::constants::{
 };
 use alloy_consensus::{TxEip4844Variant, TxEnvelope};
 use alloy_eips::eip2930::AccessList;
-use alloy_network::{
-    AnyRpcBlock, AnyTxEnvelope,
-    primitives::BlockTransactions,
-};
+use alloy_network::{primitives::BlockTransactions, AnyRpcBlock, AnyTxEnvelope};
 use alloy_primitives::{Address, Bytes, FixedBytes, Uint};
 use anyhow::{anyhow, Result};
 use chrono::DateTime;
