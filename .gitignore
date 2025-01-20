@@ -76,9 +76,12 @@ config.yml
 
 # Local data folder
 /rpc_data
-*/data
-*/data2
+/data
+/data2
 
 # Logs
 logs/
 *.log
+
+# MacOS
+.DS_Store
