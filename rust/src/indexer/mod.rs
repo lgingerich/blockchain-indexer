@@ -50,11 +50,21 @@ where
             let result = provider.get_chain_id().await;
 
             // Record metrics
-            metrics
-                .rpc_latency
-                .record(start.elapsed().as_secs_f64(), &[]);
+            metrics.rpc_latency.record(
+                start.elapsed().as_secs_f64(),
+                &[
+                    KeyValue::new("chain", metrics.chain_name.clone()),
+                    KeyValue::new("method", "get_chain_id"),
+                ],
+            );
             if result.is_err() {
-                metrics.rpc_errors.add(1, &[]);
+                metrics.rpc_errors.add(
+                    1,
+                    &[
+                        KeyValue::new("chain", metrics.chain_name.clone()),
+                        KeyValue::new("method", "get_chain_id"),
+                    ],
+                );
             }
 
             result.map_err(|e| anyhow!("RPC error: {}", e))
@@ -88,11 +98,21 @@ where
             let result = provider.get_block_number().await;
 
             // Record metrics
-            metrics
-                .rpc_latency
-                .record(start.elapsed().as_secs_f64(), &[]);
+            metrics.rpc_latency.record(
+                start.elapsed().as_secs_f64(),
+                &[
+                    KeyValue::new("chain", metrics.chain_name.clone()),
+                    KeyValue::new("method", "get_latest_block_number"),
+                ],
+            );
             if result.is_err() {
-                metrics.rpc_errors.add(1, &[]);
+                metrics.rpc_errors.add(
+                    1,
+                    &[
+                        KeyValue::new("chain", metrics.chain_name.clone()),
+                        KeyValue::new("method", "get_latest_block_number"),
+                    ],
+                );
             }
 
             result
@@ -130,17 +150,27 @@ where
             let result = provider.get_block_by_number(block_number, kind).await;
 
             // Record metrics
-            metrics
-                .rpc_latency
-                .record(start.elapsed().as_secs_f64(), &[]);
+            metrics.rpc_latency.record(
+                start.elapsed().as_secs_f64(),
+                &[
+                    KeyValue::new("chain", metrics.chain_name.clone()),
+                    KeyValue::new("method", "get_block_by_number"),
+                ],
+            );
             if result.is_err() {
-                metrics.rpc_errors.add(1, &[]);
+                metrics.rpc_errors.add(
+                    1,
+                    &[
+                        KeyValue::new("chain", metrics.chain_name.clone()),
+                        KeyValue::new("method", "get_block_by_number"),
+                    ],
+                );
             }
 
             result.map_err(|e| anyhow!("RPC error: {}", e))
         },
         &retry_config,
-        &format!("get_block_by_number({})", block_number),
+        &format!("get_block_by_number({})", block_number.as_number().unwrap_or_default()),
     )
     .await
 }
@@ -169,17 +199,30 @@ where
             let result = provider.get_block_receipts(block).await;
 
             // Record metrics
-            metrics
-                .rpc_latency
-                .record(start.elapsed().as_secs_f64(), &[]);
+            metrics.rpc_latency.record(
+                start.elapsed().as_secs_f64(),
+                &[
+                    KeyValue::new("chain", metrics.chain_name.clone()),
+                    KeyValue::new("method", "get_block_receipts"),
+                ],
+            );
             if result.is_err() {
-                metrics.rpc_errors.add(1, &[]);
+                metrics.rpc_errors.add(
+                    1,
+                    &[
+                        KeyValue::new("chain", metrics.chain_name.clone()),
+                        KeyValue::new("method", "get_block_receipts"),
+                    ],
+                );
             }
 
             result.map_err(|e| anyhow!("RPC error: {}", e))
         },
         &retry_config,
-        &format!("get_block_receipts({})", block),
+        &match block {
+            BlockId::Number(num) => format!("get_block_receipts({})", num.as_number().unwrap_or_default()),
+            BlockId::Hash(hash) => format!("get_block_receipts({})", hash),
+        },
     )
     .await
 }
@@ -211,17 +254,27 @@ where
                 .await;
 
             // Record metrics
-            metrics
-                .rpc_latency
-                .record(start.elapsed().as_secs_f64(), &[]);
+            metrics.rpc_latency.record(
+                start.elapsed().as_secs_f64(),
+                &[
+                    KeyValue::new("chain", metrics.chain_name.clone()),
+                    KeyValue::new("method", "debug_trace_block_by_number"),
+                ],
+            );
             if result.is_err() {
-                metrics.rpc_errors.add(1, &[]);
+                metrics.rpc_errors.add(
+                    1,
+                    &[
+                        KeyValue::new("chain", metrics.chain_name.clone()),
+                        KeyValue::new("method", "debug_trace_block_by_number"),
+                    ],
+                );
             }
 
             result.map_err(|e| anyhow!("RPC error: {}", e))
         },
         &retry_config,
-        &format!("debug_trace_block_by_number({})", block_number),
+        &format!("debug_trace_block_by_number({})", block_number.as_number().unwrap_or_default()),
     )
     .await
     .map(Some)
