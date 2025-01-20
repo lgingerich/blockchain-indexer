@@ -363,7 +363,10 @@ impl BlockParser for AnyRpcBlock {
                                     .get_deserialized::<u128>("gasPrice")
                                     .and_then(|result| result.ok())
                                     .unwrap_or(0),
-                                gas_limit: 0, // TODO: Fill this in
+                                gas_limit: other_fields
+                                    .get_deserialized::<u64>("gas")
+                                    .and_then(|result| result.ok())
+                                    .unwrap_or(0),
                                 max_fee_per_gas: other_fields
                                     .get_deserialized::<u128>("maxFeePerGas")
                                     .and_then(|result| result.ok())
@@ -419,10 +422,6 @@ impl BlockParser for AnyRpcBlock {
                                             .get_deserialized::<String>("l1BatchTxIndex")
                                             .and_then(|result| result.ok())
                                             .and_then(hex_to_u64),
-                                        // gas: fields // TODO: Handle this
-                                        //     .get_deserialized::<>("gas")
-                                        //     .and_then(|result| result.ok())
-                                        //     .unwrap_or(),
                                     })
                                 }
                             }

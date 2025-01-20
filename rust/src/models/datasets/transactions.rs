@@ -48,7 +48,6 @@ pub struct EthereumRpcTransactionData {
 #[derive(Debug, Clone)]
 pub struct ZKsyncRpcTransactionData {
     pub common: CommonRpcTransactionData,
-    // pub gas: u64, // TODO: Add back in
     pub l1_batch_number: Option<u64>,
     pub l1_batch_tx_index: Option<u64>,
 }
