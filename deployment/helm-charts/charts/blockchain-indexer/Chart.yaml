@@ -1,0 +1,15 @@
+apiVersion: v2
+name: blockchain-indexer
+description: Blockchain Indexer Helm Chart
+version: 0.2.0
+kubeVersion: ">=1.16.0-0"
+keywords:
+  - blockchain-indexer
+# home: https://github.com/matter-labs/deployment/helm-charts/tree/main/charts/blockchain-indexer
+# maintainers:
+#   - name: landon
+#     email: landon.ging@gmail.com
+# dependencies:
+#   - name: common
+#     repository: oci://us-central1-docker.pkg.dev/matterlabs-infra/matterlabs-helm
+#     version: 7.6.3
