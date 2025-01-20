@@ -1,9 +1,6 @@
 use alloy_primitives::{Address, TxKind};
 use serde::{Deserialize, Serialize};
 
-use crate::indexer::rpc::blocks::BlockParser;
-use crate::indexer::rpc::receipts::ReceiptParser;
-
 use crate::models::datasets::blocks::{RpcHeaderData, TransformedBlockData};
 use crate::models::datasets::logs::{RpcLogReceiptData, TransformedLogData};
 use crate::models::datasets::traces::{RpcTraceData, TransformedTraceData};

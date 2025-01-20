@@ -1,26 +1,18 @@
-// Temporary disable warnings for development
-#![allow(unused_imports)]
-#![allow(unused_variables)]
-#![allow(dead_code)]
-
 use alloy_consensus::constants::{
     EIP1559_TX_TYPE_ID, EIP2930_TX_TYPE_ID, EIP4844_TX_TYPE_ID, EIP7702_TX_TYPE_ID,
     LEGACY_TX_TYPE_ID,
 };
 use alloy_consensus::{TxEip4844Variant, TxEnvelope};
 use alloy_eips::eip2930::AccessList;
-use alloy_eips::eip7702::SignedAuthorization;
-use alloy_network::primitives::BlockTransactions;
-use alloy_network::{AnyRpcBlock, AnyRpcHeader, AnyRpcTransaction, AnyTxEnvelope};
+use alloy_network::{
+    AnyRpcBlock, AnyTxEnvelope,
+    primitives::BlockTransactions,
+};
 use alloy_primitives::{Address, Bytes, FixedBytes, Uint};
-use alloy_rpc_types_eth::{Block, Header, Transaction};
-use alloy_serde::WithOtherFields;
 use anyhow::{anyhow, Result};
 use chrono::DateTime;
-use tracing::info;
 
-use crate::models::common::Chain;
-use crate::models::common::TransactionTo;
+use crate::models::common::{Chain, TransactionTo};
 use crate::models::datasets::blocks::{
     CommonRpcHeaderData, EthereumRpcHeaderData, RpcHeaderData, ZKsyncRpcHeaderData,
 };

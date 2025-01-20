@@ -1,33 +1,24 @@
 mod schema;
 
+use anyhow::{anyhow, Result};
 use google_cloud_bigquery::client::{Client, ClientConfig};
 use google_cloud_bigquery::http::dataset::{Dataset, DatasetReference};
 use google_cloud_bigquery::http::error::Error as BigQueryError;
-use google_cloud_bigquery::http::job::query::{QueryRequest, QueryResponse};
-use google_cloud_bigquery::http::query::row::Row;
-use google_cloud_bigquery::http::table::{Table, TableFieldSchema, TableReference, TableSchema};
+use google_cloud_bigquery::http::job::query::QueryRequest;
+use google_cloud_bigquery::http::table::{Table, TableReference};
 use google_cloud_bigquery::http::tabledata::{
     insert_all::{InsertAllRequest, Row as TableRow},
     list::Value,
 };
-
-use anyhow::{anyhow, Context, Result};
 use once_cell::sync::OnceCell;
-use serde::Serialize;
-use tracing::{error, info, warn};
+use std::sync::Arc;
+use tracing::{error, info};
 
+use crate::models::common::Chain;
 use crate::storage::bigquery::schema::{
     block_schema, log_schema, trace_schema, transaction_schema,
 };
-
-use crate::models::common::Chain;
-use crate::models::datasets::blocks::TransformedBlockData;
-use crate::models::datasets::logs::TransformedLogData;
-use crate::models::datasets::traces::TransformedTraceData;
-use crate::models::datasets::transactions::TransformedTransactionData;
 use crate::utils::retry::{retry, RetryConfig};
-
-use std::sync::Arc;
 
 // Define a static OnceCell to hold the shared Client and Project ID
 static BIGQUERY_CLIENT: OnceCell<Arc<(Client, String)>> = OnceCell::new();

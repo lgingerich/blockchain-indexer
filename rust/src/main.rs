@@ -1,10 +1,3 @@
-// Temporary disable warnings for development
-#![allow(unused_imports)]
-#![allow(unused_variables)]
-#![allow(dead_code)]
-#![allow(unused_mut)]
-#![allow(unused_assignments)]
-
 mod indexer;
 mod metrics;
 mod models;
@@ -14,16 +7,14 @@ mod utils;
 use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_network::{primitives::BlockTransactionsKind, AnyNetwork};
 use alloy_provider::ProviderBuilder;
-use alloy_rpc_types_eth::{Block, TransactionReceipt};
 use alloy_rpc_types_trace::geth::{
     GethDebugBuiltInTracerType, GethDebugTracerConfig, GethDebugTracerType,
     GethDebugTracingOptions, GethDefaultTracingOptions,
 };
-use alloy_rpc_types_trace::parity::ChangedType;
 use anyhow::{anyhow, Result};
 use opentelemetry::KeyValue;
 use tokio::time::Instant;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 use tracing_subscriber::{self, EnvFilter};
 use url::Url;
 
@@ -34,24 +25,6 @@ use crate::models::datasets::logs::TransformedLogData;
 use crate::models::datasets::traces::TransformedTraceData;
 use crate::models::datasets::transactions::TransformedTransactionData;
 use crate::utils::{hex_to_u64, load_config};
-
-// NEXT STEPS:
-
-// - Add monitoring
-// - Add data quality checks (schema compliance, missing block detection, duplication detection, etc.)
-// - Unit tests
-//      - Tests for each tx type for each chain
-// - Rate limiting?
-// - Docker containerization
-//      - Add .dockerignore
-// - CI/CD
-// - Kubernetes/Helm deployment for production
-// - Fix Tenderly RPC
-
-// NOTES:
-// - Not sure I should implement RPC rotation. Seems like lots of failure modes.
-// - Some fields which are optional are being forced to be defined as mandatory because BQ throws errors on handling none/empty fields
-// - Currently all metrics get reset when the program starts. Some should be cumulative.
 
 const MAX_BATCH_SIZE: usize = 10; // Number of blocks to fetch before inserting into BigQuery
 
@@ -100,11 +73,10 @@ async fn main() -> Result<()> {
     let need_traces = datasets.contains(&"traces".to_string()); // Traces are dependendent on eth_debug_traceBlockByNumber
 
     // Create dataset and tables. Handles existing datasets and tables.
-    let result_dataset = storage::bigquery::create_dataset_with_retry(dataset_id).await;
+    let _ = storage::bigquery::create_dataset_with_retry(dataset_id).await;
     for table in ["blocks", "logs", "transactions", "traces"] {
         if datasets.contains(&table.to_string()) {
-            let result_table =
-                storage::bigquery::create_table_with_retry(dataset_id, table, chain).await;
+            let _ = storage::bigquery::create_table_with_retry(dataset_id, table, chain).await;
         }
     }
 
@@ -118,20 +90,7 @@ async fn main() -> Result<()> {
         0
     };
 
-    // ZKSYNC
-    // Legacy (0): 	1451, 1535
-    // DynamicFee (2): 4239, 9239
-    // EIP-712 (113):	9073, 9416
-    // Priority (255):	2030, 8958
-    // 254: 			28679967, 35876713
-
-    // Ethereum
-    // Legacy (0): 46147
-    // EIP-2930 (1): 12244145
-    // DynamicFee (2): 12965001
-    // EIP-4844 (3): 19426589
-
-    let mut block_number = 53900157;
+    // let mut block_number = 10_000_000;
     info!("Starting block number: {:?}", block_number);
 
     // Create RPC provider
@@ -195,6 +154,7 @@ async fn main() -> Result<()> {
                     .ok_or_else(|| anyhow!("Provider returned no block"))?,
             );
         }
+        // println!("block: {:?}", block);
 
         // Get receipts by block number
         // Only fetch receipts data if `logs` or `transactions` are in the active datasets

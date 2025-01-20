@@ -1,9 +1,4 @@
-// Temporary disable warnings for development
-#![allow(unused_imports)]
-#![allow(unused_variables)]
-#![allow(dead_code)]
-
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 
 use crate::models::common::{Chain, ParsedData};
 use crate::models::datasets::blocks::{

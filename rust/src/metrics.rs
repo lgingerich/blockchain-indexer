@@ -1,23 +1,17 @@
 use std::sync::Arc;
-use std::time::Duration;
 use tracing::info;
 
 use axum::{routing::get, Router};
-use opentelemetry::{
-    metrics::{Counter, Gauge, Histogram, MeterProvider, ObservableCounter},
-    KeyValue,
-};
+use opentelemetry::metrics::{Counter, Gauge, Histogram, MeterProvider};
 use opentelemetry_sdk::metrics::{MetricError, SdkMeterProvider};
 use prometheus::{Encoder, TextEncoder};
 use std::net::SocketAddr;
 
 pub struct Metrics {
     registry: Arc<prometheus::Registry>,
-    provider: SdkMeterProvider,
     pub chain_name: String,
 
     // Block processing metrics
-    // pub blocks_processed: ObservableCounter<u64>,
     pub blocks_processed: Counter<u64>,
     pub latest_processed_block: Gauge<u64>,
     pub latest_block_processing_time: Gauge<f64>,
@@ -92,7 +86,6 @@ impl Metrics {
 
         Ok(Self {
             registry: Arc::new(registry),
-            provider,
             chain_name,
             blocks_processed,
             latest_processed_block,
@@ -112,7 +105,6 @@ impl Metrics {
         let app = Router::new().route("/metrics", get(move || metrics_handler(registry.clone())));
 
         // Determine the access URL based on the binding address. Only used for logging.
-
         let access_url = if addr.ip().to_string() == "0.0.0.0" {
             format!("http://localhost:{}/metrics", port)
         } else {

@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Error, Result};
-use std::{error::Error as StdError, future::Future, time::Duration};
+use std::{future::Future, time::Duration};
 use tokio::time::sleep;
 use tracing::{error, warn};
 

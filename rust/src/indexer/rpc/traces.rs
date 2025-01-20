@@ -1,20 +1,7 @@
-// Temporary disable warnings for development
-#![allow(unused_imports)]
-#![allow(unused_variables)]
-#![allow(dead_code)]
+use alloy_rpc_types_trace::geth::{CallFrame, GethTrace, TraceResult};
+use anyhow::Result;
 
 use crate::models::common::Chain;
-use alloy_consensus::{TxEip4844Variant, TxEnvelope};
-use alloy_eips::eip2930::AccessList;
-use alloy_eips::eip7702::SignedAuthorization;
-use alloy_network::primitives::BlockTransactions;
-use alloy_primitives::{Address, Bytes, FixedBytes, Uint};
-use alloy_rpc_types_eth::{Block, Header};
-use alloy_rpc_types_trace::geth::{CallFrame, GethTrace, TraceResult};
-
-use anyhow::{anyhow, Result};
-use chrono::DateTime;
-
 use crate::models::datasets::traces::{
     CommonRpcTraceData, EthereumRpcTraceData, RpcTraceData, ZKsyncRpcTraceData,
 };
@@ -29,7 +16,7 @@ impl TraceParser for Vec<TraceResult> {
             .into_iter()
             .flat_map(|trace_result| {
                 match trace_result {
-                    TraceResult::Success { result, tx_hash } => {
+                    TraceResult::Success { result, tx_hash: _ } => {
                         match result {
                             GethTrace::CallTracer(frame) => {
                                 // Process the frame and all its nested calls
@@ -38,7 +25,19 @@ impl TraceParser for Vec<TraceResult> {
                             _ => Vec::new(), // Skip other trace types
                         }
                     }
-                    TraceResult::Error { error, tx_hash } => Vec::new(), // Skip failed traces
+                    TraceResult::Error { error, tx_hash } => {
+                        // Log failed traces with their error messages
+                        if let Some(hash) = tx_hash {
+                            tracing::warn!(
+                                "Failed to process trace for transaction {}: {}",
+                                hash,
+                                error
+                            );
+                        } else {
+                            tracing::warn!("Failed to process trace: {}", error);
+                        }
+                        Vec::new()
+                    }
                 }
             })
             .collect())

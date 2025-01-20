@@ -1,8 +1,3 @@
-// Temporary disable warnings for development
-#![allow(unused_imports)]
-#![allow(unused_variables)]
-#![allow(dead_code)]
-
 use alloy_primitives::{Address, Bytes, Uint};
 use alloy_rpc_types_trace::geth::CallLogFrame;
 use serde::Serialize;

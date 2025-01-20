@@ -1,13 +1,6 @@
-// Temporary disable warnings for development
-#![allow(unused_imports)]
-#![allow(unused_variables)]
-#![allow(dead_code)]
-
 use alloy_consensus::Eip658Value;
-use alloy_rpc_types_eth::{Log, TransactionReceipt};
-
-use anyhow::{anyhow, Result};
-use chrono::DateTime;
+use alloy_network::AnyTransactionReceipt;
+use anyhow::Result;
 
 use crate::models::common::Chain;
 use crate::models::datasets::logs::{
@@ -18,8 +11,6 @@ use crate::models::datasets::transactions::{
     ZKsyncRpcTransactionReceiptData,
 };
 use crate::utils::hex_to_u64;
-
-use alloy_network::AnyTransactionReceipt;
 
 pub trait ReceiptParser {
     fn parse_transaction_receipts(self, chain: Chain) -> Result<Vec<RpcTransactionReceiptData>>;

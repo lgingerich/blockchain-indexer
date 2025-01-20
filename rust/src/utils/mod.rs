@@ -1,8 +1,7 @@
 pub mod retry;
 
 use anyhow::{Context, Result};
-use std::fs;
-use std::path::Path;
+use std::{fs, path::Path};
 use tracing::info;
 
 use crate::models::common::Config;

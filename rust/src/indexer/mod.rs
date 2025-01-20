@@ -1,23 +1,19 @@
-// Temporary disable warnings for development
-#![allow(unused_imports)]
-#![allow(unused_variables)]
-#![allow(dead_code)]
-
 pub mod rpc;
 pub mod transformations;
 
 use alloy_eips::{BlockId, BlockNumberOrTag};
-use alloy_network::{primitives::BlockTransactionsKind, Network};
-use alloy_network::{AnyRpcBlock, AnyTransactionReceipt};
-use alloy_provider::{ext::DebugApi, Provider, ReqwestProvider};
-use alloy_rpc_types_eth::{Block, TransactionReceipt};
+use alloy_network::{
+    AnyRpcBlock, AnyTransactionReceipt, Network,
+    primitives::BlockTransactionsKind,
+};
+use alloy_provider::{ext::DebugApi, Provider};
 use alloy_rpc_types_trace::{
     common::TraceResult,
     geth::{GethDebugTracingOptions, GethTrace},
 };
-use alloy_transport::{RpcError, Transport};
+use alloy_transport::Transport;
 use anyhow::{anyhow, Result};
-use tracing::error;
+use opentelemetry::KeyValue;
 
 use crate::indexer::rpc::{blocks::BlockParser, receipts::ReceiptParser, traces::TraceParser};
 use crate::indexer::transformations::{
@@ -27,7 +23,6 @@ use crate::indexer::transformations::{
 use crate::metrics::Metrics;
 use crate::models::common::{Chain, ParsedData, TransformedData};
 use crate::utils::retry::{retry, RetryConfig};
-use opentelemetry::KeyValue;
 
 pub async fn get_chain_id<T, N>(provider: &dyn Provider<T, N>, metrics: &Metrics) -> Result<u64>
 where
@@ -170,7 +165,10 @@ where
             result.map_err(|e| anyhow!("RPC error: {}", e))
         },
         &retry_config,
-        &format!("get_block_by_number({})", block_number.as_number().unwrap_or_default()),
+        &format!(
+            "get_block_by_number({})",
+            block_number.as_number().unwrap_or_default()
+        ),
     )
     .await
 }
@@ -220,7 +218,10 @@ where
         },
         &retry_config,
         &match block {
-            BlockId::Number(num) => format!("get_block_receipts({})", num.as_number().unwrap_or_default()),
+            BlockId::Number(num) => format!(
+                "get_block_receipts({})",
+                num.as_number().unwrap_or_default()
+            ),
             BlockId::Hash(hash) => format!("get_block_receipts({})", hash),
         },
     )
@@ -274,7 +275,10 @@ where
             result.map_err(|e| anyhow!("RPC error: {}", e))
         },
         &retry_config,
-        &format!("debug_trace_block_by_number({})", block_number.as_number().unwrap_or_default()),
+        &format!(
+            "debug_trace_block_by_number({})",
+            block_number.as_number().unwrap_or_default()
+        ),
     )
     .await
     .map(Some)

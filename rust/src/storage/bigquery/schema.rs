@@ -3,17 +3,6 @@ use google_cloud_bigquery::http::table::{
 };
 
 use crate::models::common::Chain;
-use anyhow::{anyhow, Result};
-
-pub async fn create_schema(chain: Chain, table_name: &str) -> Result<TableSchema> {
-    match table_name {
-        "blocks" => Ok(block_schema(chain)),
-        "logs" => Ok(log_schema(chain)),
-        "transactions" => Ok(transaction_schema(chain)),
-        "traces" => Ok(trace_schema(chain)),
-        _ => Err(anyhow!("Invalid table name: {}", table_name)),
-    }
-}
 
 pub fn block_schema(chain: Chain) -> TableSchema {
     let mut fields = vec![
@@ -247,7 +236,7 @@ pub fn block_schema(chain: Chain) -> TableSchema {
 
 // Implement similar chain-aware schemas for other tables
 pub fn log_schema(chain: Chain) -> TableSchema {
-    let mut fields = vec![
+    let fields = vec![
         TableFieldSchema {
             name: "address".to_string(),
             data_type: TableFieldType::String,
@@ -617,7 +606,7 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
 }
 
 pub fn trace_schema(chain: Chain) -> TableSchema {
-    let mut fields = vec![
+    let fields = vec![
         TableFieldSchema {
             name: "from".to_string(),
             data_type: TableFieldType::String,
