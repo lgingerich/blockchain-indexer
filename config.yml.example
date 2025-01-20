@@ -1,39 +1,13 @@
-# Chain configuration
-chain:
-  name: "arbitrum"
-  rpc_urls:
-    - "https://arbitrum.llamarpc.com"
-    - "https://rpc.ankr.com/arbitrum"
-    - "https://arbitrum.gateway.tenderly.co"
+project_name: "ethereum-indexing" # Used in cloud and logging stuff
+chain_name: "ethereum"            # Used in dataset names
+chain_id: 1                       # Chain ID — used for chain-specific logic
 
-  name: "ethereum"
-  rpc_urls:
-    - "https://eth.llamarpc.com"
-    - "https://rpc.ankr.com/eth"
-    - "https://eth.drpc.org"
+chain_tip_buffer: 100             # Number of blocks to stay away from chain tip
 
-  name: "zero" # Zero Network by Zerion
-  rpc_urls:
-    - "https://rpc.zerion.io/v1/zero"
+rpc_url: "https://eth.drpc.org"   # URL of the RPC provider
 
-  name: "zksync"
-  rpc_urls:
-    - "https://mainnet.era.zksync.io"
-    - "https://zksync.meowrpc.com"
-    - "https://1rpc.io/zksync2-era"
-
-# Active datasets to index and save
-datasets:
+datasets:                         # List of datasets to index
   - "blocks"
   - "transactions"
   - "logs"
-
-# Storage configuration
-storage:
-  type: "bigquery"
-  project_id: "your-cloud-provider-project-id"
-  location: "US"
-
-# Monitoring configuration
-monitoring:
-  port: 9100
+  - "traces"
