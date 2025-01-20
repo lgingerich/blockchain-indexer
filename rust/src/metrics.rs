@@ -47,7 +47,7 @@ impl Metrics {
         let meter = provider.meter("indexer_metrics");
 
         let blocks_processed = meter
-            .u64_counter("indexer_blocks_processed_total")
+            .u64_counter("indexer_blocks_processed")
             .with_description("Total number of blocks processed")
             .build();
 
@@ -57,7 +57,7 @@ impl Metrics {
             .build();
 
         let latest_block_processing_time = meter
-            .f64_gauge("indexer_latest_block_processing_seconds")
+            .f64_gauge("indexer_latest_block_processing")
             .with_description("Time spent processing the latest block")
             .build();
 
@@ -72,17 +72,17 @@ impl Metrics {
             .build();
 
         let rpc_requests = meter
-            .u64_counter("indexer_rpc_requests_total")
-            .with_description("Total number of RPC requests made")
+            .u64_counter("indexer_rpc_requests")
+            .with_description("Number of RPC requests made")
             .build();
 
         let rpc_errors = meter
-            .u64_counter("indexer_rpc_errors_total")
-            .with_description("Total number of RPC errors encountered")
+            .u64_counter("indexer_rpc_errors")
+            .with_description("Number of RPC errors encountered")
             .build();
 
         let rpc_latency = meter
-            .f64_histogram("indexer_rpc_latency_seconds")
+            .f64_histogram("indexer_rpc_latency")
             .with_description("RPC request latency")
             .with_boundaries(vec![
                 0.025, 0.05, 0.075, 0.1, 0.15, 0.2, 0.3, 0.5, 1.0, 5.0, 10.0,

@@ -654,7 +654,7 @@
         {
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "indexer_rpc_requests_total",
+          "expr": "indexer_rpc_requests_total_total",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "Method: {{method}}",
@@ -746,7 +746,7 @@
         {
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "indexer_rpc_requests_total",
+          "expr": "indexer_rpc_requests_total_total{method!=\"get_chain_id\"}",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "{{method}}",
@@ -843,7 +843,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "histogram_quantile(0.5, sum by(le) (rate(indexer_rpc_latency_seconds_bucket{method=\"eth_blockNumber\"}[1m])))",
+          "expr": "histogram_quantile(0.5, sum by(le) (rate(indexer_rpc_latency_seconds_bucket{method=\"get_latest_block_number\"}[1m])))",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -860,7 +860,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "histogram_quantile(0.9, sum by(le) (rate(indexer_rpc_latency_seconds_bucket{method=\"eth_blockNumber\"}[1m])))",
+          "expr": "histogram_quantile(0.9, sum by(le) (rate(indexer_rpc_latency_seconds_bucket{method=\"get_latest_block_number\"}[1m])))",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -877,7 +877,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "histogram_quantile(0.95, sum by(le) (rate(indexer_rpc_latency_seconds_bucket{method=\"eth_blockNumber\"}[1m])))",
+          "expr": "histogram_quantile(0.95, sum by(le) (rate(indexer_rpc_latency_seconds_bucket{method=\"get_latest_block_number\"}[1m])))",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -894,7 +894,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "histogram_quantile(0.99, sum by(le) (rate(indexer_rpc_latency_seconds_bucket{method=\"eth_blockNumber\"}[1m])))",
+          "expr": "histogram_quantile(0.99, sum by(le) (rate(indexer_rpc_latency_seconds_bucket{method=\"get_latest_block_number\"}[1m])))",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -911,7 +911,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "histogram_quantile(0.999, sum by(le) (rate(indexer_rpc_latency_seconds_bucket{method=\"eth_blockNumber\"}[1m])))",
+          "expr": "histogram_quantile(0.999, sum by(le) (rate(indexer_rpc_latency_seconds_bucket{method=\"get_latest_block_number\"}[1m])))",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -922,7 +922,7 @@
           "useBackend": false
         }
       ],
-      "title": "RPC Latency — eth_blockNumber",
+      "title": "RPC Latency — get_latest_block_number",
       "type": "timeseries"
     },
     {
@@ -1010,7 +1010,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "histogram_quantile(0.5, sum by(le) (rate(indexer_rpc_latency_seconds_bucket{method=\"eth_getBlockByNumber\"}[1m])))",
+          "expr": "histogram_quantile(0.5, sum by(le) (rate(indexer_rpc_latency_seconds_bucket{method=\"get_block_by_number\"}[1m])))",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -1027,7 +1027,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "histogram_quantile(0.9, sum by(le) (rate(indexer_rpc_latency_seconds_bucket{method=\"eth_getBlockByNumber\"}[1m])))",
+          "expr": "histogram_quantile(0.9, sum by(le) (rate(indexer_rpc_latency_seconds_bucket{method=\"get_block_by_number\"}[1m])))",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -1044,7 +1044,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "histogram_quantile(0.95, sum by(le) (rate(indexer_rpc_latency_seconds_bucket{method=\"eth_getBlockByNumber\"}[1m])))",
+          "expr": "histogram_quantile(0.95, sum by(le) (rate(indexer_rpc_latency_seconds_bucket{method=\"get_block_by_number\"}[1m])))",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -1061,7 +1061,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "histogram_quantile(0.99, sum by(le) (rate(indexer_rpc_latency_seconds_bucket{method=\"eth_getBlockByNumber\"}[1m])))",
+          "expr": "histogram_quantile(0.99, sum by(le) (rate(indexer_rpc_latency_seconds_bucket{method=\"get_block_by_number\"}[1m])))",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -1078,7 +1078,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "histogram_quantile(0.999, sum by(le) (rate(indexer_rpc_latency_seconds_bucket{method=\"eth_getBlockByNumber\"}[1m])))",
+          "expr": "histogram_quantile(0.999, sum by(le) (rate(indexer_rpc_latency_seconds_bucket{method=\"get_block_by_number\"}[1m])))",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -1089,7 +1089,7 @@
           "useBackend": false
         }
       ],
-      "title": "RPC Latency — eth_getBlockByNumber",
+      "title": "RPC Latency — get_block_by_number",
       "type": "timeseries"
     },
     {
@@ -1177,7 +1177,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "histogram_quantile(0.5, sum by(le) (rate(indexer_rpc_latency_seconds_bucket{method=\"eth_getTransactionReceipt\"}[1m])))",
+          "expr": "histogram_quantile(0.5, sum by(le) (rate(indexer_rpc_latency_seconds_bucket{method=\"get_block_receipts\"}[1m])))",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -1194,7 +1194,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "histogram_quantile(0.9, sum by(le) (rate(indexer_rpc_latency_seconds_bucket{method=\"eth_getTransactionReceipt\"}[1m])))",
+          "expr": "histogram_quantile(0.9, sum by(le) (rate(indexer_rpc_latency_seconds_bucket{method=\"get_block_receipts\"}[1m])))",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -1211,7 +1211,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "histogram_quantile(0.95, sum by(le) (rate(indexer_rpc_latency_seconds_bucket{method=\"eth_getTransactionReceipt\"}[1m])))",
+          "expr": "histogram_quantile(0.95, sum by(le) (rate(indexer_rpc_latency_seconds_bucket{method=\"get_block_receipts\"}[1m])))",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -1228,7 +1228,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "histogram_quantile(0.99, sum by(le) (rate(indexer_rpc_latency_seconds_bucket{method=\"eth_getTransactionReceipt\"}[1m])))",
+          "expr": "histogram_quantile(0.99, sum by(le) (rate(indexer_rpc_latency_seconds_bucket{method=\"get_block_receipts\"}[1m])))",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -1245,7 +1245,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "histogram_quantile(0.999, sum by(le) (rate(indexer_rpc_latency_seconds_bucket{method=\"eth_getTransactionReceipt\"}[1m])))",
+          "expr": "histogram_quantile(0.999, sum by(le) (rate(indexer_rpc_latency_seconds_bucket{method=\"get_block_receipts\"}[1m])))",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -1256,7 +1256,174 @@
           "useBackend": false
         }
       ],
-      "title": "RPC Latency — eth_getTransactionReceipt",
+      "title": "RPC Latency — get_block_receipts",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 11,
+        "w": 24,
+        "x": 0,
+        "y": 93
+      },
+      "id": 19,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.3.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "histogram_quantile(0.5, sum by(le) (rate(indexer_rpc_latency_seconds_bucket{method=\"debug_trace_block_by_number\"}[1m])))",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "p50",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "histogram_quantile(0.9, sum by(le) (rate(indexer_rpc_latency_seconds_bucket{method=\"debug_trace_block_by_number\"}[1m])))",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "p90",
+          "range": true,
+          "refId": "B",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "histogram_quantile(0.95, sum by(le) (rate(indexer_rpc_latency_seconds_bucket{method=\"debug_trace_block_by_number\"}[1m])))",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "p95",
+          "range": true,
+          "refId": "C",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "histogram_quantile(0.99, sum by(le) (rate(indexer_rpc_latency_seconds_bucket{method=\"debug_trace_block_by_number\"}[1m])))",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "p99",
+          "range": true,
+          "refId": "D",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "histogram_quantile(0.999, sum by(le) (rate(indexer_rpc_latency_seconds_bucket{method=\"debug_trace_block_by_number\"}[1m])))",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "p999",
+          "range": true,
+          "refId": "E",
+          "useBackend": false
+        }
+      ],
+      "title": "RPC Latency — debug_trace_block_by_number",
       "type": "timeseries"
     },
     {
@@ -1286,7 +1453,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 93
+        "y": 104
       },
       "id": 13,
       "options": {
@@ -1383,7 +1550,7 @@
         "h": 11,
         "w": 24,
         "x": 0,
-        "y": 101
+        "y": 112
       },
       "id": 15,
       "options": {
@@ -1431,6 +1598,6 @@
   "timezone": "",
   "title": "Blockchain Indexer",
   "uid": "de51ul155ygaod",
-  "version": 1,
+  "version": 10,
   "weekStart": ""
 }
