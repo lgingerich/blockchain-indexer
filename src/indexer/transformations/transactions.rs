@@ -1,4 +1,6 @@
 use anyhow::Result;
+use chrono::{DateTime, Utc, NaiveDate};
+use std::collections::HashMap;
 
 use crate::models::common::{Chain, ParsedData};
 use crate::models::datasets::transactions::{
@@ -7,11 +9,11 @@ use crate::models::datasets::transactions::{
 };
 
 pub trait TransactionTransformer {
-    fn transform_transactions(self, chain: Chain) -> Result<Vec<TransformedTransactionData>>;
+    fn transform_transactions(self, chain: Chain, block_map: HashMap<u64, (DateTime<Utc>, NaiveDate)>) -> Result<Vec<TransformedTransactionData>>;
 }
 
 impl TransactionTransformer for ParsedData {
-    fn transform_transactions(self, chain: Chain) -> Result<Vec<TransformedTransactionData>> {
+    fn transform_transactions(self, chain: Chain, block_map: HashMap<u64, (DateTime<Utc>, NaiveDate)>) -> Result<Vec<TransformedTransactionData>> {
         // Zip transactions with their corresponding receipts
         let transactions_with_receipts =
             self.transactions.into_iter().zip(self.transaction_receipts);
@@ -32,6 +34,16 @@ impl TransactionTransformer for ParsedData {
 
                 let common = CommonTransformedTransactionData {
                     chain_id: self.chain_id,
+
+                    // Get block time and date from block_map
+                    block_time: common_tx.block_number
+                        .and_then(|num| block_map.get(&num))
+                        .map(|(time, _)| *time)
+                        .unwrap_or_default(),
+                    block_date: common_tx.block_number
+                        .and_then(|num| block_map.get(&num))
+                        .map(|(_, date)| *date)
+                        .unwrap_or_default(),
 
                     // TODO: Improve this
                     // Use receipt fields if available, otherwise use transaction fields or defaults
@@ -57,8 +69,8 @@ impl TransactionTransformer for ParsedData {
                     v: common_tx.v,
 
                     // Fields from TransactionReceiptData
-                    transaction_hash: common_receipt.transaction_hash,
-                    transaction_index: common_receipt.transaction_index,
+                    tx_hash: common_receipt.tx_hash,
+                    tx_index: common_receipt.tx_index,
                     status: common_receipt.status,
                     block_hash: common_receipt.block_hash,
                     block_number: common_receipt.block_number,

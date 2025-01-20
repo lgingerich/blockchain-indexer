@@ -2,6 +2,7 @@
 
 use alloy_eips::{eip2930::AccessList, eip4844::BYTES_PER_BLOB, eip7702::SignedAuthorization};
 use alloy_primitives::{Address, Bloom, Bytes, FixedBytes, Uint};
+use chrono::{DateTime, NaiveDate, Utc};
 use serde::Serialize;
 
 use crate::models::common::TransactionTo;
@@ -10,10 +11,10 @@ use crate::models::common::TransactionTo;
 ///////////////////////////////// eth_getBlockByNumber /////////////////////////////////
 #[derive(Debug, Clone)]
 pub struct CommonRpcTransactionData {
-    pub hash: FixedBytes<32>,
+    pub tx_hash: FixedBytes<32>,
     pub nonce: u64,
     pub tx_type: u8,
-    pub gas_price: u128,
+    pub gas_price: Option<u128>,
     pub gas_limit: u64,
     pub max_fee_per_gas: u128,
     pub max_priority_fee_per_gas: u128,
@@ -61,8 +62,8 @@ pub enum RpcTransactionData {
 
 #[derive(Debug, Clone)]
 pub struct CommonRpcTransactionReceiptData {
-    pub transaction_hash: FixedBytes<32>,
-    pub transaction_index: Option<u64>,
+    pub tx_hash: FixedBytes<32>,
+    pub tx_index: Option<u64>,
     pub status: Option<bool>,
     pub tx_type: u8,
     pub block_hash: Option<FixedBytes<32>>,
@@ -105,10 +106,12 @@ pub enum RpcTransactionReceiptData {
 #[derive(Debug, Serialize)]
 pub struct CommonTransformedTransactionData {
     pub chain_id: u64,
+    pub block_time: DateTime<Utc>,
+    pub block_date: NaiveDate,
 
     // Block fields
     pub nonce: u64,
-    pub gas_price: u128,
+    pub gas_price: Option<u128>,
     pub gas_limit: u64,
     pub max_fee_per_gas: u128,
     pub max_priority_fee_per_gas: u128,
@@ -121,8 +124,8 @@ pub struct CommonTransformedTransactionData {
     pub blob_versioned_hashes: Vec<FixedBytes<32>>,
 
     // Receipt fields
-    pub transaction_hash: FixedBytes<32>,
-    pub transaction_index: Option<u64>,
+    pub tx_hash: FixedBytes<32>,
+    pub tx_index: Option<u64>,
     pub status: Option<bool>,
     pub tx_type: u8,
     pub block_hash: Option<FixedBytes<32>>,

@@ -6,7 +6,7 @@ use serde::Serialize;
 // Base struct for common fields
 #[derive(Debug, Clone)]
 pub struct CommonRpcHeaderData {
-    pub hash: FixedBytes<32>,
+    pub block_hash: FixedBytes<32>,
     pub parent_hash: FixedBytes<32>,
     pub ommers_hash: FixedBytes<32>,
     pub beneficiary: Address,
@@ -61,7 +61,7 @@ pub enum RpcHeaderData {
 #[derive(Debug, Clone, Serialize)]
 pub struct CommonTransformedBlockData {
     pub chain_id: u64,
-    pub hash: FixedBytes<32>,
+    pub block_hash: FixedBytes<32>,
     pub parent_hash: FixedBytes<32>,
     pub ommers_hash: FixedBytes<32>,
     pub beneficiary: Address,

@@ -1,6 +1,7 @@
 use alloy_consensus::Eip658Value;
 use alloy_network::AnyTransactionReceipt;
 use anyhow::Result;
+use chrono::DateTime;
 
 use crate::models::common::Chain;
 use crate::models::datasets::logs::{
@@ -30,8 +31,8 @@ impl ReceiptParser for Vec<AnyTransactionReceipt> {
                 };
 
                 let common = CommonRpcTransactionReceiptData {
-                    transaction_hash: receipt.inner.transaction_hash,
-                    transaction_index: receipt.inner.transaction_index,
+                    tx_hash: receipt.inner.transaction_hash,
+                    tx_index: receipt.inner.transaction_index,
                     status,
                     tx_type: receipt.inner.inner.r#type,
                     block_hash: receipt.inner.block_hash,
@@ -91,9 +92,13 @@ impl ReceiptParser for Vec<AnyTransactionReceipt> {
                             data: log.inner.data.data,
                             block_hash: log.block_hash,
                             block_number: log.block_number,
-                            block_timestamp: log.block_timestamp,
-                            transaction_hash: log.transaction_hash,
-                            transaction_index: log.transaction_index,
+                            block_time: log.block_timestamp
+                                .and_then(|ts| DateTime::from_timestamp(ts as i64, 0)),
+                            block_date: log.block_timestamp
+                                .and_then(|ts| DateTime::from_timestamp(ts as i64, 0))
+                                .map(|dt| dt.date_naive()),
+                            tx_hash: log.transaction_hash,
+                            tx_index: log.transaction_index,
                             log_index: log.log_index,
                             removed: log.removed,
                         };

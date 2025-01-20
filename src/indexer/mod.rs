@@ -13,6 +13,7 @@ use alloy_rpc_types_trace::{
 use alloy_transport::Transport;
 use anyhow::{anyhow, Result};
 use opentelemetry::KeyValue;
+use std::collections::HashMap;
 
 use crate::indexer::rpc::{blocks::BlockParser, receipts::ReceiptParser, traces::TraceParser};
 use crate::indexer::transformations::{
@@ -21,6 +22,7 @@ use crate::indexer::transformations::{
 };
 use crate::metrics::Metrics;
 use crate::models::common::{Chain, ParsedData, TransformedData};
+use crate::models::datasets::blocks::RpcHeaderData;
 use crate::utils::retry::{retry, RetryConfig};
 
 pub async fn get_chain_id<T, N>(provider: &dyn Provider<T, N>, metrics: &Metrics) -> Result<u64>
@@ -286,6 +288,7 @@ where
 pub async fn parse_data(
     chain: Chain,
     chain_id: u64,
+    block_number: u64,
     block: Option<AnyRpcBlock>,
     receipts: Option<Vec<AnyTransactionReceipt>>,
     traces: Option<Vec<TraceResult<GethTrace, String>>>,
@@ -312,7 +315,7 @@ pub async fn parse_data(
 
     // Parse traces if available
     let traces = if let Some(traces) = traces {
-        traces.parse_traces(chain)?
+        traces.parse_traces(chain, block_number)?
     } else {
         vec![]
     };
@@ -332,6 +335,30 @@ pub async fn transform_data(
     parsed_data: ParsedData,
     active_datasets: &[String],
 ) -> Result<TransformedData> {
+
+
+    // blocks: block_number, block_time, block_date
+    // transactions: block_number
+    // receipts: block_number
+    // logs: block_number, block_time, block_date
+    // traces: block_number
+
+
+    // Build set of common fields I need to pass across datasets (e.g. block_number -> block_time, block_date)
+    let block_map: HashMap<_, _> = parsed_data.header.clone()
+        .into_iter()
+        .map(|header| match header {
+            RpcHeaderData::Ethereum(eth_header) => (
+                eth_header.common.block_number,
+                (eth_header.common.block_time, eth_header.common.block_date)
+            ),
+            RpcHeaderData::ZKsync(zk_header) => (
+                zk_header.common.block_number,
+                (zk_header.common.block_time, zk_header.common.block_date)
+            ),
+        })
+        .collect();
+
     // Only transform data for active datasets, otherwise return empty Vec
     let blocks = if active_datasets.contains(&"blocks".to_string()) {
         parsed_data.clone().transform_blocks(chain)?
@@ -342,20 +369,20 @@ pub async fn transform_data(
     let transactions = if active_datasets.contains(&"transactions".to_string())
         && !parsed_data.transactions.is_empty()
     {
-        parsed_data.clone().transform_transactions(chain)?
+        parsed_data.clone().transform_transactions(chain, block_map.clone())? 
     } else {
         vec![]
     };
 
     let logs = if active_datasets.contains(&"logs".to_string()) && !parsed_data.logs.is_empty() {
-        parsed_data.clone().transform_logs(chain)?
+        parsed_data.clone().transform_logs(chain)? // Don't need to pass block_map here as logs already have desired fields
     } else {
         vec![]
     };
 
     let traces =
         if active_datasets.contains(&"traces".to_string()) && !parsed_data.traces.is_empty() {
-            parsed_data.clone().transform_traces(chain)?
+            parsed_data.clone().transform_traces(chain, block_map)?
         } else {
             vec![]
         };

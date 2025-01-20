@@ -29,9 +29,10 @@ impl LogTransformer for ParsedData {
                     data: common_data.data.clone(),
                     block_hash: common_data.block_hash,
                     block_number: common_data.block_number,
-                    block_timestamp: common_data.block_timestamp,
-                    transaction_hash: common_data.transaction_hash,
-                    transaction_index: common_data.transaction_index,
+                    block_time: common_data.block_time,
+                    block_date: common_data.block_date,
+                    tx_hash: common_data.tx_hash,
+                    tx_index: common_data.tx_index,
                     log_index: common_data.log_index,
                     removed: common_data.removed,
                 };

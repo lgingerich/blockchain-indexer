@@ -32,7 +32,7 @@ impl BlockParser for AnyRpcBlock {
 
         // Define common fields that exist across all chains
         let common = CommonRpcHeaderData {
-            hash: self.header.hash,
+            block_hash: self.header.hash,
             parent_hash: inner.parent_hash,
             ommers_hash: inner.ommers_hash,
             beneficiary: inner.beneficiary,
@@ -105,16 +105,16 @@ impl BlockParser for AnyRpcBlock {
 
                     // default values of mandatory fields are not too important as they will always get overrriden by the actual values
                     let common = CommonRpcTransactionData {
-                        hash: FixedBytes::<32>::ZERO,
-                        nonce: 0, // TODO: Is this default value correct?
-                        tx_type: 0,
-                        gas_price: 0, // TODO: Is this default value correct?
-                        gas_limit: 0,
-                        max_fee_per_gas: 0, // TODO: Is this default value correct?
-                        max_priority_fee_per_gas: 0, // TODO: Is this default value correct?
-                        value: None,
+                        tx_hash: FixedBytes::<32>::ZERO,
+                        nonce: 0, // Required field. Always overridden by actual value
+                        tx_type: 0, // Required field. Always overridden by actual value
+                        gas_price: None, 
+                        gas_limit: 0, // Required field. Always overridden by actual value
+                        max_fee_per_gas: 0,
+                        max_priority_fee_per_gas: 0,
+                        value: None, // Required field. Always overridden by actual value
                         access_list: AccessList::default(),
-                        input: None,
+                        input: None, // Required field. Always overridden by actual value
                         r: Uint::<256, 4>::ZERO,
                         s: Uint::<256, 4>::ZERO,
                         v: false,
@@ -125,7 +125,7 @@ impl BlockParser for AnyRpcBlock {
                         transaction_index,
                         effective_gas_price,
                         from,
-                        to: TransactionTo::Address(Address::ZERO),
+                        to: TransactionTo::Address(Address::ZERO), // Required field. Always overridden by actual value
                     };
 
                     // TODO: Change to match on chains first.
@@ -143,10 +143,10 @@ impl BlockParser for AnyRpcBlock {
 
                                     RpcTransactionData::Ethereum(EthereumRpcTransactionData {
                                         common: CommonRpcTransactionData {
-                                            hash: *signed.hash(),
+                                            tx_hash: *signed.hash(),
                                             nonce: tx.nonce,
                                             tx_type: LEGACY_TX_TYPE_ID,
-                                            gas_price: tx.gas_price,
+                                            gas_price: Some(tx.gas_price),
                                             gas_limit: tx.gas_limit,
                                             input: Some(tx.input.clone()), // TODO: Remove clone
                                             value: Some(tx.value),
@@ -168,10 +168,10 @@ impl BlockParser for AnyRpcBlock {
 
                                     RpcTransactionData::Ethereum(EthereumRpcTransactionData {
                                         common: CommonRpcTransactionData {
-                                            hash: *signed.hash(),
+                                            tx_hash: *signed.hash(),
                                             nonce: tx.nonce,
                                             tx_type: EIP2930_TX_TYPE_ID,
-                                            gas_price: tx.gas_price,
+                                            gas_price: Some(tx.gas_price),
                                             gas_limit: tx.gas_limit,
                                             to: TransactionTo::TxKind(tx.to),
                                             value: Some(tx.value),
@@ -207,7 +207,7 @@ impl BlockParser for AnyRpcBlock {
                                             r: signature.r(),
                                             s: signature.s(),
                                             v: signature.v(),
-                                            hash: *signed.hash(),
+                                            tx_hash: *signed.hash(),
                                             ..common
                                         },
                                         max_fee_per_blob_gas: None,
@@ -235,7 +235,7 @@ impl BlockParser for AnyRpcBlock {
                                                 r: signature.r(),
                                                 s: signature.s(),
                                                 v: signature.v(),
-                                                hash: *signed.hash(),
+                                                tx_hash: *signed.hash(),
                                                 ..common
                                             },
                                             max_fee_per_blob_gas: Some(tx.max_fee_per_blob_gas),
@@ -261,7 +261,7 @@ impl BlockParser for AnyRpcBlock {
                                                     r: signature.r(),
                                                     s: signature.s(),
                                                     v: signature.v(),
-                                                    hash: *signed.hash(),
+                                                    tx_hash: *signed.hash(),
                                                     ..common
                                                 },
                                                 max_fee_per_blob_gas: Some(tx.max_fee_per_blob_gas),
@@ -291,7 +291,7 @@ impl BlockParser for AnyRpcBlock {
                                             r: signature.r(),
                                             s: signature.s(),
                                             v: signature.v(),
-                                            hash: *signed.hash(),
+                                            tx_hash: *signed.hash(),
                                             ..common
                                         },
                                         max_fee_per_blob_gas: None,
@@ -342,16 +342,16 @@ impl BlockParser for AnyRpcBlock {
                             let ty = inner.ty;
 
                             let common_fields = CommonRpcTransactionData {
-                                hash: unknown.hash,
+                                tx_hash: unknown.hash,
                                 nonce: other_fields
                                     .get_deserialized::<u64>("nonce")
                                     .and_then(|result| result.ok())
                                     .unwrap_or(0),
                                 tx_type: ty.0, // Gets the first element of the tuple as u8
-                                gas_price: other_fields
+                                gas_price: Some(other_fields
                                     .get_deserialized::<u128>("gasPrice")
                                     .and_then(|result| result.ok())
-                                    .unwrap_or(0),
+                                    .unwrap_or(0)),
                                 gas_limit: other_fields
                                     .get_deserialized::<u64>("gas")
                                     .and_then(|result| result.ok())

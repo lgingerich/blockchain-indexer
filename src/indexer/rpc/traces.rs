@@ -1,4 +1,5 @@
 use alloy_rpc_types_trace::geth::{CallFrame, GethTrace, TraceResult};
+use alloy_primitives::FixedBytes;
 use anyhow::Result;
 
 use crate::models::common::Chain;
@@ -7,20 +8,20 @@ use crate::models::datasets::traces::{
 };
 
 pub trait TraceParser {
-    fn parse_traces(self, chain: Chain) -> Result<Vec<RpcTraceData>>;
+    fn parse_traces(self, chain: Chain, block_number: u64) -> Result<Vec<RpcTraceData>>;
 }
 
 impl TraceParser for Vec<TraceResult> {
-    fn parse_traces(self, chain: Chain) -> Result<Vec<RpcTraceData>> {
+    fn parse_traces(self, chain: Chain, block_number: u64) -> Result<Vec<RpcTraceData>> {
         Ok(self
             .into_iter()
             .flat_map(|trace_result| {
                 match trace_result {
-                    TraceResult::Success { result, tx_hash: _ } => {
+                    TraceResult::Success { result, tx_hash } => {
                         match result {
                             GethTrace::CallTracer(frame) => {
                                 // Process the frame and all its nested calls
-                                flatten_call_frames(frame, chain)
+                                flatten_call_frames(frame, tx_hash, chain, block_number)
                             }
                             _ => Vec::new(), // Skip other trace types
                         }
@@ -45,21 +46,28 @@ impl TraceParser for Vec<TraceResult> {
 }
 
 /// Recursively flattens a CallFrame and its nested calls into a vector of TraceData
-fn flatten_call_frames(frame: CallFrame, chain: Chain) -> Vec<RpcTraceData> {
+fn flatten_call_frames(
+    frame: CallFrame,
+    tx_hash: Option<FixedBytes<32>>,
+    chain: Chain,
+    block_number: u64,
+) -> Vec<RpcTraceData> {
     let mut traces = Vec::new();
 
     let common_data = CommonRpcTraceData {
         from: frame.from,
-        gas: frame.gas,
-        gas_used: frame.gas_used,
+        tx_hash,
+        gas: frame.gas.to_string(), // Convert from Uint<256, 4> to String for proper serialization
+        gas_used: frame.gas_used.to_string(), // Convert from Uint<256, 4> to String for proper serialization
         to: frame.to,
         input: frame.input,
         output: frame.output,
         error: frame.error,
         revert_reason: frame.revert_reason,
         logs: frame.logs,
-        value: frame.value,
-        typ: frame.typ,
+        value: frame.value.map(|v| v.to_string()), // Convert from Uint<256, 4> to String for proper serialization
+        r#type: frame.typ,
+        block_number,
     };
 
     let trace_data = match chain {
@@ -76,7 +84,7 @@ fn flatten_call_frames(frame: CallFrame, chain: Chain) -> Vec<RpcTraceData> {
 
     // Recursively process nested calls
     for nested_call in frame.calls {
-        traces.extend(flatten_call_frames(nested_call, chain));
+        traces.extend(flatten_call_frames(nested_call, tx_hash, chain, block_number));
     }
 
     traces

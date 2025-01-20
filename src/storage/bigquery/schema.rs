@@ -15,7 +15,7 @@ pub fn block_schema(chain: Chain) -> TableSchema {
             ..Default::default()
         },
         TableFieldSchema {
-            name: "hash".to_string(),
+            name: "block_hash".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Required),
             description: None,
@@ -234,7 +234,6 @@ pub fn block_schema(chain: Chain) -> TableSchema {
     TableSchema { fields }
 }
 
-// Implement similar chain-aware schemas for other tables
 pub fn log_schema(chain: Chain) -> TableSchema {
     let fields = vec![
         TableFieldSchema {
@@ -273,21 +272,28 @@ pub fn log_schema(chain: Chain) -> TableSchema {
             ..Default::default()
         },
         TableFieldSchema {
-            name: "block_timestamp".to_string(),
-            data_type: TableFieldType::Integer,
+            name: "block_time".to_string(),
+            data_type: TableFieldType::Timestamp,
             mode: Some(TableFieldMode::Nullable),
             description: None,
             ..Default::default()
         },
         TableFieldSchema {
-            name: "transaction_hash".to_string(),
+            name: "block_date".to_string(),
+            data_type: TableFieldType::Date,
+            mode: Some(TableFieldMode::Nullable),
+            description: None,
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "tx_hash".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Nullable),
             description: None,
             ..Default::default()
         },
         TableFieldSchema {
-            name: "transaction_index".to_string(),
+            name: "tx_index".to_string(),
             data_type: TableFieldType::Integer,
             mode: Some(TableFieldMode::Nullable),
             description: None,
@@ -332,6 +338,20 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
             description: None,
             ..Default::default()
         },
+        TableFieldSchema {
+            name: "block_time".to_string(),
+            data_type: TableFieldType::Timestamp,
+            mode: Some(TableFieldMode::Required),
+            description: None,
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "block_date".to_string(),
+            data_type: TableFieldType::Date,
+            mode: Some(TableFieldMode::Required),
+            description: None,
+            ..Default::default()
+        },        
         TableFieldSchema {
             name: "tx_type".to_string(),
             data_type: TableFieldType::Integer,
@@ -441,14 +461,14 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
         },
         // Receipt fields
         TableFieldSchema {
-            name: "transaction_hash".to_string(),
+            name: "tx_hash".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Required),
             description: None,
             ..Default::default()
         },
         TableFieldSchema {
-            name: "transaction_index".to_string(),
+            name: "tx_index".to_string(),
             data_type: TableFieldType::Integer,
             mode: Some(TableFieldMode::Nullable),
             description: None,
@@ -608,6 +628,34 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
 pub fn trace_schema(chain: Chain) -> TableSchema {
     let fields = vec![
         TableFieldSchema {
+            name: "tx_hash".to_string(),
+            data_type: TableFieldType::String,
+            mode: Some(TableFieldMode::Nullable),
+            description: None,
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "block_number".to_string(),
+            data_type: TableFieldType::Integer,
+            mode: Some(TableFieldMode::Nullable),
+            description: None,
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "block_time".to_string(),
+            data_type: TableFieldType::Timestamp,
+            mode: Some(TableFieldMode::Required),
+            description: None,
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "block_date".to_string(),
+            data_type: TableFieldType::Date,
+            mode: Some(TableFieldMode::Required),
+            description: None,
+            ..Default::default()
+        },             
+        TableFieldSchema {
             name: "from".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Required),
@@ -708,7 +756,7 @@ pub fn trace_schema(chain: Chain) -> TableSchema {
             ..Default::default()
         },
         TableFieldSchema {
-            name: "typ".to_string(),
+            name: "type".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Required),
             description: None,

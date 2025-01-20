@@ -25,7 +25,7 @@ impl BlockTransformer for ParsedData {
 
                 let common = CommonTransformedBlockData {
                     chain_id: self.chain_id,
-                    hash: common_data.hash,
+                    block_hash: common_data.block_hash,
                     parent_hash: common_data.parent_hash,
                     ommers_hash: common_data.ommers_hash,
                     beneficiary: common_data.beneficiary,

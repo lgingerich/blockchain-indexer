@@ -192,7 +192,7 @@ async fn main() -> Result<()> {
         }
 
         // Extract and separate the raw RPC response into distinct datasets (block headers, transactions, receipts, logs, traces)
-        let parsed_data = indexer::parse_data(chain, chain_id, block, receipts, traces).await?;
+        let parsed_data = indexer::parse_data(chain, chain_id, block_number_to_process.as_number().unwrap(), block, receipts, traces).await?;
 
         // For ZKSync, wait until L1 batch number is available
         // This is possibly necessary for other L2s as well
@@ -211,7 +211,11 @@ async fn main() -> Result<()> {
         }
 
         // Transform all data into final output formats (blocks, transactions, logs, traces)
-        let transformed_data = indexer::transform_data(chain, parsed_data, &datasets).await?;
+        let transformed_data = indexer::transform_data(
+            chain, 
+            parsed_data, 
+            &datasets, 
+        ).await?;
 
         blocks_collection.extend(transformed_data.blocks);
         transactions_collection.extend(transformed_data.transactions);
