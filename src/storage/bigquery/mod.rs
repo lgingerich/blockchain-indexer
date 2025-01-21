@@ -240,7 +240,7 @@ async fn insert_data<T: serde::Serialize>(
         return Ok(());
     }
 
-    // Process data in chunks of 1000 rows (you can adjust this value)
+    // TODO: (Handle better?) Process data in chunks of 1000 rows (you can adjust this value)
     const BATCH_SIZE: usize = 1000;
     for chunk in data.chunks(BATCH_SIZE) {
         let rows = chunk
