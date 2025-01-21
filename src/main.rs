@@ -244,25 +244,25 @@ async fn main() -> Result<()> {
 
         // Send transformed data through channels for saving to storage
         if datasets.contains(&"blocks".to_string()) {
-            if let Err(e) = channels.blocks_tx.send(transformed_data.blocks).await {
+            if let Err(e) = channels.blocks_tx.send((transformed_data.blocks, block_number_to_process.as_number().unwrap())).await {
                 error!("Failed to send blocks batch to channel: {}", e);
             }
         }
         
         if datasets.contains(&"transactions".to_string()) {
-            if let Err(e) = channels.transactions_tx.send(transformed_data.transactions).await {
+            if let Err(e) = channels.transactions_tx.send((transformed_data.transactions, block_number_to_process.as_number().unwrap())).await {
                 error!("Failed to send transactions batch to channel: {}", e);
             }
         }
         
         if datasets.contains(&"logs".to_string()) {
-            if let Err(e) = channels.logs_tx.send(transformed_data.logs).await {
+            if let Err(e) = channels.logs_tx.send((transformed_data.logs, block_number_to_process.as_number().unwrap())).await {
                 error!("Failed to send logs batch to channel: {}", e);
             }
         }
         
         if datasets.contains(&"traces".to_string()) {
-            if let Err(e) = channels.traces_tx.send(transformed_data.traces).await {
+            if let Err(e) = channels.traces_tx.send((transformed_data.traces, block_number_to_process.as_number().unwrap())).await {
                 error!("Failed to send traces batch to channel: {}", e);
             }
         }
