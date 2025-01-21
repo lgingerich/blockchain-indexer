@@ -1,6 +1,6 @@
 use alloy_primitives::{Address, Bytes, FixedBytes};
 use alloy_rpc_types_trace::geth::CallLogFrame;
-use chrono::{DateTime, Utc, NaiveDate};
+use chrono::{DateTime, NaiveDate, Utc};
 use serde::Serialize;
 
 ////////////////////////////////////// RPC Data ////////////////////////////////////////
@@ -45,7 +45,7 @@ pub enum RpcTraceData {
 pub struct CommonTransformedTraceData {
     pub chain_id: u64,
     pub block_time: DateTime<Utc>,
-    pub block_date: NaiveDate,    
+    pub block_date: NaiveDate,
     pub block_number: u64,
     pub tx_hash: Option<FixedBytes<32>>,
     pub r#type: String,

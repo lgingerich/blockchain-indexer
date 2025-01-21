@@ -26,7 +26,7 @@ pub fn block_schema(chain: Chain) -> TableSchema {
             mode: Some(TableFieldMode::Required),
             description: None,
             ..Default::default()
-        },        
+        },
         TableFieldSchema {
             name: "block_number".to_string(),
             data_type: TableFieldType::Integer,
@@ -82,7 +82,7 @@ pub fn block_schema(chain: Chain) -> TableSchema {
             mode: Some(TableFieldMode::Nullable),
             description: None,
             ..Default::default()
-        },        
+        },
         TableFieldSchema {
             name: "excess_blob_gas".to_string(),
             data_type: TableFieldType::Integer,
@@ -117,7 +117,7 @@ pub fn block_schema(chain: Chain) -> TableSchema {
             mode: Some(TableFieldMode::Nullable),
             description: None,
             ..Default::default()
-        },        
+        },
         TableFieldSchema {
             name: "beneficiary".to_string(),
             data_type: TableFieldType::String,
@@ -166,7 +166,7 @@ pub fn block_schema(chain: Chain) -> TableSchema {
             mode: Some(TableFieldMode::Required),
             description: None,
             ..Default::default()
-        },        
+        },
         TableFieldSchema {
             name: "state_root".to_string(),
             data_type: TableFieldType::String,
@@ -241,7 +241,7 @@ pub fn log_schema(chain: Chain) -> TableSchema {
             mode: Some(TableFieldMode::Required),
             description: None,
             ..Default::default()
-        },        
+        },
         TableFieldSchema {
             name: "block_time".to_string(),
             data_type: TableFieldType::Timestamp,
@@ -262,7 +262,7 @@ pub fn log_schema(chain: Chain) -> TableSchema {
             mode: Some(TableFieldMode::Nullable),
             description: None,
             ..Default::default()
-        },   
+        },
         TableFieldSchema {
             name: "block_hash".to_string(),
             data_type: TableFieldType::String,
@@ -290,7 +290,7 @@ pub fn log_schema(chain: Chain) -> TableSchema {
             mode: Some(TableFieldMode::Nullable),
             description: None,
             ..Default::default()
-        },        
+        },
         TableFieldSchema {
             name: "address".to_string(),
             data_type: TableFieldType::String,
@@ -356,14 +356,14 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
             mode: Some(TableFieldMode::Required),
             description: None,
             ..Default::default()
-        },            
+        },
         TableFieldSchema {
             name: "block_number".to_string(),
             data_type: TableFieldType::Integer,
             mode: Some(TableFieldMode::Nullable),
             description: None,
             ..Default::default()
-        },           
+        },
         TableFieldSchema {
             name: "block_hash".to_string(),
             data_type: TableFieldType::String,
@@ -391,7 +391,7 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
             mode: Some(TableFieldMode::Required),
             description: None,
             ..Default::default()
-        },        
+        },
         TableFieldSchema {
             name: "status".to_string(),
             data_type: TableFieldType::Boolean,
@@ -433,14 +433,14 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
             mode: Some(TableFieldMode::Nullable),
             description: None,
             ..Default::default()
-        },        
+        },
         TableFieldSchema {
             name: "value".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Nullable),
             description: None,
             ..Default::default()
-        },        
+        },
         TableFieldSchema {
             name: "gas_price".to_string(),
             data_type: TableFieldType::Integer,
@@ -461,7 +461,7 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
             mode: Some(TableFieldMode::Required),
             description: None,
             ..Default::default()
-        },   
+        },
         TableFieldSchema {
             name: "max_fee_per_gas".to_string(),
             data_type: TableFieldType::Integer,
@@ -496,14 +496,14 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
             mode: Some(TableFieldMode::Nullable),
             description: None,
             ..Default::default()
-        },          
+        },
         TableFieldSchema {
             name: "blob_gas_used".to_string(),
             data_type: TableFieldType::Integer,
             mode: Some(TableFieldMode::Nullable),
             description: None,
             ..Default::default()
-        },      
+        },
         TableFieldSchema {
             name: "access_list".to_string(),
             data_type: TableFieldType::Record,
@@ -540,7 +540,7 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
             mode: Some(TableFieldMode::Repeated),
             description: None,
             ..Default::default()
-        },        
+        },
         TableFieldSchema {
             name: "logs_bloom".to_string(),
             data_type: TableFieldType::String,
@@ -651,14 +651,14 @@ pub fn trace_schema(chain: Chain) -> TableSchema {
             mode: Some(TableFieldMode::Required),
             description: None,
             ..Default::default()
-        },               
+        },
         TableFieldSchema {
             name: "block_number".to_string(),
             data_type: TableFieldType::Integer,
             mode: Some(TableFieldMode::Nullable),
             description: None,
             ..Default::default()
-        },        
+        },
         TableFieldSchema {
             name: "tx_hash".to_string(),
             data_type: TableFieldType::String,
@@ -693,7 +693,7 @@ pub fn trace_schema(chain: Chain) -> TableSchema {
             mode: Some(TableFieldMode::Nullable),
             description: None,
             ..Default::default()
-        },        
+        },
         TableFieldSchema {
             name: "gas".to_string(),
             data_type: TableFieldType::String,

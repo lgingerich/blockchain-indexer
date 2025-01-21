@@ -135,7 +135,7 @@ pub struct CommonTransformedTransactionData {
     pub logs_bloom: Bloom,
     pub r: Option<String>,
     pub s: Option<String>,
-    pub v: Option<bool>,    
+    pub v: Option<bool>,
 }
 
 #[derive(Debug, Serialize)]

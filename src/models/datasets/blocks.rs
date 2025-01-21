@@ -75,7 +75,7 @@ pub struct CommonTransformedBlockData {
     pub extra_data: Bytes,
     pub difficulty: String,
     pub total_difficulty: Option<String>,
-    pub size: Option<String>,    
+    pub size: Option<String>,
     pub beneficiary: Address,
     pub mix_hash: Option<FixedBytes<32>>,
     pub ommers_hash: FixedBytes<32>,

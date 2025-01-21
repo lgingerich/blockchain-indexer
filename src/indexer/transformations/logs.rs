@@ -30,7 +30,7 @@ impl LogTransformer for ParsedData {
                     block_hash: common_data.block_hash,
                     tx_hash: common_data.tx_hash,
                     tx_index: common_data.tx_index,
-                    log_index: common_data.log_index,                          
+                    log_index: common_data.log_index,
                     address: common_data.address,
                     topics: common_data.topics.clone(),
                     data: common_data.data.clone(),

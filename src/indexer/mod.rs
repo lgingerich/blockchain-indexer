@@ -335,23 +335,23 @@ pub async fn transform_data(
     parsed_data: ParsedData,
     active_datasets: &[String],
 ) -> Result<TransformedData> {
-
     // Build set of common fields I need to pass across datasets (e.g. block_number -> block_time, block_date)
     // Hashmap is likely overkill for now with processing only a single block but will be useful for processing multiple blocks
-    let block_map: HashMap<_, _> = parsed_data.header.clone()
+    let block_map: HashMap<_, _> = parsed_data
+        .header
+        .clone()
         .into_iter()
         .map(|header| match header {
             RpcHeaderData::Ethereum(eth_header) => (
                 eth_header.common.block_number,
-                (eth_header.common.block_time, eth_header.common.block_date)
+                (eth_header.common.block_time, eth_header.common.block_date),
             ),
             RpcHeaderData::ZKsync(zk_header) => (
                 zk_header.common.block_number,
-                (zk_header.common.block_time, zk_header.common.block_date)
+                (zk_header.common.block_time, zk_header.common.block_date),
             ),
         })
         .collect();
-
 
     // Only transform data for active datasets, otherwise return empty Vec
     let blocks = if active_datasets.contains(&"blocks".to_string()) {
@@ -363,7 +363,9 @@ pub async fn transform_data(
     let transactions = if active_datasets.contains(&"transactions".to_string())
         && !parsed_data.transactions.is_empty()
     {
-        parsed_data.clone().transform_transactions(chain, block_map.clone())? 
+        parsed_data
+            .clone()
+            .transform_transactions(chain, block_map.clone())?
     } else {
         vec![]
     };

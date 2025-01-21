@@ -48,7 +48,7 @@ impl BlockParser for AnyRpcBlock {
             extra_data: inner.extra_data,
             difficulty: inner.difficulty.to_string(),
             total_difficulty: self.header.total_difficulty.map(|value| value.to_string()),
-            size: self.header.size.map(|value| value.to_string()),            
+            size: self.header.size.map(|value| value.to_string()),
             beneficiary: inner.beneficiary,
             mix_hash: inner.mix_hash,
             ommers_hash: inner.ommers_hash,
@@ -114,7 +114,7 @@ impl BlockParser for AnyRpcBlock {
                         to: TransactionTo::Address(Address::ZERO), // Required field. Always overridden by actual value
                         input: None, // Required field. Always overridden by actual value
                         value: None, // Required field. Always overridden by actual value
-                        gas_price: None, 
+                        gas_price: None,
                         gas_limit: 0, // Required field. Always overridden by actual value
                         max_fee_per_gas: None,
                         max_priority_fee_per_gas: None,
@@ -147,7 +147,7 @@ impl BlockParser for AnyRpcBlock {
                                             nonce: tx.nonce,
                                             to: TransactionTo::TxKind(tx.to),
                                             input: Some(tx.input.clone()),
-                                            value: Some(tx.value.to_string()),                                          
+                                            value: Some(tx.value.to_string()),
                                             gas_price: Some(tx.gas_price),
                                             gas_limit: tx.gas_limit,
                                             r: Some(signature.r().to_string()),
@@ -354,7 +354,7 @@ impl BlockParser for AnyRpcBlock {
                                 to: other_fields
                                     .get_deserialized::<TransactionTo>("to")
                                     .and_then(|result| result.ok())
-                                    .unwrap_or(TransactionTo::Address(Address::ZERO)),                                    
+                                    .unwrap_or(TransactionTo::Address(Address::ZERO)),
                                 input: other_fields
                                     .get_deserialized::<Bytes>("input")
                                     .and_then(|result| result.ok()),
@@ -388,7 +388,7 @@ impl BlockParser for AnyRpcBlock {
                                 blob_versioned_hashes: memo.blob_versioned_hashes
                                     .get()
                                     .cloned()
-                                    .unwrap_or_default(),                                    
+                                    .unwrap_or_default(),
                                 r: other_fields
                                     .get_deserialized::<Uint<256, 4>>("r")
                                     .and_then(|result| result.ok())

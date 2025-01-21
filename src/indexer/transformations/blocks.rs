@@ -38,7 +38,7 @@ impl BlockTransformer for ParsedData {
                     extra_data: common_data.extra_data.clone(),
                     difficulty: common_data.difficulty.clone(),
                     total_difficulty: common_data.total_difficulty.clone(),
-                    size: common_data.size.clone(),                    
+                    size: common_data.size.clone(),
                     beneficiary: common_data.beneficiary,
                     mix_hash: common_data.mix_hash,
                     ommers_hash: common_data.ommers_hash,

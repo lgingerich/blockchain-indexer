@@ -1,5 +1,5 @@
 use anyhow::Result;
-use chrono::{DateTime, Utc, NaiveDate};
+use chrono::{DateTime, NaiveDate, Utc};
 use std::collections::HashMap;
 
 use crate::models::common::{Chain, ParsedData};
@@ -9,11 +9,19 @@ use crate::models::datasets::transactions::{
 };
 
 pub trait TransactionTransformer {
-    fn transform_transactions(self, chain: Chain, block_map: HashMap<u64, (DateTime<Utc>, NaiveDate)>) -> Result<Vec<TransformedTransactionData>>;
+    fn transform_transactions(
+        self,
+        chain: Chain,
+        block_map: HashMap<u64, (DateTime<Utc>, NaiveDate)>,
+    ) -> Result<Vec<TransformedTransactionData>>;
 }
 
 impl TransactionTransformer for ParsedData {
-    fn transform_transactions(self, chain: Chain, block_map: HashMap<u64, (DateTime<Utc>, NaiveDate)>) -> Result<Vec<TransformedTransactionData>> {
+    fn transform_transactions(
+        self,
+        chain: Chain,
+        block_map: HashMap<u64, (DateTime<Utc>, NaiveDate)>,
+    ) -> Result<Vec<TransformedTransactionData>> {
         // Zip transactions with their corresponding receipts
         let transactions_with_receipts =
             self.transactions.into_iter().zip(self.transaction_receipts);
@@ -34,11 +42,13 @@ impl TransactionTransformer for ParsedData {
 
                 let common = CommonTransformedTransactionData {
                     chain_id: self.chain_id,
-                    block_time: common_tx.block_number
+                    block_time: common_tx
+                        .block_number
                         .and_then(|num| block_map.get(&num))
                         .map(|(time, _)| *time)
                         .unwrap_or_default(),
-                    block_date: common_tx.block_number
+                    block_date: common_tx
+                        .block_number
                         .and_then(|num| block_map.get(&num))
                         .map(|(_, date)| *date)
                         .unwrap_or_default(),

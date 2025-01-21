@@ -1,5 +1,5 @@
-use alloy_rpc_types_trace::geth::{CallFrame, GethTrace, TraceResult};
 use alloy_primitives::FixedBytes;
+use alloy_rpc_types_trace::geth::{CallFrame, GethTrace, TraceResult};
 use anyhow::Result;
 
 use crate::models::common::Chain;
@@ -85,7 +85,12 @@ fn flatten_call_frames(
 
     // Recursively process nested calls
     for nested_call in frame.calls {
-        traces.extend(flatten_call_frames(nested_call, tx_hash, chain, block_number));
+        traces.extend(flatten_call_frames(
+            nested_call,
+            tx_hash,
+            chain,
+            block_number,
+        ));
     }
 
     traces
