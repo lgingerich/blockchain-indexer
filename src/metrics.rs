@@ -9,6 +9,7 @@ use std::net::SocketAddr;
 
 pub struct Metrics {
     registry: Arc<prometheus::Registry>,
+    _provider: SdkMeterProvider,
     pub chain_name: String,
 
     // Block processing metrics
@@ -24,6 +25,9 @@ pub struct Metrics {
     pub rpc_requests: Counter<u64>,
     pub rpc_errors: Counter<u64>,
     pub rpc_latency: Histogram<f64>,
+
+    // MPSC channel metrics
+    pub channel_capacity: Gauge<u64>,
 }
 
 impl Metrics {
@@ -84,8 +88,14 @@ impl Metrics {
             .with_unit("s")
             .build();
 
+        let channel_capacity = meter
+            .u64_gauge("indexer_channel_capacity")
+            .with_description("Available capacity of the MPSC channels")
+            .build();
+
         Ok(Self {
             registry: Arc::new(registry),
+            _provider: provider,
             chain_name,
             blocks_processed,
             latest_processed_block,
@@ -95,6 +105,7 @@ impl Metrics {
             rpc_requests,
             rpc_errors,
             rpc_latency,
+            channel_capacity,
         })
     }
 

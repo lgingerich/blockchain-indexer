@@ -13,20 +13,19 @@ use alloy_rpc_types_trace::geth::{
 };
 use anyhow::{anyhow, Result};
 use opentelemetry::KeyValue;
-use tokio::time::Instant;
+use tokio::{
+    signal,
+    time::Instant,
+};
 use tracing::{error, info};
 use tracing_subscriber::{self, EnvFilter};
 use url::Url;
 
 use crate::metrics::Metrics;
 use crate::models::common::Chain;
-use crate::models::datasets::blocks::{RpcHeaderData, TransformedBlockData};
-use crate::models::datasets::logs::TransformedLogData;
-use crate::models::datasets::traces::TransformedTraceData;
-use crate::models::datasets::transactions::TransformedTransactionData;
+use crate::models::datasets::blocks::RpcHeaderData;
+use crate::storage::setup_channels;
 use crate::utils::{hex_to_u64, load_config};
-
-const MAX_BATCH_SIZE: usize = 10; // Number of blocks to fetch before inserting into BigQuery
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -62,6 +61,7 @@ async fn main() -> Result<()> {
 
     // Initialize metrics
     let metrics = Metrics::new(chain_name.to_string())?;
+
     // Start metrics server
     metrics.start_metrics_server("0.0.0.0", 9100).await; // Prometheus port is currently hardcoded to 9100 in prometheus.yml
 
@@ -71,6 +71,21 @@ async fn main() -> Result<()> {
     let need_receipts =
         datasets.contains(&"logs".to_string()) || datasets.contains(&"transactions".to_string()); // Logs and transactions are dependendent on eth_getBlockReceipts
     let need_traces = datasets.contains(&"traces".to_string()); // Traces are dependendent on eth_debug_traceBlockByNumber
+
+    // Set up channels
+    let channels = setup_channels(dataset_id).await?;
+
+    // Create a shutdown signal handler. Flush channels before shutting down.
+    let mut shutdown_signal = channels.shutdown_signal();
+    let shutdown_channels = channels.clone();
+    tokio::spawn(async move {
+        if let Ok(()) = signal::ctrl_c().await {
+            info!("Received Ctrl+C signal, initiating shutdown...");
+            if let Err(e) = shutdown_channels.shutdown().await {
+                error!("Error during shutdown: {}", e);
+            }
+        }
+    });
 
     // Create dataset and tables. Handles existing datasets and tables.
     let _ = storage::bigquery::create_dataset_with_retry(dataset_id).await;
@@ -90,7 +105,7 @@ async fn main() -> Result<()> {
         0
     };
 
-    // let mut block_number = 10_000_000;
+    let mut block_number = 10_000_000;
     info!("Starting block number: {:?}", block_number);
 
     // Create RPC provider
@@ -106,14 +121,18 @@ async fn main() -> Result<()> {
 
     // Initialize data for loop
     let mut block_number_to_process = BlockNumberOrTag::Number(block_number);
-    let mut blocks_collection: Vec<TransformedBlockData> = vec![];
-    let mut transactions_collection: Vec<TransformedTransactionData> = vec![];
-    let mut logs_collection: Vec<TransformedLogData> = vec![];
-    let mut traces_collection: Vec<TransformedTraceData> = vec![];
 
     println!();
     info!("========================= STARTING INDEXER =========================");
-    loop {
+    let start_time = Instant::now();
+    while block_number <= 10_001_000 {
+    // loop {
+        // Check for shutdown signal (non-blocking)
+        if shutdown_signal.try_recv().is_ok() {
+            info!("Shutting down main processing loop...");
+            break;
+        }
+
         // Initialize intermediate data
         let mut block = None;
         let mut receipts = None;
@@ -140,6 +159,9 @@ async fn main() -> Result<()> {
             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
             continue;
         }
+        
+        // Check channel capacity and apply backpressure if needed
+        channels.check_capacity(&metrics).await?;
 
         // Start timing the block processing
         let block_start_time = Instant::now();
@@ -154,7 +176,6 @@ async fn main() -> Result<()> {
                     .ok_or_else(|| anyhow!("Provider returned no block"))?,
             );
         }
-        // println!("block: {:?}", block);
 
         // Get receipts by block number
         // Only fetch receipts data if `logs` or `transactions` are in the active datasets
@@ -221,16 +242,35 @@ async fn main() -> Result<()> {
         // Transform all data into final output formats (blocks, transactions, logs, traces)
         let transformed_data = indexer::transform_data(chain, parsed_data, &datasets).await?;
 
-        blocks_collection.extend(transformed_data.blocks);
-        transactions_collection.extend(transformed_data.transactions);
-        logs_collection.extend(transformed_data.logs); // TODO: block_timestamp is None for some (or all) logs
-        traces_collection.extend(transformed_data.traces);
+        // Send transformed data through channels for saving to storage
+        if datasets.contains(&"blocks".to_string()) {
+            if let Err(e) = channels.blocks_tx.send(transformed_data.blocks).await {
+                error!("Failed to send blocks batch to channel: {}", e);
+            }
+        }
+        
+        if datasets.contains(&"transactions".to_string()) {
+            if let Err(e) = channels.transactions_tx.send(transformed_data.transactions).await {
+                error!("Failed to send transactions batch to channel: {}", e);
+            }
+        }
+        
+        if datasets.contains(&"logs".to_string()) {
+            if let Err(e) = channels.logs_tx.send(transformed_data.logs).await {
+                error!("Failed to send logs batch to channel: {}", e);
+            }
+        }
+        
+        if datasets.contains(&"traces".to_string()) {
+            if let Err(e) = channels.traces_tx.send(transformed_data.traces).await {
+                error!("Failed to send traces batch to channel: {}", e);
+            }
+        }
 
         // Calculate block processing duration
         let block_processing_duration = block_start_time.elapsed().as_secs_f64();
 
         // Update metrics
-        // metrics.blocks_processed.add(1, &[KeyValue::new("chain", chain_name.clone())]);
         metrics
             .blocks_processed
             .add(1, &[KeyValue::new("chain", metrics.chain_name.clone())]);
@@ -251,42 +291,13 @@ async fn main() -> Result<()> {
             &[KeyValue::new("chain", metrics.chain_name.clone())],
         );
 
-        // When batch size is reached, save to storage
-        if blocks_collection.len() >= MAX_BATCH_SIZE {
-            // Insert data into BigQuery
-            // This waits for each dataset to be inserted before inserting the next one
-            // TODO: Add parallel insert
-            if datasets.contains(&"blocks".to_string()) {
-                storage::bigquery::insert_data_with_retry(dataset_id, "blocks", blocks_collection)
-                    .await?;
-            }
-            if datasets.contains(&"transactions".to_string()) {
-                storage::bigquery::insert_data_with_retry(
-                    dataset_id,
-                    "transactions",
-                    transactions_collection,
-                )
-                .await?;
-            }
-            if datasets.contains(&"logs".to_string()) {
-                storage::bigquery::insert_data_with_retry(dataset_id, "logs", logs_collection)
-                    .await?;
-            }
-            if datasets.contains(&"traces".to_string()) {
-                storage::bigquery::insert_data_with_retry(dataset_id, "traces", traces_collection)
-                    .await?;
-            }
-
-            // Reset collections
-            blocks_collection = vec![];
-            transactions_collection = vec![];
-            logs_collection = vec![];
-            traces_collection = vec![];
-        }
-
         // Increment the raw number and update BlockNumberOrTag
         block_number += 1;
         block_number_to_process = BlockNumberOrTag::Number(block_number);
-        // tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+        // tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
     }
+    let end_time = Instant::now();
+    let duration = end_time.duration_since(start_time);
+    info!("Total time taken: {:?}", duration);
+    Ok(())
 }
