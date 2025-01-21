@@ -27,6 +27,8 @@ use crate::models::datasets::blocks::RpcHeaderData;
 use crate::storage::setup_channels;
 use crate::utils::{hex_to_u64, load_config};
 
+const SLEEP_DURATION: u64 = 1000; // ms
+
 #[tokio::main]
 async fn main() -> Result<()> {
     // Initialize tracing
@@ -156,12 +158,15 @@ async fn main() -> Result<()> {
                 hex_to_u64(latest_block.to_string()).unwrap(),
                 (hex_to_u64(latest_block.to_string()).unwrap() - hex_to_u64(block_number_to_process.to_string()).unwrap())
             );
-            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            tokio::time::sleep(tokio::time::Duration::from_millis(SLEEP_DURATION)).await;
             continue;
         }
         
         // Check channel capacity and apply backpressure if needed
-        channels.check_capacity(&metrics).await?;
+        while !channels.check_capacity(&metrics).await? {
+            info!("Applying backpressure - sleeping for {} seconds...", SLEEP_DURATION / 1000);
+            tokio::time::sleep(tokio::time::Duration::from_millis(SLEEP_DURATION)).await;
+        }
 
         // Start timing the block processing
         let block_start_time = Instant::now();
@@ -233,7 +238,7 @@ async fn main() -> Result<()> {
                         "L1 batch number not yet available for block {}. Waiting...",
                         block_number
                     );
-                    tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+                    tokio::time::sleep(tokio::time::Duration::from_millis(SLEEP_DURATION)).await;
                     continue;
                 }
             }
@@ -244,25 +249,25 @@ async fn main() -> Result<()> {
 
         // Send transformed data through channels for saving to storage
         if datasets.contains(&"blocks".to_string()) {
-            if let Err(e) = channels.blocks_tx.send(transformed_data.blocks).await {
+            if let Err(e) = channels.blocks_tx.send((transformed_data.blocks, block_number_to_process.as_number().unwrap())).await {
                 error!("Failed to send blocks batch to channel: {}", e);
             }
         }
         
         if datasets.contains(&"transactions".to_string()) {
-            if let Err(e) = channels.transactions_tx.send(transformed_data.transactions).await {
+            if let Err(e) = channels.transactions_tx.send((transformed_data.transactions, block_number_to_process.as_number().unwrap())).await {
                 error!("Failed to send transactions batch to channel: {}", e);
             }
         }
         
         if datasets.contains(&"logs".to_string()) {
-            if let Err(e) = channels.logs_tx.send(transformed_data.logs).await {
+            if let Err(e) = channels.logs_tx.send((transformed_data.logs, block_number_to_process.as_number().unwrap())).await {
                 error!("Failed to send logs batch to channel: {}", e);
             }
         }
         
         if datasets.contains(&"traces".to_string()) {
-            if let Err(e) = channels.traces_tx.send(transformed_data.traces).await {
+            if let Err(e) = channels.traces_tx.send((transformed_data.traces, block_number_to_process.as_number().unwrap())).await {
                 error!("Failed to send traces batch to channel: {}", e);
             }
         }
@@ -294,7 +299,7 @@ async fn main() -> Result<()> {
         // Increment the raw number and update BlockNumberOrTag
         block_number += 1;
         block_number_to_process = BlockNumberOrTag::Number(block_number);
-        // tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+        // tokio::time::sleep(tokio::time::Duration::from_millis(SLEEP_DURATION)).await;
     }
     let end_time = Instant::now();
     let duration = end_time.duration_since(start_time);

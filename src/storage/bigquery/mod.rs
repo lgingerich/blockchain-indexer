@@ -228,6 +228,7 @@ async fn insert_data<T: serde::Serialize>(
     dataset_id: &str,
     table_id: &str,
     data: &[T],
+    block_number: u64,
 ) -> Result<()> {
     let (client, project_id) = &*get_client().await?;
     let tabledata_client = client.tabledata();
@@ -240,8 +241,9 @@ async fn insert_data<T: serde::Serialize>(
         return Ok(());
     }
 
-    // TODO: (Handle better?) Process data in chunks of 1000 rows (you can adjust this value)
     const BATCH_SIZE: usize = 1000;
+    let total_rows = data.len();
+    
     for chunk in data.chunks(BATCH_SIZE) {
         let rows = chunk
             .iter()
@@ -285,13 +287,6 @@ async fn insert_data<T: serde::Serialize>(
                         return Err(anyhow!("Some rows failed to insert"));
                     }
                 }
-                info!(
-                    "Successfully inserted batch of {} rows into {}.{}.{}",
-                    chunk.len(),
-                    project_id,
-                    dataset_id,
-                    table_id
-                );
             }
             Err(e) => {
                 match e {
@@ -313,6 +308,15 @@ async fn insert_data<T: serde::Serialize>(
         }
     }
 
+    info!(
+        "Successfully inserted {} rows into {}.{}.{} for block {}",
+        total_rows,
+        project_id,
+        dataset_id,
+        table_id,
+        block_number
+    );
+
     Ok(())
 }
 
@@ -320,6 +324,7 @@ pub async fn insert_data_with_retry<T: serde::Serialize>(
     dataset_id: &str,
     table_id: &str,
     data: Vec<T>,
+    block_number: u64,
 ) -> Result<()> {
     let (client, project_id) = &*get_client().await?;
     let retry_config = RetryConfig::default();
@@ -331,7 +336,7 @@ pub async fn insert_data_with_retry<T: serde::Serialize>(
                 return Err(anyhow!("Table not found before insert attempt"));
             }
 
-            insert_data(dataset_id, table_id, &data).await
+            insert_data(dataset_id, table_id, &data, block_number).await
         },
         &retry_config,
         &format!("insert_data_{}_{}", dataset_id, table_id),
