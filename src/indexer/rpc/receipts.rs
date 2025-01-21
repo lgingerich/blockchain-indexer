@@ -31,22 +31,22 @@ impl ReceiptParser for Vec<AnyTransactionReceipt> {
                 };
 
                 let common = CommonRpcTransactionReceiptData {
+                    block_number: receipt.inner.block_number,
+                    block_hash: receipt.inner.block_hash,
                     tx_hash: receipt.inner.transaction_hash,
                     tx_index: receipt.inner.transaction_index,
-                    status,
                     tx_type: receipt.inner.inner.r#type,
-                    block_hash: receipt.inner.block_hash,
-                    block_number: receipt.inner.block_number,
-                    gas_used: receipt.inner.gas_used,
-                    effective_gas_price: receipt.inner.effective_gas_price,
-                    blob_gas_used: receipt.inner.blob_gas_used,
-                    blob_gas_price: receipt.inner.blob_gas_price,
+                    status,
                     from: receipt.inner.from,
                     to: receipt.inner.to,
-                    contract_address: receipt.inner.contract_address,
+                    contract_address: receipt.inner.contract_address,                    
+                    gas_used: receipt.inner.gas_used,
+                    effective_gas_price: receipt.inner.effective_gas_price,
                     cumulative_gas_used: receipt_with_bloom.receipt.cumulative_gas_used,
-                    logs_bloom: receipt_with_bloom.logs_bloom,
+                    blob_gas_price: receipt.inner.blob_gas_price,
+                    blob_gas_used: receipt.inner.blob_gas_used,
                     authorization_list: receipt.inner.authorization_list.unwrap_or_default(),
+                    logs_bloom: receipt_with_bloom.logs_bloom,
                 };
 
                 let receipt = match chain {
@@ -87,19 +87,19 @@ impl ReceiptParser for Vec<AnyTransactionReceipt> {
                     .into_iter()
                     .map(|log| {
                         let common = CommonRpcLogReceiptData {
-                            address: log.inner.address,
-                            topics: log.inner.data.topics().to_vec(),
-                            data: log.inner.data.data,
-                            block_hash: log.block_hash,
-                            block_number: log.block_number,
                             block_time: log.block_timestamp
                                 .and_then(|ts| DateTime::from_timestamp(ts as i64, 0)),
                             block_date: log.block_timestamp
                                 .and_then(|ts| DateTime::from_timestamp(ts as i64, 0))
                                 .map(|dt| dt.date_naive()),
+                            block_number: log.block_number,
+                            block_hash: log.block_hash,
                             tx_hash: log.transaction_hash,
                             tx_index: log.transaction_index,
-                            log_index: log.log_index,
+                            log_index: log.log_index,                            
+                            address: log.inner.address,
+                            topics: log.inner.data.topics().to_vec(),
+                            data: log.inner.data.data,
                             removed: log.removed,
                         };
 

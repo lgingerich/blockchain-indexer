@@ -56,19 +56,19 @@ fn flatten_call_frames(
     let mut traces = Vec::new();
 
     let common_data = CommonRpcTraceData {
-        from: frame.from,
+        block_number,
         tx_hash,
+        r#type: frame.typ,
+        from: frame.from,
+        to: frame.to,
+        value: frame.value.map(|v| v.to_string()), // Convert from Uint<256, 4> to String for proper serialization
         gas: frame.gas.to_string(), // Convert from Uint<256, 4> to String for proper serialization
         gas_used: frame.gas_used.to_string(), // Convert from Uint<256, 4> to String for proper serialization
-        to: frame.to,
         input: frame.input,
         output: frame.output,
         error: frame.error,
         revert_reason: frame.revert_reason,
         logs: frame.logs,
-        value: frame.value.map(|v| v.to_string()), // Convert from Uint<256, 4> to String for proper serialization
-        r#type: frame.typ,
-        block_number,
     };
 
     let trace_data = match chain {

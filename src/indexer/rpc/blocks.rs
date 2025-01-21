@@ -31,34 +31,34 @@ impl BlockParser for AnyRpcBlock {
 
         // Define common fields that exist across all chains
         let common = CommonRpcHeaderData {
-            block_hash: self.header.hash,
-            parent_hash: inner.parent_hash,
-            ommers_hash: inner.ommers_hash,
-            beneficiary: inner.beneficiary,
-            state_root: inner.state_root,
-            transactions_root: inner.transactions_root,
-            receipts_root: inner.receipts_root,
-            logs_bloom: inner.logs_bloom,
-            difficulty: inner.difficulty.to_string(),
-            block_number: inner.number,
-            gas_limit: inner.gas_limit,
-            gas_used: inner.gas_used,
             block_time: DateTime::from_timestamp(inner.timestamp as i64, 0)
                 .expect("invalid timestamp"),
             block_date: DateTime::from_timestamp(inner.timestamp as i64, 0)
                 .expect("invalid timestamp")
                 .date_naive(),
-            extra_data: inner.extra_data,
-            mix_hash: inner.mix_hash,
+            block_number: inner.number,
+            block_hash: self.header.hash,
+            parent_hash: inner.parent_hash,
             nonce: inner.nonce,
+            gas_limit: inner.gas_limit,
+            gas_used: inner.gas_used,
             base_fee_per_gas: inner.base_fee_per_gas,
-            withdrawals_root: inner.withdrawals_root,
             blob_gas_used: inner.blob_gas_used,
             excess_blob_gas: inner.excess_blob_gas,
-            parent_beacon_block_root: inner.parent_beacon_block_root,
-            requests_hash: inner.requests_hash,
+            extra_data: inner.extra_data,
+            difficulty: inner.difficulty.to_string(),
             total_difficulty: self.header.total_difficulty.map(|value| value.to_string()),
-            size: self.header.size.map(|value| value.to_string()),
+            size: self.header.size.map(|value| value.to_string()),            
+            beneficiary: inner.beneficiary,
+            mix_hash: inner.mix_hash,
+            ommers_hash: inner.ommers_hash,
+            requests_hash: inner.requests_hash,
+            logs_bloom: inner.logs_bloom,
+            parent_beacon_block_root: inner.parent_beacon_block_root,
+            receipts_root: inner.receipts_root,
+            state_root: inner.state_root,
+            transactions_root: inner.transactions_root,
+            withdrawals_root: inner.withdrawals_root,
         };
 
         let header = match chain {
@@ -98,33 +98,33 @@ impl BlockParser for AnyRpcBlock {
                     let inner = transaction.inner.clone();
                     let block_hash = transaction.block_hash;
                     let block_number = transaction.block_number;
-                    let transaction_index = transaction.transaction_index;
+                    let tx_index = transaction.transaction_index;
                     let effective_gas_price = transaction.effective_gas_price;
                     let from = transaction.from;
 
                     // default values of mandatory fields are not too important as they will always get overrriden by the actual values
                     let common = CommonRpcTransactionData {
+                        block_number,
+                        block_hash,
                         tx_hash: FixedBytes::<32>::ZERO,
-                        nonce: 0, // Required field. Always overridden by actual value
+                        tx_index,
                         tx_type: 0, // Required field. Always overridden by actual value
+                        nonce: 0, // Required field. Always overridden by actual value
+                        from,
+                        to: TransactionTo::Address(Address::ZERO), // Required field. Always overridden by actual value
+                        input: None, // Required field. Always overridden by actual value
+                        value: None, // Required field. Always overridden by actual value
                         gas_price: None, 
                         gas_limit: 0, // Required field. Always overridden by actual value
                         max_fee_per_gas: None,
                         max_priority_fee_per_gas: None,
-                        value: None, // Required field. Always overridden by actual value
+                        effective_gas_price,
                         access_list: AccessList::default(),
-                        input: None, // Required field. Always overridden by actual value
+                        authorization_list: Vec::new(),
+                        blob_versioned_hashes: Vec::new(),
                         r: None,
                         s: None,
                         v: None,
-                        blob_versioned_hashes: Vec::new(),
-                        authorization_list: Vec::new(),
-                        block_hash,
-                        block_number,
-                        transaction_index,
-                        effective_gas_price,
-                        from,
-                        to: TransactionTo::Address(Address::ZERO), // Required field. Always overridden by actual value
                     };
 
                     // TODO: Change to match on chains first.
@@ -143,16 +143,16 @@ impl BlockParser for AnyRpcBlock {
                                     RpcTransactionData::Ethereum(EthereumRpcTransactionData {
                                         common: CommonRpcTransactionData {
                                             tx_hash: *signed.hash(),
-                                            nonce: tx.nonce,
                                             tx_type: LEGACY_TX_TYPE_ID,
+                                            nonce: tx.nonce,
+                                            to: TransactionTo::TxKind(tx.to),
+                                            input: Some(tx.input.clone()),
+                                            value: Some(tx.value.to_string()),                                          
                                             gas_price: Some(tx.gas_price),
                                             gas_limit: tx.gas_limit,
-                                            input: Some(tx.input.clone()),
-                                            value: Some(tx.value.to_string()),
                                             r: Some(signature.r().to_string()),
                                             s: Some(signature.s().to_string()),
                                             v: Some(signature.v()),
-                                            to: TransactionTo::TxKind(tx.to),
                                             ..common
                                         },
                                         max_fee_per_blob_gas: None,
@@ -168,14 +168,14 @@ impl BlockParser for AnyRpcBlock {
                                     RpcTransactionData::Ethereum(EthereumRpcTransactionData {
                                         common: CommonRpcTransactionData {
                                             tx_hash: *signed.hash(),
-                                            nonce: tx.nonce,
                                             tx_type: EIP2930_TX_TYPE_ID,
+                                            nonce: tx.nonce,
+                                            to: TransactionTo::TxKind(tx.to),
+                                            input: Some(tx.input.clone()),
+                                            value: Some(tx.value.to_string()),
                                             gas_price: Some(tx.gas_price),
                                             gas_limit: tx.gas_limit,
-                                            to: TransactionTo::TxKind(tx.to),
-                                            value: Some(tx.value.to_string()),
-                                            access_list: tx.access_list.clone(), // TODO: Remove clone
-                                            input: Some(tx.input.clone()),             // TODO: Remove clone
+                                            access_list: tx.access_list.clone(),
                                             r: Some(signature.r().to_string()),
                                             s: Some(signature.s().to_string()),
                                             v: Some(signature.v()),
@@ -193,20 +193,20 @@ impl BlockParser for AnyRpcBlock {
 
                                     RpcTransactionData::Ethereum(EthereumRpcTransactionData {
                                         common: CommonRpcTransactionData {
-                                            nonce: tx.nonce,
+                                            tx_hash: *signed.hash(),
                                             // tx_type: tx.tx_type(), // TODO: Not publicly accessible. Fix
                                             tx_type: EIP1559_TX_TYPE_ID,
+                                            nonce: tx.nonce,
+                                            to: TransactionTo::TxKind(tx.to),
+                                            input: Some(tx.input.clone()),
+                                            value: Some(tx.value.to_string()),
                                             gas_limit: tx.gas_limit,
                                             max_fee_per_gas: Some(tx.max_fee_per_gas),
                                             max_priority_fee_per_gas: Some(tx.max_priority_fee_per_gas),
-                                            to: TransactionTo::TxKind(tx.to),
-                                            value: Some(tx.value.to_string()),
-                                            access_list: tx.access_list.clone(), // TODO: Remove clone
-                                            input: Some(tx.input.clone()),             // TODO: Remove clone
+                                            access_list: tx.access_list.clone(),
                                             r: Some(signature.r().to_string()),
                                             s: Some(signature.s().to_string()),
                                             v: Some(signature.v()),
-                                            tx_hash: *signed.hash(),
                                             ..common
                                         },
                                         max_fee_per_blob_gas: None,
@@ -221,20 +221,20 @@ impl BlockParser for AnyRpcBlock {
                                     match signed.tx() {
                                         TxEip4844Variant::TxEip4844(tx) => RpcTransactionData::Ethereum(EthereumRpcTransactionData {
                                             common: CommonRpcTransactionData {
-                                                nonce: tx.nonce,
+                                                tx_hash: *signed.hash(),
                                                 tx_type: EIP4844_TX_TYPE_ID,
+                                                nonce: tx.nonce,
+                                                to: TransactionTo::Address(tx.to),
+                                                input: Some(tx.input.clone()),
+                                                value: Some(tx.value.to_string()),
                                                 gas_limit: tx.gas_limit,
                                                 max_fee_per_gas: Some(tx.max_fee_per_gas),
                                                 max_priority_fee_per_gas: Some(tx.max_priority_fee_per_gas),
-                                                to: TransactionTo::Address(tx.to),
-                                                value: Some(tx.value.to_string()),
-                                                access_list: tx.access_list.clone(), // TODO: Remove clone
-                                                blob_versioned_hashes: tx.blob_versioned_hashes.clone(), // TODO: Remove clone
-                                                input: Some(tx.input.clone()),             // TODO: Remove clone
+                                                access_list: tx.access_list.clone(),
+                                                blob_versioned_hashes: tx.blob_versioned_hashes.clone(),
                                                 r: Some(signature.r().to_string()),
                                                 s: Some(signature.s().to_string()),
                                                 v: Some(signature.v()),
-                                                tx_hash: *signed.hash(),
                                                 ..common
                                             },
                                             max_fee_per_blob_gas: Some(tx.max_fee_per_blob_gas),
@@ -247,26 +247,26 @@ impl BlockParser for AnyRpcBlock {
 
                                             RpcTransactionData::Ethereum(EthereumRpcTransactionData {
                                                 common: CommonRpcTransactionData {
-                                                    nonce: tx.nonce,
+                                                    tx_hash: *signed.hash(),
                                                     tx_type: EIP4844_TX_TYPE_ID,
+                                                    nonce: tx.nonce,
+                                                    to: TransactionTo::Address(tx.to),
+                                                    input: Some(tx.input.clone()),
+                                                    value: Some(tx.value.to_string()),
                                                     gas_limit: tx.gas_limit,
                                                     max_fee_per_gas: Some(tx.max_fee_per_gas),
                                                     max_priority_fee_per_gas: Some(tx.max_priority_fee_per_gas),
-                                                    to: TransactionTo::Address(tx.to),
-                                                    value: Some(tx.value.to_string()),
-                                                    access_list: tx.access_list.clone(), // TODO: Remove clone
-                                                    blob_versioned_hashes: tx.blob_versioned_hashes.clone(), // TODO: Remove clone
-                                                    input: Some(tx.input.clone()), // TODO: Remove clone
+                                                    access_list: tx.access_list.clone(),
+                                                    blob_versioned_hashes: tx.blob_versioned_hashes.clone(),
                                                     r: Some(signature.r().to_string()),
                                                     s: Some(signature.s().to_string()),
                                                     v: Some(signature.v()),
-                                                    tx_hash: *signed.hash(),
                                                     ..common
                                                 },
                                                 max_fee_per_blob_gas: Some(tx.max_fee_per_blob_gas),
-                                                blobs: tx_with_sidecar.sidecar.blobs.clone(), // TODO: Remove clone
-                                                commitments: tx_with_sidecar.sidecar.commitments.clone(), // TODO: Remove clone
-                                                proofs: tx_with_sidecar.sidecar.proofs.clone(), // TODO: Remove clone
+                                                blobs: tx_with_sidecar.sidecar.blobs.clone(),
+                                                commitments: tx_with_sidecar.sidecar.commitments.clone(),
+                                                proofs: tx_with_sidecar.sidecar.proofs.clone(),
                                             })
                                         }
                                     }
@@ -277,20 +277,20 @@ impl BlockParser for AnyRpcBlock {
 
                                     RpcTransactionData::Ethereum(EthereumRpcTransactionData {
                                         common: CommonRpcTransactionData {
-                                            nonce: tx.nonce,
+                                            tx_hash: *signed.hash(),
                                             tx_type: EIP7702_TX_TYPE_ID,
+                                            nonce: tx.nonce,
+                                            to: TransactionTo::Address(tx.to),
+                                            input: Some(tx.input.clone()),
+                                            value: Some(tx.value.to_string()),
                                             gas_limit: tx.gas_limit,
                                             max_fee_per_gas: Some(tx.max_fee_per_gas),
                                             max_priority_fee_per_gas: Some(tx.max_priority_fee_per_gas),
-                                            to: TransactionTo::Address(tx.to),
-                                            value: Some(tx.value.to_string()),
-                                            access_list: tx.access_list.clone(), // TODO: Remove clone
-                                            authorization_list: tx.authorization_list.clone(), // TODO: Remove clone
-                                            input: Some(tx.input.clone()),             // TODO: Remove clone
+                                            access_list: tx.access_list.clone(),
+                                            authorization_list: tx.authorization_list.clone(),
                                             r: Some(signature.r().to_string()),
                                             s: Some(signature.s().to_string()),
                                             v: Some(signature.v()),
-                                            tx_hash: *signed.hash(),
                                             ..common
                                         },
                                         max_fee_per_blob_gas: None,
@@ -341,12 +341,27 @@ impl BlockParser for AnyRpcBlock {
                             let ty = inner.ty;
 
                             let common_fields = CommonRpcTransactionData {
+                                block_number,
+                                block_hash,
                                 tx_hash: unknown.hash,
+                                tx_index,
+                                tx_type: ty.0, // Gets the first element of the tuple as u8
                                 nonce: other_fields
                                     .get_deserialized::<u64>("nonce")
                                     .and_then(|result| result.ok())
-                                    .unwrap_or(0),
-                                tx_type: ty.0, // Gets the first element of the tuple as u8
+                                    .unwrap_or_default(),
+                                from,
+                                to: other_fields
+                                    .get_deserialized::<TransactionTo>("to")
+                                    .and_then(|result| result.ok())
+                                    .unwrap_or(TransactionTo::Address(Address::ZERO)),                                    
+                                input: other_fields
+                                    .get_deserialized::<Bytes>("input")
+                                    .and_then(|result| result.ok()),
+                                value: other_fields
+                                    .get_deserialized::<Uint<256, 4>>("value")
+                                    .and_then(|result| result.ok())
+                                    .map(|value| value.to_string()),
                                 gas_price: Some(other_fields
                                     .get_deserialized::<u128>("gasPrice")
                                     .and_then(|result| result.ok())
@@ -361,17 +376,19 @@ impl BlockParser for AnyRpcBlock {
                                 max_priority_fee_per_gas: other_fields
                                     .get_deserialized::<u128>("maxPriorityFeePerGas")
                                     .and_then(|result| result.ok()),
-                                value: other_fields
-                                    .get_deserialized::<Uint<256, 4>>("value")
-                                    .and_then(|result| result.ok())
-                                    .map(|value| value.to_string()),
+                                effective_gas_price,
                                 access_list: memo.access_list
                                     .get()
                                     .cloned()
                                     .unwrap_or_default(),
-                                input: other_fields
-                                    .get_deserialized::<Bytes>("input")
-                                    .and_then(|result| result.ok()),
+                                authorization_list: memo.authorization_list
+                                    .get()
+                                    .cloned()
+                                    .unwrap_or_default(),
+                                blob_versioned_hashes: memo.blob_versioned_hashes
+                                    .get()
+                                    .cloned()
+                                    .unwrap_or_default(),                                    
                                 r: other_fields
                                     .get_deserialized::<Uint<256, 4>>("r")
                                     .and_then(|result| result.ok())
@@ -383,23 +400,6 @@ impl BlockParser for AnyRpcBlock {
                                 v: other_fields
                                     .get_deserialized::<bool>("v")
                                     .and_then(|result| result.ok()), // Deserialized as bool
-                                blob_versioned_hashes: memo.blob_versioned_hashes
-                                    .get()
-                                    .cloned()
-                                    .unwrap_or_default(),
-                                authorization_list: memo.authorization_list
-                                    .get()
-                                    .cloned()
-                                    .unwrap_or_default(),
-                                block_hash,
-                                block_number,
-                                transaction_index,
-                                effective_gas_price,
-                                from,
-                                to: other_fields
-                                    .get_deserialized::<TransactionTo>("to")
-                                    .and_then(|result| result.ok())
-                                    .unwrap_or(TransactionTo::Address(Address::ZERO)),
                             };
 
                             match chain {

@@ -27,28 +27,25 @@ impl TraceTransformer for ParsedData {
     
             let common = CommonTransformedTraceData {
                 chain_id: self.chain_id,
-                tx_hash: common_data.tx_hash,
-                block_number: common_data.block_number,
-
-                // Get block time and date from block_map
                 block_time: block_map.get(&common_data.block_number)
                     .map(|(time, _)| *time)
                     .unwrap_or_default(),
                 block_date: block_map.get(&common_data.block_number)
                     .map(|(_, date)| *date)
                     .unwrap_or_default(),
-
+                block_number: common_data.block_number,
+                tx_hash: common_data.tx_hash,
+                r#type: common_data.r#type.clone(),
                 from: common_data.from,
+                to: common_data.to,
+                value: common_data.value.clone(),
                 gas: common_data.gas.clone(),
                 gas_used: common_data.gas_used.clone(),
-                to: common_data.to,
                 input: common_data.input.clone(),
                 output: common_data.output.clone(),
                 error: common_data.error.clone(),
                 revert_reason: common_data.revert_reason.clone(),
                 logs: common_data.logs.clone(),
-                value: common_data.value.clone(),
-                r#type: common_data.r#type.clone(),
             };
     
             match chain {

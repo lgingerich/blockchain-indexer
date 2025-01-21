@@ -24,16 +24,16 @@ impl LogTransformer for ParsedData {
 
                 let common = CommonTransformedLogData {
                     chain_id: self.chain_id,
+                    block_time: common_data.block_time,
+                    block_date: common_data.block_date,
+                    block_number: common_data.block_number,
+                    block_hash: common_data.block_hash,
+                    tx_hash: common_data.tx_hash,
+                    tx_index: common_data.tx_index,
+                    log_index: common_data.log_index,                          
                     address: common_data.address,
                     topics: common_data.topics.clone(),
                     data: common_data.data.clone(),
-                    block_hash: common_data.block_hash,
-                    block_number: common_data.block_number,
-                    block_time: common_data.block_time,
-                    block_date: common_data.block_date,
-                    tx_hash: common_data.tx_hash,
-                    tx_index: common_data.tx_index,
-                    log_index: common_data.log_index,
                     removed: common_data.removed,
                 };
 

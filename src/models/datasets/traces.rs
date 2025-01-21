@@ -7,19 +7,19 @@ use serde::Serialize;
 // Raw RPC response format
 #[derive(Debug, Clone)]
 pub struct CommonRpcTraceData {
-    pub from: Address,
+    pub block_number: u64,
     pub tx_hash: Option<FixedBytes<32>>,
+    pub r#type: String,
+    pub from: Address,
+    pub to: Option<Address>,
+    pub value: Option<String>,
     pub gas: String,
     pub gas_used: String,
-    pub to: Option<Address>,
     pub input: Bytes,
     pub output: Option<Bytes>,
     pub error: Option<String>,
     pub revert_reason: Option<String>,
     pub logs: Vec<CallLogFrame>,
-    pub value: Option<String>,
-    pub r#type: String,
-    pub block_number: u64,
 }
 
 // Ethereum-specific trace
@@ -44,21 +44,21 @@ pub enum RpcTraceData {
 #[derive(Debug, Clone, Serialize)]
 pub struct CommonTransformedTraceData {
     pub chain_id: u64,
-    pub tx_hash: Option<FixedBytes<32>>,
-    pub block_number: u64,
     pub block_time: DateTime<Utc>,
-    pub block_date: NaiveDate,
+    pub block_date: NaiveDate,    
+    pub block_number: u64,
+    pub tx_hash: Option<FixedBytes<32>>,
+    pub r#type: String,
     pub from: Address,
+    pub to: Option<Address>,
+    pub value: Option<String>,
     pub gas: String,
     pub gas_used: String,
-    pub to: Option<Address>,
     pub input: Bytes,
     pub output: Option<Bytes>,
     pub error: Option<String>,
     pub revert_reason: Option<String>,
     pub logs: Vec<CallLogFrame>,
-    pub value: Option<String>,
-    pub r#type: String,
 }
 
 // Ethereum-specific trace

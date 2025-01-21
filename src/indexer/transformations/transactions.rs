@@ -34,8 +34,6 @@ impl TransactionTransformer for ParsedData {
 
                 let common = CommonTransformedTransactionData {
                     chain_id: self.chain_id,
-
-                    // Get block time and date from block_map
                     block_time: common_tx.block_number
                         .and_then(|num| block_map.get(&num))
                         .map(|(time, _)| *time)
@@ -44,7 +42,10 @@ impl TransactionTransformer for ParsedData {
                         .and_then(|num| block_map.get(&num))
                         .map(|(_, date)| *date)
                         .unwrap_or_default(),
-
+                    block_number: common_receipt.block_number,
+                    block_hash: common_receipt.block_hash,
+                    tx_hash: common_receipt.tx_hash,
+                    tx_index: common_receipt.tx_index,
                     // TODO: Improve this
                     // Use receipt fields if available, otherwise use transaction fields or defaults
                     // 0 is used as the default value for tx_type if it does not exist, so
@@ -54,36 +55,29 @@ impl TransactionTransformer for ParsedData {
                     } else {
                         common_tx.tx_type
                     },
-                    // Fields from TransactionData
-                    nonce: common_tx.nonce,
-                    gas_price: common_tx.gas_price,
-                    gas_limit: common_tx.gas_limit,
-                    max_fee_per_gas: common_tx.max_fee_per_gas,
-                    max_priority_fee_per_gas: common_tx.max_priority_fee_per_gas,
-                    value: common_tx.value.clone(),
-                    access_list: common_tx.access_list.clone(),
-                    input: common_tx.input.clone(),
-                    blob_versioned_hashes: common_tx.blob_versioned_hashes.clone(),
-                    r: common_tx.r.clone(),
-                    s: common_tx.s.clone(),
-                    v: common_tx.v,
-
-                    // Fields from TransactionReceiptData
-                    tx_hash: common_receipt.tx_hash,
-                    tx_index: common_receipt.tx_index,
                     status: common_receipt.status,
-                    block_hash: common_receipt.block_hash,
-                    block_number: common_receipt.block_number,
-                    gas_used: common_receipt.gas_used,
-                    effective_gas_price: common_receipt.effective_gas_price,
-                    blob_gas_used: common_receipt.blob_gas_used,
-                    blob_gas_price: common_receipt.blob_gas_price,
+                    nonce: common_tx.nonce,
                     from: common_receipt.from,
                     to: common_receipt.to,
                     contract_address: common_receipt.contract_address,
+                    input: common_tx.input.clone(),
+                    value: common_tx.value.clone(),
+                    gas_price: common_tx.gas_price,
+                    gas_limit: common_tx.gas_limit,
+                    gas_used: common_receipt.gas_used,
+                    max_fee_per_gas: common_tx.max_fee_per_gas,
+                    max_priority_fee_per_gas: common_tx.max_priority_fee_per_gas,
+                    effective_gas_price: common_receipt.effective_gas_price,
                     cumulative_gas_used: common_receipt.cumulative_gas_used,
+                    blob_gas_price: common_receipt.blob_gas_price,
+                    blob_gas_used: common_receipt.blob_gas_used,
+                    access_list: common_tx.access_list.clone(),
                     authorization_list: common_receipt.authorization_list.clone(),
+                    blob_versioned_hashes: common_tx.blob_versioned_hashes.clone(),
                     logs_bloom: common_receipt.logs_bloom,
+                    r: common_tx.r.clone(),
+                    s: common_tx.s.clone(),
+                    v: common_tx.v,
                 };
 
                 match chain {

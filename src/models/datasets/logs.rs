@@ -6,16 +6,16 @@ use serde::Serialize;
 // Base struct for common fields
 #[derive(Debug, Clone)]
 pub struct CommonRpcLogReceiptData {
+    pub block_time: Option<DateTime<Utc>>,
+    pub block_date: Option<NaiveDate>,
+    pub block_number: Option<u64>,
+    pub block_hash: Option<FixedBytes<32>>,
+    pub tx_hash: Option<FixedBytes<32>>,
+    pub tx_index: Option<u64>,
+    pub log_index: Option<u64>,    
     pub address: Address,
     pub topics: Vec<FixedBytes<32>>,
     pub data: Bytes,
-    pub block_hash: Option<FixedBytes<32>>,
-    pub block_number: Option<u64>,
-    pub block_time: Option<DateTime<Utc>>,
-    pub block_date: Option<NaiveDate>,
-    pub tx_hash: Option<FixedBytes<32>>,
-    pub tx_index: Option<u64>,
-    pub log_index: Option<u64>,
     pub removed: bool,
 }
 
@@ -42,16 +42,16 @@ pub enum RpcLogReceiptData {
 #[derive(Debug, Clone, Serialize)]
 pub struct CommonTransformedLogData {
     pub chain_id: u64,
+    pub block_time: Option<DateTime<Utc>>,
+    pub block_date: Option<NaiveDate>,
+    pub block_number: Option<u64>,
+    pub block_hash: Option<FixedBytes<32>>,
+    pub tx_hash: Option<FixedBytes<32>>,
+    pub tx_index: Option<u64>,
+    pub log_index: Option<u64>,    
     pub address: Address,
     pub topics: Vec<FixedBytes<32>>,
     pub data: Bytes,
-    pub block_hash: Option<FixedBytes<32>>,
-    pub block_number: Option<u64>,
-    pub block_time: Option<DateTime<Utc>>,
-    pub block_date: Option<NaiveDate>,
-    pub tx_hash: Option<FixedBytes<32>>,
-    pub tx_index: Option<u64>,
-    pub log_index: Option<u64>,
     pub removed: bool,
 }
 
