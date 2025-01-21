@@ -6,187 +6,186 @@ use crate::models::common::Chain;
 
 pub fn block_schema(chain: Chain) -> TableSchema {
     let mut fields = vec![
-        // Common fields that exist for all chains
         TableFieldSchema {
             name: "chain_id".to_string(),
             data_type: TableFieldType::Integer,
             mode: Some(TableFieldMode::Required),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "hash".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Required),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "parent_hash".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Required),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "ommers_hash".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Required),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "beneficiary".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Required),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "state_root".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Required),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "transactions_root".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Required),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "receipts_root".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Required),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "logs_bloom".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Required),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "difficulty".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Required),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "block_number".to_string(),
-            data_type: TableFieldType::Integer,
-            mode: Some(TableFieldMode::Required),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "gas_limit".to_string(),
-            data_type: TableFieldType::Integer,
-            mode: Some(TableFieldMode::Required),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "gas_used".to_string(),
-            data_type: TableFieldType::Integer,
-            mode: Some(TableFieldMode::Required),
-            description: None,
+            description: Some("Chain ID".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
             name: "block_time".to_string(),
             data_type: TableFieldType::Timestamp,
             mode: Some(TableFieldMode::Required),
-            description: None,
+            description: Some("Timestamp of the current block".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
             name: "block_date".to_string(),
             data_type: TableFieldType::Date,
             mode: Some(TableFieldMode::Required),
-            description: None,
+            description: Some("Date of the current block".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
-            name: "extra_data".to_string(),
+            name: "block_number".to_string(),
+            data_type: TableFieldType::Integer,
+            mode: Some(TableFieldMode::Required),
+            description: Some("Number of the current block".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "block_hash".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Required),
-            description: None,
+            description: Some("Hash of the current block".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
-            name: "mix_hash".to_string(),
+            name: "parent_hash".to_string(),
             data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Nullable),
-            description: None,
+            mode: Some(TableFieldMode::Required),
+            description: Some("Hash of the parent block".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
             name: "nonce".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Nullable),
-            description: None,
+            description: Some("Unique value used to prove block computation in PoW consensus".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "gas_limit".to_string(),
+            data_type: TableFieldType::Integer,
+            mode: Some(TableFieldMode::Required),
+            description: Some("Maximum gas allowed for the current block".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "gas_used".to_string(),
+            data_type: TableFieldType::Integer,
+            mode: Some(TableFieldMode::Required),
+            description: Some("Total gas used for the current block".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
             name: "base_fee_per_gas".to_string(),
             data_type: TableFieldType::Integer,
             mode: Some(TableFieldMode::Nullable),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "withdrawals_root".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Nullable),
-            description: None,
+            description: Some("Base fee per gas in the current block".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
             name: "blob_gas_used".to_string(),
             data_type: TableFieldType::Integer,
             mode: Some(TableFieldMode::Nullable),
-            description: None,
+            description: Some("Amount of blob gas used in the current block".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
             name: "excess_blob_gas".to_string(),
             data_type: TableFieldType::Integer,
             mode: Some(TableFieldMode::Nullable),
-            description: None,
+            description: Some("Excess blob gas available in the current block".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
-            name: "parent_beacon_block_root".to_string(),
+            name: "extra_data".to_string(),
             data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Nullable),
-            description: None,
+            mode: Some(TableFieldMode::Required),
+            description: Some("Additional data included by miners in the block".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
-            name: "requests_hash".to_string(),
+            name: "difficulty".to_string(),
             data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Nullable),
-            description: None,
+            mode: Some(TableFieldMode::Required),
+            description: Some("Difficulty of the current block".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
             name: "total_difficulty".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Nullable),
-            description: None,
+            description: Some("Cumulative chain difficulty up to this block".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
             name: "size".to_string(),
+            data_type: TableFieldType::Integer,
+            mode: Some(TableFieldMode::Nullable),
+            description: Some("Size of the current block".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "beneficiary".to_string(),
+            data_type: TableFieldType::String,
+            mode: Some(TableFieldMode::Required),
+            description: Some("Address of the block rewards beneficiary".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "mix_hash".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Nullable),
-            description: None,
+            description: Some("Hash combined with nonce to prove block computation".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "ommers_hash".to_string(),
+            data_type: TableFieldType::String,
+            mode: Some(TableFieldMode::Required),
+            description: Some("Hash of the uncles list for the block".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "requests_hash".to_string(),
+            data_type: TableFieldType::String,
+            mode: Some(TableFieldMode::Nullable),
+            description: Some("Hash of the block requests".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "logs_bloom".to_string(),
+            data_type: TableFieldType::String,
+            mode: Some(TableFieldMode::Required),
+            description: Some("Bloom filter for the logs of the current block".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "parent_beacon_block_root".to_string(),
+            data_type: TableFieldType::String,
+            mode: Some(TableFieldMode::Nullable),
+            description: Some("Root hash of the parent beacon block".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "receipts_root".to_string(),
+            data_type: TableFieldType::String,
+            mode: Some(TableFieldMode::Required),
+            description: Some("Root of the receipts trie of the current block".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "state_root".to_string(),
+            data_type: TableFieldType::String,
+            mode: Some(TableFieldMode::Required),
+            description: Some("Root of the state trie of the current block".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "transactions_root".to_string(),
+            data_type: TableFieldType::String,
+            mode: Some(TableFieldMode::Required),
+            description: Some("Root of the transactions trie of the current block".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "withdrawals_root".to_string(),
+            data_type: TableFieldType::String,
+            mode: Some(TableFieldMode::Nullable),
+            description: Some("Root of the withdrawals trie of the current block".to_string()),
             ..Default::default()
         },
     ];
@@ -203,21 +202,21 @@ pub fn block_schema(chain: Chain) -> TableSchema {
                     name: "target_blobs_per_block".to_string(),
                     data_type: TableFieldType::Integer,
                     mode: Some(TableFieldMode::Nullable),
-                    description: None,
+                    description: Some("Target number of blobs per block".to_string()),
                     ..Default::default()
                 },
                 TableFieldSchema {
                     name: "l1_batch_number".to_string(),
                     data_type: TableFieldType::Integer,
                     mode: Some(TableFieldMode::Nullable),
-                    description: None,
+                    description: Some("Layer 1 batch sequence number".to_string()),
                     ..Default::default()
                 },
                 TableFieldSchema {
                     name: "l1_batch_timestamp".to_string(),
                     data_type: TableFieldType::Timestamp,
                     mode: Some(TableFieldMode::Nullable),
-                    description: None,
+                    description: Some("Timestamp of the Layer 1 batch".to_string()),
                     ..Default::default()
                 },
                 // TableFieldSchema { // TODO: Add this back in
@@ -234,77 +233,90 @@ pub fn block_schema(chain: Chain) -> TableSchema {
     TableSchema { fields }
 }
 
-// Implement similar chain-aware schemas for other tables
 pub fn log_schema(chain: Chain) -> TableSchema {
     let fields = vec![
         TableFieldSchema {
-            name: "address".to_string(),
-            data_type: TableFieldType::String,
+            name: "chain_id".to_string(),
+            data_type: TableFieldType::Integer,
             mode: Some(TableFieldMode::Required),
-            description: None,
+            description: Some("Chain ID".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
-            name: "topics".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Repeated),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "data".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Required),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "block_hash".to_string(),
-            data_type: TableFieldType::String,
+            name: "block_time".to_string(),
+            data_type: TableFieldType::Timestamp,
             mode: Some(TableFieldMode::Nullable),
-            description: None,
+            description: Some("Timestamp of the current block".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "block_date".to_string(),
+            data_type: TableFieldType::Date,
+            mode: Some(TableFieldMode::Nullable),
+            description: Some("Date of the current block".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
             name: "block_number".to_string(),
             data_type: TableFieldType::Integer,
             mode: Some(TableFieldMode::Nullable),
-            description: None,
+            description: Some("Number of the current block".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
-            name: "block_timestamp".to_string(),
-            data_type: TableFieldType::Integer,
-            mode: Some(TableFieldMode::Nullable),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "transaction_hash".to_string(),
+            name: "block_hash".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Nullable),
-            description: None,
+            description: Some("Hash of the current block".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
-            name: "transaction_index".to_string(),
+            name: "tx_hash".to_string(),
+            data_type: TableFieldType::String,
+            mode: Some(TableFieldMode::Nullable),
+            description: Some("Hash of the current transaction".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "tx_index".to_string(),
             data_type: TableFieldType::Integer,
             mode: Some(TableFieldMode::Nullable),
-            description: None,
+            description: Some("Index of the current transaction in the block".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
             name: "log_index".to_string(),
             data_type: TableFieldType::Integer,
             mode: Some(TableFieldMode::Nullable),
-            description: None,
+            description: Some("Index of the current log in the transaction".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "address".to_string(),
+            data_type: TableFieldType::String,
+            mode: Some(TableFieldMode::Required),
+            description: Some("Address of the contract that emitted the log".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "topics".to_string(),
+            data_type: TableFieldType::String,
+            mode: Some(TableFieldMode::Repeated),
+            description: Some("Topics of the current log".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "data".to_string(),
+            data_type: TableFieldType::String,
+            mode: Some(TableFieldMode::Required),
+            description: Some("Data of the current log".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
             name: "removed".to_string(),
             data_type: TableFieldType::Boolean,
             mode: Some(TableFieldMode::Required),
-            description: None,
+            description: Some("Whether the log was removed".to_string()),
             ..Default::default()
         },
     ];
@@ -324,61 +336,172 @@ pub fn log_schema(chain: Chain) -> TableSchema {
 
 pub fn transaction_schema(chain: Chain) -> TableSchema {
     let mut fields = vec![
-        // Block fields
         TableFieldSchema {
             name: "chain_id".to_string(),
             data_type: TableFieldType::Integer,
             mode: Some(TableFieldMode::Required),
-            description: None,
+            description: Some("Chain ID".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "block_time".to_string(),
+            data_type: TableFieldType::Timestamp,
+            mode: Some(TableFieldMode::Required),
+            description: Some("Timestamp of the current block".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "block_date".to_string(),
+            data_type: TableFieldType::Date,
+            mode: Some(TableFieldMode::Required),
+            description: Some("Date of the current block".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "block_number".to_string(),
+            data_type: TableFieldType::Integer,
+            mode: Some(TableFieldMode::Nullable),
+            description: Some("Number of the current block".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "block_hash".to_string(),
+            data_type: TableFieldType::String,
+            mode: Some(TableFieldMode::Nullable),
+            description: Some("Hash of the current block".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "tx_hash".to_string(),
+            data_type: TableFieldType::String,
+            mode: Some(TableFieldMode::Required),
+            description: Some("Hash of the current transaction".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "tx_index".to_string(),
+            data_type: TableFieldType::Integer,
+            mode: Some(TableFieldMode::Nullable),
+            description: Some("Index of the current transaction in the block".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
             name: "tx_type".to_string(),
             data_type: TableFieldType::Integer,
             mode: Some(TableFieldMode::Required),
-            description: None,
+            description: Some("Transaction type".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "status".to_string(),
+            data_type: TableFieldType::Boolean,
+            mode: Some(TableFieldMode::Nullable),
+            description: Some("Transaction status".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
             name: "nonce".to_string(),
             data_type: TableFieldType::Integer,
             mode: Some(TableFieldMode::Nullable),
-            description: None,
+            description: Some("Transaction nonce".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
-            name: "gas_price".to_string(),
-            data_type: TableFieldType::Integer,
-            mode: Some(TableFieldMode::Nullable),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "gas_limit".to_string(),
-            data_type: TableFieldType::Integer,
+            name: "from".to_string(),
+            data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Required),
-            description: None,
+            description: Some("Transaction sender".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
-            name: "max_fee_per_gas".to_string(),
-            data_type: TableFieldType::Integer,
+            name: "to".to_string(),
+            data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Nullable),
-            description: None,
+            description: Some("Transaction receiver".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
-            name: "max_priority_fee_per_gas".to_string(),
-            data_type: TableFieldType::Integer,
+            name: "contract_address".to_string(),
+            data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Nullable),
-            description: None,
+            description: Some("Address of the contract".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "input".to_string(),
+            data_type: TableFieldType::String,
+            mode: Some(TableFieldMode::Nullable),
+            description: Some("Input of the current transaction".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
             name: "value".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Nullable),
-            description: None,
+            description: Some("Value of the current transaction".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "gas_price".to_string(),
+            data_type: TableFieldType::Integer,
+            mode: Some(TableFieldMode::Nullable),
+            description: Some("Gas price of the current transaction".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "gas_limit".to_string(),
+            data_type: TableFieldType::Integer,
+            mode: Some(TableFieldMode::Required),
+            description: Some("Gas limit of the current transaction".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "gas_used".to_string(),
+            data_type: TableFieldType::Integer,
+            mode: Some(TableFieldMode::Required),
+            description: Some("Gas used by the current transaction".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "max_fee_per_gas".to_string(),
+            data_type: TableFieldType::Integer,
+            mode: Some(TableFieldMode::Nullable),
+            description: Some("Maximum total fee per unit of gas willing to be paid".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "max_priority_fee_per_gas".to_string(),
+            data_type: TableFieldType::Integer,
+            mode: Some(TableFieldMode::Nullable),
+            description: Some("Maximum tip per unit of gas willing to be paid to validator".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "effective_gas_price".to_string(),
+            data_type: TableFieldType::Integer,
+            mode: Some(TableFieldMode::Required),
+            description: Some("Final gas price paid per unit of gas".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "cumulative_gas_used".to_string(),
+            data_type: TableFieldType::Integer,
+            mode: Some(TableFieldMode::Required),
+            description: Some("Total gas used in the block up to this transaction".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "blob_gas_price".to_string(),
+            data_type: TableFieldType::Integer,
+            mode: Some(TableFieldMode::Nullable),
+            description: Some("Price per unit of blob gas for the transaction".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "blob_gas_used".to_string(),
+            data_type: TableFieldType::Integer,
+            mode: Some(TableFieldMode::Nullable),
+            description: Some("Amount of blob gas used by the transaction".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
@@ -390,159 +513,60 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
                     name: "address".to_string(),
                     data_type: TableFieldType::String,
                     mode: Some(TableFieldMode::Required),
-                    description: None,
+                    description: Some("Address being accessed".to_string()),
                     ..Default::default()
                 },
                 TableFieldSchema {
                     name: "storage_keys".to_string(),
                     data_type: TableFieldType::String,
                     mode: Some(TableFieldMode::Repeated),
-                    description: None,
+                    description: Some("Storage slots being accessed".to_string()),
                     ..Default::default()
                 },
             ]),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "input".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Nullable),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "r".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Required),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "s".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Required),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "v".to_string(),
-            data_type: TableFieldType::Boolean,
-            mode: Some(TableFieldMode::Required),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "blob_versioned_hashes".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Repeated),
-            description: None,
-            ..Default::default()
-        },
-        // Receipt fields
-        TableFieldSchema {
-            name: "transaction_hash".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Required),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "transaction_index".to_string(),
-            data_type: TableFieldType::Integer,
-            mode: Some(TableFieldMode::Nullable),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "status".to_string(),
-            data_type: TableFieldType::Boolean,
-            mode: Some(TableFieldMode::Nullable),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "block_hash".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Nullable),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "block_number".to_string(),
-            data_type: TableFieldType::Integer,
-            mode: Some(TableFieldMode::Nullable),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "gas_used".to_string(),
-            data_type: TableFieldType::Integer,
-            mode: Some(TableFieldMode::Required),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "effective_gas_price".to_string(),
-            data_type: TableFieldType::Integer,
-            mode: Some(TableFieldMode::Required),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "blob_gas_used".to_string(),
-            data_type: TableFieldType::Integer,
-            mode: Some(TableFieldMode::Nullable),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "blob_gas_price".to_string(),
-            data_type: TableFieldType::Integer,
-            mode: Some(TableFieldMode::Nullable),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "from".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Required),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "to".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Nullable),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "contract_address".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Nullable),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "cumulative_gas_used".to_string(),
-            data_type: TableFieldType::Integer,
-            mode: Some(TableFieldMode::Required),
-            description: None,
+            description: Some("List of addresses and storage keys accessed by the transaction".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
             name: "authorization_list".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Repeated),
-            description: None,
+            description: Some("List of authorized addresses for the transaction".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "blob_versioned_hashes".to_string(),
+            data_type: TableFieldType::String,
+            mode: Some(TableFieldMode::Repeated),
+            description: Some("Version hashes of the blobs included in the transaction".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
             name: "logs_bloom".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Required),
-            description: None,
+            description: Some("Bloom filter containing all transaction logs".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "r".to_string(),
+            data_type: TableFieldType::String,
+            mode: Some(TableFieldMode::Nullable),
+            description: Some("ECDSA signature r value".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "s".to_string(),
+            data_type: TableFieldType::String,
+            mode: Some(TableFieldMode::Nullable),
+            description: Some("ECDSA signature s value".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "v".to_string(),
+            data_type: TableFieldType::Boolean,
+            mode: Some(TableFieldMode::Nullable),
+            description: Some("ECDSA recovery ID".to_string()),
             ..Default::default()
         },
     ];
@@ -555,28 +579,28 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
                     name: "max_fee_per_blob_gas".to_string(),
                     data_type: TableFieldType::Integer,
                     mode: Some(TableFieldMode::Nullable),
-                    description: None,
+                    description: Some("Maximum fee per blob gas willing to be paid".to_string()),
                     ..Default::default()
                 },
                 TableFieldSchema {
                     name: "blobs".to_string(),
                     data_type: TableFieldType::String,
                     mode: Some(TableFieldMode::Repeated),
-                    description: None,
+                    description: Some("Blob data associated with the transaction".to_string()),
                     ..Default::default()
                 },
                 TableFieldSchema {
                     name: "commitments".to_string(),
                     data_type: TableFieldType::String,
                     mode: Some(TableFieldMode::Repeated),
-                    description: None,
+                    description: Some("KZG commitments for the transaction blobs".to_string()),
                     ..Default::default()
                 },
                 TableFieldSchema {
                     name: "proofs".to_string(),
                     data_type: TableFieldType::String,
                     mode: Some(TableFieldMode::Repeated),
-                    description: None,
+                    description: Some("KZG proofs for the transaction blobs".to_string()),
                     ..Default::default()
                 },
             ]);
@@ -588,14 +612,14 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
                     name: "l1_batch_number".to_string(),
                     data_type: TableFieldType::Integer,
                     mode: Some(TableFieldMode::Nullable),
-                    description: None,
+                    description: Some("Batch number on Layer 1".to_string()),
                     ..Default::default()
                 },
                 TableFieldSchema {
                     name: "l1_batch_tx_index".to_string(),
                     data_type: TableFieldType::Integer,
                     mode: Some(TableFieldMode::Nullable),
-                    description: None,
+                    description: Some("Transaction index within the Layer 1 batch".to_string()),
                     ..Default::default()
                 },
             ]);
@@ -608,59 +632,108 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
 pub fn trace_schema(chain: Chain) -> TableSchema {
     let fields = vec![
         TableFieldSchema {
+            name: "chain_id".to_string(),
+            data_type: TableFieldType::Integer,
+            mode: Some(TableFieldMode::Required),
+            description: Some("Chain ID".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "block_time".to_string(),
+            data_type: TableFieldType::Timestamp,
+            mode: Some(TableFieldMode::Required),
+            description: Some("Timestamp of the current block".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "block_date".to_string(),
+            data_type: TableFieldType::Date,
+            mode: Some(TableFieldMode::Required),
+            description: Some("Date of the current block".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "block_number".to_string(),
+            data_type: TableFieldType::Integer,
+            mode: Some(TableFieldMode::Nullable),
+            description: Some("Number of the current block".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "tx_hash".to_string(),
+            data_type: TableFieldType::String,
+            mode: Some(TableFieldMode::Nullable),
+            description: Some("Hash of the transaction containing this trace".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "type".to_string(),
+            data_type: TableFieldType::String,
+            mode: Some(TableFieldMode::Required),
+            description: Some("Trace operation type".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
             name: "from".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Required),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "gas".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Required),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "gas_used".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Required),
-            description: None,
+            description: Some("Address initiating the trace call".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
             name: "to".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Nullable),
-            description: None,
+            description: Some("Address receiving the trace call".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "value".to_string(),
+            data_type: TableFieldType::String,
+            mode: Some(TableFieldMode::Nullable),
+            description: Some("Value transferred in the trace call".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "gas".to_string(),
+            data_type: TableFieldType::String,
+            mode: Some(TableFieldMode::Required),
+            description: Some("Gas allocated for the trace execution".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "gas_used".to_string(),
+            data_type: TableFieldType::String,
+            mode: Some(TableFieldMode::Required),
+            description: Some("Gas consumed by the trace execution".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
             name: "input".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Required),
-            description: None,
+            description: Some("Input data for the trace call".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
             name: "output".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Nullable),
-            description: None,
+            description: Some("Output data from the trace execution".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
             name: "error".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Nullable),
-            description: None,
+            description: Some("Error message if the trace execution failed".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
             name: "revert_reason".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Nullable),
-            description: None,
+            description: Some("Reason for trace execution revert if applicable".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
@@ -672,46 +745,32 @@ pub fn trace_schema(chain: Chain) -> TableSchema {
                     name: "address".to_string(),
                     data_type: TableFieldType::String,
                     mode: Some(TableFieldMode::Nullable),
-                    description: None,
+                    description: Some("Contract address that generated the log".to_string()),
                     ..Default::default()
                 },
                 TableFieldSchema {
                     name: "topics".to_string(),
                     data_type: TableFieldType::String,
                     mode: Some(TableFieldMode::Repeated),
-                    description: None,
+                    description: Some("Indexed log parameters".to_string()),
                     ..Default::default()
                 },
                 TableFieldSchema {
                     name: "data".to_string(),
                     data_type: TableFieldType::String,
                     mode: Some(TableFieldMode::Nullable),
-                    description: None,
+                    description: Some("Non-indexed log parameters".to_string()),
                     ..Default::default()
                 },
                 TableFieldSchema {
                     name: "position".to_string(),
                     data_type: TableFieldType::Integer,
                     mode: Some(TableFieldMode::Nullable),
-                    description: None,
+                    description: Some("Position of the log within the trace".to_string()),
                     ..Default::default()
                 },
             ]),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "value".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Nullable),
-            description: None,
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "typ".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Required),
-            description: None,
+            description: Some("Logs generated during trace execution".to_string()),
             ..Default::default()
         },
     ];

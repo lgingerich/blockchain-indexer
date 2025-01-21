@@ -1,22 +1,25 @@
-use alloy_primitives::{Address, Bytes, Uint};
+use alloy_primitives::{Address, Bytes, FixedBytes};
 use alloy_rpc_types_trace::geth::CallLogFrame;
+use chrono::{DateTime, NaiveDate, Utc};
 use serde::Serialize;
 
 ////////////////////////////////////// RPC Data ////////////////////////////////////////
 // Raw RPC response format
 #[derive(Debug, Clone)]
 pub struct CommonRpcTraceData {
+    pub block_number: u64,
+    pub tx_hash: Option<FixedBytes<32>>,
+    pub r#type: String,
     pub from: Address,
-    pub gas: Uint<256, 4>,
-    pub gas_used: Uint<256, 4>,
     pub to: Option<Address>,
+    pub value: Option<String>,
+    pub gas: String,
+    pub gas_used: String,
     pub input: Bytes,
     pub output: Option<Bytes>,
     pub error: Option<String>,
     pub revert_reason: Option<String>,
     pub logs: Vec<CallLogFrame>,
-    pub value: Option<Uint<256, 4>>,
-    pub typ: String,
 }
 
 // Ethereum-specific trace
@@ -41,17 +44,21 @@ pub enum RpcTraceData {
 #[derive(Debug, Clone, Serialize)]
 pub struct CommonTransformedTraceData {
     pub chain_id: u64,
+    pub block_time: DateTime<Utc>,
+    pub block_date: NaiveDate,
+    pub block_number: u64,
+    pub tx_hash: Option<FixedBytes<32>>,
+    pub r#type: String,
     pub from: Address,
-    pub gas: Uint<256, 4>,
-    pub gas_used: Uint<256, 4>,
     pub to: Option<Address>,
+    pub value: Option<String>,
+    pub gas: String,
+    pub gas_used: String,
     pub input: Bytes,
     pub output: Option<Bytes>,
     pub error: Option<String>,
     pub revert_reason: Option<String>,
     pub logs: Vec<CallLogFrame>,
-    pub value: Option<Uint<256, 4>>,
-    pub typ: String,
 }
 
 // Ethereum-specific trace

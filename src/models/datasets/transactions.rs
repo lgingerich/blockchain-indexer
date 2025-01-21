@@ -1,7 +1,8 @@
 #![allow(dead_code)] // Allow unused fields in RPC data for completeness
 
 use alloy_eips::{eip2930::AccessList, eip4844::BYTES_PER_BLOB, eip7702::SignedAuthorization};
-use alloy_primitives::{Address, Bloom, Bytes, FixedBytes, Uint};
+use alloy_primitives::{Address, Bloom, Bytes, FixedBytes};
+use chrono::{DateTime, NaiveDate, Utc};
 use serde::Serialize;
 
 use crate::models::common::TransactionTo;
@@ -10,27 +11,27 @@ use crate::models::common::TransactionTo;
 ///////////////////////////////// eth_getBlockByNumber /////////////////////////////////
 #[derive(Debug, Clone)]
 pub struct CommonRpcTransactionData {
-    pub hash: FixedBytes<32>,
-    pub nonce: u64,
-    pub tx_type: u8,
-    pub gas_price: u128,
-    pub gas_limit: u64,
-    pub max_fee_per_gas: u128,
-    pub max_priority_fee_per_gas: u128,
-    pub value: Option<Uint<256, 4>>,
-    pub access_list: AccessList,
-    pub input: Option<Bytes>,
-    pub r: Uint<256, 4>,
-    pub s: Uint<256, 4>,
-    pub v: bool,
-    pub blob_versioned_hashes: Vec<FixedBytes<32>>,
-    pub authorization_list: Vec<SignedAuthorization>,
-    pub block_hash: Option<FixedBytes<32>>,
     pub block_number: Option<u64>,
-    pub transaction_index: Option<u64>,
-    pub effective_gas_price: Option<u128>,
+    pub block_hash: Option<FixedBytes<32>>,
+    pub tx_hash: FixedBytes<32>,
+    pub tx_index: Option<u64>,
+    pub tx_type: u8,
+    pub nonce: u64,
     pub from: Address,
     pub to: TransactionTo,
+    pub input: Option<Bytes>,
+    pub value: Option<String>,
+    pub gas_price: Option<u128>,
+    pub gas_limit: u64,
+    pub max_fee_per_gas: Option<u128>,
+    pub max_priority_fee_per_gas: Option<u128>,
+    pub effective_gas_price: Option<u128>,
+    pub access_list: AccessList,
+    pub authorization_list: Vec<SignedAuthorization>,
+    pub blob_versioned_hashes: Vec<FixedBytes<32>>,
+    pub r: Option<String>,
+    pub s: Option<String>,
+    pub v: Option<bool>,
 }
 
 // Ethereum-specific transaction
@@ -61,20 +62,20 @@ pub enum RpcTransactionData {
 
 #[derive(Debug, Clone)]
 pub struct CommonRpcTransactionReceiptData {
-    pub transaction_hash: FixedBytes<32>,
-    pub transaction_index: Option<u64>,
-    pub status: Option<bool>,
-    pub tx_type: u8,
-    pub block_hash: Option<FixedBytes<32>>,
     pub block_number: Option<u64>,
-    pub gas_used: u128,
-    pub effective_gas_price: u128,
-    pub blob_gas_used: Option<u128>,
-    pub blob_gas_price: Option<u128>,
+    pub block_hash: Option<FixedBytes<32>>,
+    pub tx_hash: FixedBytes<32>,
+    pub tx_index: Option<u64>,
+    pub tx_type: u8,
+    pub status: Option<bool>,
     pub from: Address,
     pub to: Option<Address>,
     pub contract_address: Option<Address>,
+    pub gas_used: u128,
+    pub effective_gas_price: u128,
     pub cumulative_gas_used: u128,
+    pub blob_gas_price: Option<u128>,
+    pub blob_gas_used: Option<u128>,
     pub authorization_list: Vec<SignedAuthorization>,
     pub logs_bloom: Bloom,
 }
@@ -105,38 +106,36 @@ pub enum RpcTransactionReceiptData {
 #[derive(Debug, Serialize)]
 pub struct CommonTransformedTransactionData {
     pub chain_id: u64,
-
-    // Block fields
-    pub nonce: u64,
-    pub gas_price: u128,
-    pub gas_limit: u64,
-    pub max_fee_per_gas: u128,
-    pub max_priority_fee_per_gas: u128,
-    pub value: Option<Uint<256, 4>>,
-    pub access_list: AccessList,
-    pub input: Option<Bytes>,
-    pub r: Uint<256, 4>,
-    pub s: Uint<256, 4>,
-    pub v: bool,
-    pub blob_versioned_hashes: Vec<FixedBytes<32>>,
-
-    // Receipt fields
-    pub transaction_hash: FixedBytes<32>,
-    pub transaction_index: Option<u64>,
-    pub status: Option<bool>,
-    pub tx_type: u8,
-    pub block_hash: Option<FixedBytes<32>>,
+    pub block_time: DateTime<Utc>,
+    pub block_date: NaiveDate,
     pub block_number: Option<u64>,
-    pub gas_used: u128,
-    pub effective_gas_price: u128,
-    pub blob_gas_used: Option<u128>,
-    pub blob_gas_price: Option<u128>,
+    pub block_hash: Option<FixedBytes<32>>,
+    pub tx_hash: FixedBytes<32>,
+    pub tx_index: Option<u64>,
+    pub tx_type: u8,
+    pub status: Option<bool>,
+    pub nonce: u64,
     pub from: Address,
     pub to: Option<Address>,
     pub contract_address: Option<Address>,
+    pub input: Option<Bytes>,
+    pub value: Option<String>,
+    pub gas_price: Option<u128>,
+    pub gas_limit: u64,
+    pub gas_used: u128,
+    pub max_fee_per_gas: Option<u128>,
+    pub max_priority_fee_per_gas: Option<u128>,
+    pub effective_gas_price: u128,
     pub cumulative_gas_used: u128,
+    pub blob_gas_price: Option<u128>,
+    pub blob_gas_used: Option<u128>,
+    pub access_list: AccessList,
     pub authorization_list: Vec<SignedAuthorization>,
+    pub blob_versioned_hashes: Vec<FixedBytes<32>>,
     pub logs_bloom: Bloom,
+    pub r: Option<String>,
+    pub s: Option<String>,
+    pub v: Option<bool>,
 }
 
 #[derive(Debug, Serialize)]

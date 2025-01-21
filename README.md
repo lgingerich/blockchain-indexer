@@ -29,6 +29,7 @@ Features include:
 ### Performance Improvements
 - [ ] Make data storage inserts non-blocking
 - [ ] Add batched RPC calls
+- [ ] Remove clones
 
 
 ## Indexer Configuration
