@@ -1,4 +1,4 @@
-use alloy_primitives::{Address, Bloom, Bytes, FixedBytes, Uint};
+use alloy_primitives::{Address, Bloom, Bytes, FixedBytes};
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::Serialize;
 
@@ -14,7 +14,7 @@ pub struct CommonRpcHeaderData {
     pub transactions_root: FixedBytes<32>,
     pub receipts_root: FixedBytes<32>,
     pub logs_bloom: Bloom,
-    pub difficulty: Uint<256, 4>,
+    pub difficulty: String,
     pub block_number: u64,
     pub gas_limit: u64,
     pub gas_used: u64,
@@ -29,8 +29,8 @@ pub struct CommonRpcHeaderData {
     pub excess_blob_gas: Option<u64>,
     pub parent_beacon_block_root: Option<FixedBytes<32>>,
     pub requests_hash: Option<FixedBytes<32>>,
-    pub total_difficulty: Option<Uint<256, 4>>,
-    pub size: Option<Uint<256, 4>>,
+    pub total_difficulty: Option<String>,
+    pub size: Option<String>,
 }
 
 // Ethereum-specific header
@@ -69,7 +69,7 @@ pub struct CommonTransformedBlockData {
     pub transactions_root: FixedBytes<32>,
     pub receipts_root: FixedBytes<32>,
     pub logs_bloom: Bloom,
-    pub difficulty: Uint<256, 4>,
+    pub difficulty: String,
     pub block_number: u64,
     pub gas_limit: u64,
     pub gas_used: u64,
@@ -84,8 +84,8 @@ pub struct CommonTransformedBlockData {
     pub excess_blob_gas: Option<u64>,
     pub parent_beacon_block_root: Option<FixedBytes<32>>,
     pub requests_hash: Option<FixedBytes<32>>,
-    pub total_difficulty: Option<Uint<256, 4>>,
-    pub size: Option<Uint<256, 4>>,
+    pub total_difficulty: Option<String>,
+    pub size: Option<String>,
 }
 
 // Ethereum-specific header

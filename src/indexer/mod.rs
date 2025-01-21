@@ -336,15 +336,8 @@ pub async fn transform_data(
     active_datasets: &[String],
 ) -> Result<TransformedData> {
 
-
-    // blocks: block_number, block_time, block_date
-    // transactions: block_number
-    // receipts: block_number
-    // logs: block_number, block_time, block_date
-    // traces: block_number
-
-
     // Build set of common fields I need to pass across datasets (e.g. block_number -> block_time, block_date)
+    // Hashmap is likely overkill for now with processing only a single block but will be useful for processing multiple blocks
     let block_map: HashMap<_, _> = parsed_data.header.clone()
         .into_iter()
         .map(|header| match header {
@@ -358,6 +351,7 @@ pub async fn transform_data(
             ),
         })
         .collect();
+
 
     // Only transform data for active datasets, otherwise return empty Vec
     let blocks = if active_datasets.contains(&"blocks".to_string()) {

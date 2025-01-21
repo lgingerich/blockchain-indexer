@@ -26,6 +26,7 @@ impl TraceParser for Vec<TraceResult> {
                             _ => Vec::new(), // Skip other trace types
                         }
                     }
+                    // TODO: Should I be using `error` for the `error` or `revert_reason` fields?
                     TraceResult::Error { error, tx_hash } => {
                         // Log failed traces with their error messages
                         if let Some(hash) = tx_hash {

@@ -1,7 +1,7 @@
 #![allow(dead_code)] // Allow unused fields in RPC data for completeness
 
 use alloy_eips::{eip2930::AccessList, eip4844::BYTES_PER_BLOB, eip7702::SignedAuthorization};
-use alloy_primitives::{Address, Bloom, Bytes, FixedBytes, Uint};
+use alloy_primitives::{Address, Bloom, Bytes, FixedBytes};
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::Serialize;
 
@@ -16,14 +16,14 @@ pub struct CommonRpcTransactionData {
     pub tx_type: u8,
     pub gas_price: Option<u128>,
     pub gas_limit: u64,
-    pub max_fee_per_gas: u128,
-    pub max_priority_fee_per_gas: u128,
-    pub value: Option<Uint<256, 4>>,
+    pub max_fee_per_gas: Option<u128>,
+    pub max_priority_fee_per_gas: Option<u128>,
+    pub value: Option<String>,
     pub access_list: AccessList,
     pub input: Option<Bytes>,
-    pub r: Uint<256, 4>,
-    pub s: Uint<256, 4>,
-    pub v: bool,
+    pub r: Option<String>,
+    pub s: Option<String>,
+    pub v: Option<bool>,
     pub blob_versioned_hashes: Vec<FixedBytes<32>>,
     pub authorization_list: Vec<SignedAuthorization>,
     pub block_hash: Option<FixedBytes<32>>,
@@ -113,14 +113,14 @@ pub struct CommonTransformedTransactionData {
     pub nonce: u64,
     pub gas_price: Option<u128>,
     pub gas_limit: u64,
-    pub max_fee_per_gas: u128,
-    pub max_priority_fee_per_gas: u128,
-    pub value: Option<Uint<256, 4>>,
+    pub max_fee_per_gas: Option<u128>,
+    pub max_priority_fee_per_gas: Option<u128>,
+    pub value: Option<String>,
     pub access_list: AccessList,
     pub input: Option<Bytes>,
-    pub r: Uint<256, 4>,
-    pub s: Uint<256, 4>,
-    pub v: bool,
+    pub r: Option<String>,
+    pub s: Option<String>,
+    pub v: Option<bool>,
     pub blob_versioned_hashes: Vec<FixedBytes<32>>,
 
     // Receipt fields

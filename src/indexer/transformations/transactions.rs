@@ -60,12 +60,12 @@ impl TransactionTransformer for ParsedData {
                     gas_limit: common_tx.gas_limit,
                     max_fee_per_gas: common_tx.max_fee_per_gas,
                     max_priority_fee_per_gas: common_tx.max_priority_fee_per_gas,
-                    value: common_tx.value,
+                    value: common_tx.value.clone(),
                     access_list: common_tx.access_list.clone(),
                     input: common_tx.input.clone(),
                     blob_versioned_hashes: common_tx.blob_versioned_hashes.clone(),
-                    r: common_tx.r,
-                    s: common_tx.s,
+                    r: common_tx.r.clone(),
+                    s: common_tx.s.clone(),
                     v: common_tx.v,
 
                     // Fields from TransactionReceiptData

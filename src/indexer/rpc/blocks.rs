@@ -19,7 +19,6 @@ use crate::models::datasets::transactions::{
 };
 use crate::utils::hex_to_u64;
 
-// NOTE: No handling for uncle blocks
 pub trait BlockParser {
     fn parse_header(self, chain: Chain) -> Result<Vec<RpcHeaderData>>;
     fn parse_transactions(self, chain: Chain) -> Result<Vec<RpcTransactionData>>;
@@ -40,7 +39,7 @@ impl BlockParser for AnyRpcBlock {
             transactions_root: inner.transactions_root,
             receipts_root: inner.receipts_root,
             logs_bloom: inner.logs_bloom,
-            difficulty: inner.difficulty,
+            difficulty: inner.difficulty.to_string(),
             block_number: inner.number,
             gas_limit: inner.gas_limit,
             gas_used: inner.gas_used,
@@ -58,8 +57,8 @@ impl BlockParser for AnyRpcBlock {
             excess_blob_gas: inner.excess_blob_gas,
             parent_beacon_block_root: inner.parent_beacon_block_root,
             requests_hash: inner.requests_hash,
-            total_difficulty: self.header.total_difficulty,
-            size: self.header.size,
+            total_difficulty: self.header.total_difficulty.map(|value| value.to_string()),
+            size: self.header.size.map(|value| value.to_string()),
         };
 
         let header = match chain {
@@ -110,14 +109,14 @@ impl BlockParser for AnyRpcBlock {
                         tx_type: 0, // Required field. Always overridden by actual value
                         gas_price: None, 
                         gas_limit: 0, // Required field. Always overridden by actual value
-                        max_fee_per_gas: 0,
-                        max_priority_fee_per_gas: 0,
+                        max_fee_per_gas: None,
+                        max_priority_fee_per_gas: None,
                         value: None, // Required field. Always overridden by actual value
                         access_list: AccessList::default(),
                         input: None, // Required field. Always overridden by actual value
-                        r: Uint::<256, 4>::ZERO,
-                        s: Uint::<256, 4>::ZERO,
-                        v: false,
+                        r: None,
+                        s: None,
+                        v: None,
                         blob_versioned_hashes: Vec::new(),
                         authorization_list: Vec::new(),
                         block_hash,
@@ -148,11 +147,11 @@ impl BlockParser for AnyRpcBlock {
                                             tx_type: LEGACY_TX_TYPE_ID,
                                             gas_price: Some(tx.gas_price),
                                             gas_limit: tx.gas_limit,
-                                            input: Some(tx.input.clone()), // TODO: Remove clone
-                                            value: Some(tx.value),
-                                            r: signature.r(),
-                                            s: signature.s(),
-                                            v: signature.v(),
+                                            input: Some(tx.input.clone()),
+                                            value: Some(tx.value.to_string()),
+                                            r: Some(signature.r().to_string()),
+                                            s: Some(signature.s().to_string()),
+                                            v: Some(signature.v()),
                                             to: TransactionTo::TxKind(tx.to),
                                             ..common
                                         },
@@ -174,12 +173,12 @@ impl BlockParser for AnyRpcBlock {
                                             gas_price: Some(tx.gas_price),
                                             gas_limit: tx.gas_limit,
                                             to: TransactionTo::TxKind(tx.to),
-                                            value: Some(tx.value),
+                                            value: Some(tx.value.to_string()),
                                             access_list: tx.access_list.clone(), // TODO: Remove clone
                                             input: Some(tx.input.clone()),             // TODO: Remove clone
-                                            r: signature.r(),
-                                            s: signature.s(),
-                                            v: signature.v(),
+                                            r: Some(signature.r().to_string()),
+                                            s: Some(signature.s().to_string()),
+                                            v: Some(signature.v()),
                                             ..common
                                         },
                                         max_fee_per_blob_gas: None,
@@ -198,15 +197,15 @@ impl BlockParser for AnyRpcBlock {
                                             // tx_type: tx.tx_type(), // TODO: Not publicly accessible. Fix
                                             tx_type: EIP1559_TX_TYPE_ID,
                                             gas_limit: tx.gas_limit,
-                                            max_fee_per_gas: tx.max_fee_per_gas,
-                                            max_priority_fee_per_gas: tx.max_priority_fee_per_gas,
+                                            max_fee_per_gas: Some(tx.max_fee_per_gas),
+                                            max_priority_fee_per_gas: Some(tx.max_priority_fee_per_gas),
                                             to: TransactionTo::TxKind(tx.to),
-                                            value: Some(tx.value),
+                                            value: Some(tx.value.to_string()),
                                             access_list: tx.access_list.clone(), // TODO: Remove clone
                                             input: Some(tx.input.clone()),             // TODO: Remove clone
-                                            r: signature.r(),
-                                            s: signature.s(),
-                                            v: signature.v(),
+                                            r: Some(signature.r().to_string()),
+                                            s: Some(signature.s().to_string()),
+                                            v: Some(signature.v()),
                                             tx_hash: *signed.hash(),
                                             ..common
                                         },
@@ -225,16 +224,16 @@ impl BlockParser for AnyRpcBlock {
                                                 nonce: tx.nonce,
                                                 tx_type: EIP4844_TX_TYPE_ID,
                                                 gas_limit: tx.gas_limit,
-                                                max_fee_per_gas: tx.max_fee_per_gas,
-                                                max_priority_fee_per_gas: tx.max_priority_fee_per_gas,
+                                                max_fee_per_gas: Some(tx.max_fee_per_gas),
+                                                max_priority_fee_per_gas: Some(tx.max_priority_fee_per_gas),
                                                 to: TransactionTo::Address(tx.to),
-                                                value: Some(tx.value),
+                                                value: Some(tx.value.to_string()),
                                                 access_list: tx.access_list.clone(), // TODO: Remove clone
                                                 blob_versioned_hashes: tx.blob_versioned_hashes.clone(), // TODO: Remove clone
                                                 input: Some(tx.input.clone()),             // TODO: Remove clone
-                                                r: signature.r(),
-                                                s: signature.s(),
-                                                v: signature.v(),
+                                                r: Some(signature.r().to_string()),
+                                                s: Some(signature.s().to_string()),
+                                                v: Some(signature.v()),
                                                 tx_hash: *signed.hash(),
                                                 ..common
                                             },
@@ -251,16 +250,16 @@ impl BlockParser for AnyRpcBlock {
                                                     nonce: tx.nonce,
                                                     tx_type: EIP4844_TX_TYPE_ID,
                                                     gas_limit: tx.gas_limit,
-                                                    max_fee_per_gas: tx.max_fee_per_gas,
-                                                    max_priority_fee_per_gas: tx.max_priority_fee_per_gas,
+                                                    max_fee_per_gas: Some(tx.max_fee_per_gas),
+                                                    max_priority_fee_per_gas: Some(tx.max_priority_fee_per_gas),
                                                     to: TransactionTo::Address(tx.to),
-                                                    value: Some(tx.value),
+                                                    value: Some(tx.value.to_string()),
                                                     access_list: tx.access_list.clone(), // TODO: Remove clone
                                                     blob_versioned_hashes: tx.blob_versioned_hashes.clone(), // TODO: Remove clone
                                                     input: Some(tx.input.clone()), // TODO: Remove clone
-                                                    r: signature.r(),
-                                                    s: signature.s(),
-                                                    v: signature.v(),
+                                                    r: Some(signature.r().to_string()),
+                                                    s: Some(signature.s().to_string()),
+                                                    v: Some(signature.v()),
                                                     tx_hash: *signed.hash(),
                                                     ..common
                                                 },
@@ -281,16 +280,16 @@ impl BlockParser for AnyRpcBlock {
                                             nonce: tx.nonce,
                                             tx_type: EIP7702_TX_TYPE_ID,
                                             gas_limit: tx.gas_limit,
-                                            max_fee_per_gas: tx.max_fee_per_gas,
-                                            max_priority_fee_per_gas: tx.max_priority_fee_per_gas,
+                                            max_fee_per_gas: Some(tx.max_fee_per_gas),
+                                            max_priority_fee_per_gas: Some(tx.max_priority_fee_per_gas),
                                             to: TransactionTo::Address(tx.to),
-                                            value: Some(tx.value),
+                                            value: Some(tx.value.to_string()),
                                             access_list: tx.access_list.clone(), // TODO: Remove clone
                                             authorization_list: tx.authorization_list.clone(), // TODO: Remove clone
                                             input: Some(tx.input.clone()),             // TODO: Remove clone
-                                            r: signature.r(),
-                                            s: signature.s(),
-                                            v: signature.v(),
+                                            r: Some(signature.r().to_string()),
+                                            s: Some(signature.s().to_string()),
+                                            v: Some(signature.v()),
                                             tx_hash: *signed.hash(),
                                             ..common
                                         },
@@ -351,40 +350,47 @@ impl BlockParser for AnyRpcBlock {
                                 gas_price: Some(other_fields
                                     .get_deserialized::<u128>("gasPrice")
                                     .and_then(|result| result.ok())
-                                    .unwrap_or(0)),
+                                    .unwrap_or_default()),
                                 gas_limit: other_fields
                                     .get_deserialized::<u64>("gas")
                                     .and_then(|result| result.ok())
-                                    .unwrap_or(0),
+                                    .unwrap_or_default(),
                                 max_fee_per_gas: other_fields
                                     .get_deserialized::<u128>("maxFeePerGas")
-                                    .and_then(|result| result.ok())
-                                    .unwrap_or(0),
+                                    .and_then(|result| result.ok()),
                                 max_priority_fee_per_gas: other_fields
                                     .get_deserialized::<u128>("maxPriorityFeePerGas")
-                                    .and_then(|result| result.ok())
-                                    .unwrap_or(0),
+                                    .and_then(|result| result.ok()),
                                 value: other_fields
                                     .get_deserialized::<Uint<256, 4>>("value")
-                                    .and_then(|result| result.ok()),
+                                    .and_then(|result| result.ok())
+                                    .map(|value| value.to_string()),
                                 access_list: memo.access_list
                                     .get()
                                     .cloned()
-                                    .unwrap_or(AccessList::default()),
+                                    .unwrap_or_default(),
                                 input: other_fields
                                     .get_deserialized::<Bytes>("input")
                                     .and_then(|result| result.ok()),
-                                r: Uint::<256, 4>::ZERO, // TODO: Fill this in
-                                s: Uint::<256, 4>::ZERO, // TODO: Fill this in
-                                v: false, // TODO: Fill this in
+                                r: other_fields
+                                    .get_deserialized::<Uint<256, 4>>("r")
+                                    .and_then(|result| result.ok())
+                                    .map(|r| r.to_string()),
+                                s: other_fields
+                                    .get_deserialized::<Uint<256, 4>>("s")
+                                    .and_then(|result| result.ok())
+                                    .map(|s| s.to_string()),
+                                v: other_fields
+                                    .get_deserialized::<bool>("v")
+                                    .and_then(|result| result.ok()), // Deserialized as bool
                                 blob_versioned_hashes: memo.blob_versioned_hashes
                                     .get()
                                     .cloned()
-                                    .unwrap_or(Vec::new()),
+                                    .unwrap_or_default(),
                                 authorization_list: memo.authorization_list
                                     .get()
                                     .cloned()
-                                    .unwrap_or(Vec::new()),
+                                    .unwrap_or_default(),
                                 block_hash,
                                 block_number,
                                 transaction_index,

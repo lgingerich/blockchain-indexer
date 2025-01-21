@@ -434,21 +434,21 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
         TableFieldSchema {
             name: "r".to_string(),
             data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Required),
+            mode: Some(TableFieldMode::Nullable),
             description: None,
             ..Default::default()
         },
         TableFieldSchema {
             name: "s".to_string(),
             data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Required),
+            mode: Some(TableFieldMode::Nullable),
             description: None,
             ..Default::default()
         },
         TableFieldSchema {
             name: "v".to_string(),
             data_type: TableFieldType::Boolean,
-            mode: Some(TableFieldMode::Required),
+            mode: Some(TableFieldMode::Nullable),
             description: None,
             ..Default::default()
         },

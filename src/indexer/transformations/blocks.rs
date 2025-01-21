@@ -33,7 +33,7 @@ impl BlockTransformer for ParsedData {
                     transactions_root: common_data.transactions_root,
                     receipts_root: common_data.receipts_root,
                     logs_bloom: common_data.logs_bloom,
-                    difficulty: common_data.difficulty,
+                    difficulty: common_data.difficulty.clone(),
                     block_number: common_data.block_number,
                     gas_limit: common_data.gas_limit,
                     gas_used: common_data.gas_used,
@@ -48,8 +48,8 @@ impl BlockTransformer for ParsedData {
                     excess_blob_gas: common_data.excess_blob_gas,
                     parent_beacon_block_root: common_data.parent_beacon_block_root,
                     requests_hash: common_data.requests_hash,
-                    total_difficulty: common_data.total_difficulty,
-                    size: common_data.size,
+                    total_difficulty: common_data.total_difficulty.clone(),
+                    size: common_data.size.clone(),
                 };
 
                 match chain {
