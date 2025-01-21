@@ -15,7 +15,7 @@ use crate::models::datasets::traces::TransformedTraceData;
 use crate::models::datasets::transactions::TransformedTransactionData;
 use crate::storage::bigquery::insert_data_with_retry;
 
-const MAX_CHANNEL_CAPACITY: usize = 32;
+const MAX_CHANNEL_CAPACITY: usize = 64;
 const CAPACITY_THRESHOLD: f32 = 0.2; // Apply backpressure when current capacity is 20% of max
 
 #[derive(Clone)]
@@ -62,7 +62,7 @@ impl DataChannels {
         self.traces_tx.capacity() == MAX_CHANNEL_CAPACITY
     }
 
-    pub async fn check_capacity(&self, metrics: &Metrics) -> Result<()> {
+    pub async fn check_capacity(&self, metrics: &Metrics) -> Result<bool> {
         // Get current capacities (number of available slots, NOT how many slots are used)
         let blocks_capacity = self.blocks_tx.capacity();
         let transactions_capacity = self.transactions_tx.capacity();
@@ -93,10 +93,11 @@ impl DataChannels {
            (transactions_capacity as f32 / MAX_CHANNEL_CAPACITY as f32) <= CAPACITY_THRESHOLD ||
            (logs_capacity as f32 / MAX_CHANNEL_CAPACITY as f32) <= CAPACITY_THRESHOLD ||
            (traces_capacity as f32 / MAX_CHANNEL_CAPACITY as f32) <= CAPACITY_THRESHOLD {
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+            info!("Channel within {}% of max capacity", (1.0 - CAPACITY_THRESHOLD) * 100.0);
+            return Ok(false);
         }
-        
-        Ok(())
+
+        Ok(true)
     }
 }
 
