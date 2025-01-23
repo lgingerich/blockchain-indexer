@@ -1,16 +1,22 @@
 services:
   indexer:
-    build: .
+    build:
+      context: .
+      args:
+        CONFIG_SOURCE: ${CONFIG_SOURCE:-config.yml}  # Default to config.yml if not specified
     container_name: blockchain-indexer
     ports:
       - "9100:9100" # Prometheus metrics port
     volumes:
-      - ./config.yml:/app/config.yml
+      - type: bind
+        source: ${CONFIG_SOURCE:-config.yml}
+        target: /app/config.yml
       - ./logs:/app/logs
       - ~/.config/gcloud/application_default_credentials.json:/root/.config/gcloud/application_default_credentials.json
     environment:
       - RUST_BACKTRACE=1
       - RUST_LOG=info
+      - CONFIG_SOURCE=${CONFIG_SOURCE:-config.yml}
     networks:
       - monitoring
     restart: unless-stopped
