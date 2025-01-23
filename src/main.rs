@@ -72,7 +72,6 @@ async fn main() -> Result<()> {
 
     // Start metrics server if metrics are enabled
     if let Some(metrics_instance) = &metrics {
-        // Start metrics server
         metrics_instance.start_metrics_server("0.0.0.0", 9100).await; // Prometheus port is currently hardcoded to 9100 in prometheus.yml
     }
 
@@ -116,7 +115,6 @@ async fn main() -> Result<()> {
         0
     };
 
-    let mut block_number = 10_000_000;
     info!("Starting block number: {:?}", block_number);
 
     // Create RPC provider
@@ -135,13 +133,12 @@ async fn main() -> Result<()> {
 
     println!();
     info!("========================= STARTING INDEXER =========================");
-    let start_time = Instant::now();
-    while block_number <= 10_001_000 {
-    // loop {
+    
+    loop {
         // Check for shutdown signal (non-blocking)
         if shutdown_signal.try_recv().is_ok() {
             info!("Shutting down main processing loop...");
-            break;
+            break Ok(());
         }
 
         // Initialize intermediate data
@@ -309,10 +306,5 @@ async fn main() -> Result<()> {
         // Increment the raw number and update BlockNumberOrTag
         block_number += 1;
         block_number_to_process = BlockNumberOrTag::Number(block_number);
-        // tokio::time::sleep(tokio::time::Duration::from_millis(SLEEP_DURATION)).await;
     }
-    let end_time = Instant::now();
-    let duration = end_time.duration_since(start_time);
-    info!("Total time taken: {:?}", duration);
-    Ok(())
 }
