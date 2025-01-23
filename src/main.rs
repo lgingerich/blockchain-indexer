@@ -58,14 +58,23 @@ async fn main() -> Result<()> {
     let chain_tip_buffer = config.chain_tip_buffer;
     let rpc = config.rpc_url.as_str();
     let datasets = config.datasets;
+    let metrics_enabled = config.metrics.enabled;
 
     let chain = Chain::from_chain_id(chain_id);
 
-    // Initialize metrics
-    let metrics = Metrics::new(chain_name.to_string())?;
+    // Initialize optional metrics
+    let metrics = if metrics_enabled {
+        Some(Metrics::new(chain_name.to_string())?)
+    } else {
+        info!("Metrics are disabled");
+        None
+    };
 
-    // Start metrics server
-    metrics.start_metrics_server("0.0.0.0", 9100).await; // Prometheus port is currently hardcoded to 9100 in prometheus.yml
+    // Start metrics server if metrics are enabled
+    if let Some(metrics_instance) = &metrics {
+        // Start metrics server
+        metrics_instance.start_metrics_server("0.0.0.0", 9100).await; // Prometheus port is currently hardcoded to 9100 in prometheus.yml
+    }
 
     // Track which RPC responses we need
     let need_block =
@@ -118,7 +127,7 @@ async fn main() -> Result<()> {
         .on_http(rpc_url);
 
     // Get chain ID
-    let chain_id = indexer::get_chain_id(&provider, &metrics).await?;
+    let chain_id = indexer::get_chain_id(&provider, metrics.as_ref()).await?;
     info!("Chain ID: {:?}", chain_id);
 
     // Initialize data for loop
@@ -143,7 +152,7 @@ async fn main() -> Result<()> {
         // Get latest block number
         // Note: Since the indexer is not real-time, this never gets used other than to check if we're too close to the tip
         let latest_block: BlockNumberOrTag =
-            indexer::get_latest_block_number(&provider, &metrics).await?;
+            indexer::get_latest_block_number(&provider, metrics.as_ref()).await?;
 
         info!("Block number to process: {:?}", block_number_to_process);
 
@@ -163,7 +172,7 @@ async fn main() -> Result<()> {
         }
         
         // Check channel capacity and apply backpressure if needed
-        while !channels.check_capacity(&metrics).await? {
+        while !channels.check_capacity(metrics.as_ref()).await? {
             info!("Applying backpressure - sleeping for {} seconds...", SLEEP_DURATION / 1000);
             tokio::time::sleep(tokio::time::Duration::from_millis(SLEEP_DURATION)).await;
         }
@@ -176,7 +185,7 @@ async fn main() -> Result<()> {
         if need_block {
             let kind = BlockTransactionsKind::Full; // Hashes: only include tx hashes, Full: include full tx objects
             block = Some(
-                indexer::get_block_by_number(&provider, block_number_to_process, kind, &metrics)
+                indexer::get_block_by_number(&provider, block_number_to_process, kind, metrics.as_ref())
                     .await?
                     .ok_or_else(|| anyhow!("Provider returned no block"))?,
             );
@@ -187,7 +196,7 @@ async fn main() -> Result<()> {
         if need_receipts {
             let block_id = BlockId::Number(block_number_to_process);
             receipts = Some(
-                indexer::get_block_receipts(&provider, block_id, &metrics)
+                indexer::get_block_receipts(&provider, block_id, metrics.as_ref())
                     .await?
                     .ok_or_else(|| anyhow!("Provider returned no receipts"))?,
             );
@@ -210,7 +219,7 @@ async fn main() -> Result<()> {
                     &provider,
                     block_number_to_process,
                     trace_options,
-                    &metrics,
+                    metrics.as_ref(),
                 )
                 .await?
                 .ok_or_else(|| anyhow!("Provider returned no traces"))?,
@@ -276,25 +285,26 @@ async fn main() -> Result<()> {
         let block_processing_duration = block_start_time.elapsed().as_secs_f64();
 
         // Update metrics
-        metrics
-            .blocks_processed
-            .add(1, &[KeyValue::new("chain", metrics.chain_name.clone())]);
-        metrics.latest_processed_block.record(
-            block_number_to_process.as_number().unwrap(),
-            &[KeyValue::new("chain", metrics.chain_name.clone())],
-        );
-        metrics.latest_block_processing_time.record(
-            block_processing_duration,
-            &[KeyValue::new("chain", metrics.chain_name.clone())],
-        );
-        metrics.chain_tip_block.record(
-            latest_block.as_number().unwrap(),
-            &[KeyValue::new("chain", metrics.chain_name.clone())],
-        );
-        metrics.chain_tip_lag.record(
-            latest_block.as_number().unwrap() - block_number_to_process.as_number().unwrap(),
-            &[KeyValue::new("chain", metrics.chain_name.clone())],
-        );
+        if let Some(metrics_instance) = &metrics {
+            metrics_instance.blocks_processed
+                .add(1, &[KeyValue::new("chain", metrics_instance.chain_name.clone())]);
+            metrics_instance.latest_processed_block.record(
+                block_number_to_process.as_number().unwrap(),
+                &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
+            );
+            metrics_instance.latest_block_processing_time.record(
+                block_processing_duration,
+                &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
+            );
+            metrics_instance.chain_tip_block.record(
+                latest_block.as_number().unwrap(),
+                &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
+            );
+            metrics_instance.chain_tip_lag.record(
+                latest_block.as_number().unwrap() - block_number_to_process.as_number().unwrap(),
+                &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
+            );
+        }
 
         // Increment the raw number and update BlockNumberOrTag
         block_number += 1;

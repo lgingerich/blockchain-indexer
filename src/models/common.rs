@@ -9,6 +9,11 @@ use crate::models::datasets::transactions::{
 };
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct MetricsConfig {
+    pub enabled: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
     pub project_name: String,
     pub chain_name: String,
@@ -16,6 +21,7 @@ pub struct Config {
     pub datasets: Vec<String>,
     pub chain_id: u64,
     pub chain_tip_buffer: u64,
+    pub metrics: MetricsConfig,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

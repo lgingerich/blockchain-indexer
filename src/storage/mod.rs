@@ -62,7 +62,7 @@ impl DataChannels {
         self.traces_tx.capacity() == MAX_CHANNEL_CAPACITY
     }
 
-    pub async fn check_capacity(&self, metrics: &Metrics) -> Result<bool> {
+    pub async fn check_capacity(&self, metrics: Option<&Metrics>) -> Result<bool> {
         // Get current capacities (number of available slots, NOT how many slots are used)
         let blocks_capacity = self.blocks_tx.capacity();
         let transactions_capacity = self.transactions_tx.capacity();
@@ -70,22 +70,24 @@ impl DataChannels {
         let traces_capacity = self.traces_tx.capacity();
 
         // Record current capacities
-        metrics.channel_capacity.record(
-            blocks_capacity as u64,
-            &[KeyValue::new("channel", "blocks")],
-        );
-        metrics.channel_capacity.record(
-            transactions_capacity as u64,
-            &[KeyValue::new("channel", "transactions")],
-        );
-        metrics.channel_capacity.record(
-            logs_capacity as u64,
-            &[KeyValue::new("channel", "logs")],
-        );
-        metrics.channel_capacity.record(
-            traces_capacity as u64,
-            &[KeyValue::new("channel", "traces")],
-        );
+        if let Some(metrics) = metrics {
+            metrics.channel_capacity.record(
+                blocks_capacity as u64,
+                &[KeyValue::new("channel", "blocks")],
+            );
+            metrics.channel_capacity.record(
+                transactions_capacity as u64,
+                &[KeyValue::new("channel", "transactions")],
+            );
+            metrics.channel_capacity.record(
+                logs_capacity as u64,
+                &[KeyValue::new("channel", "logs")],
+            );
+            metrics.channel_capacity.record(
+                traces_capacity as u64,
+                &[KeyValue::new("channel", "traces")],
+            );
+        }
 
         // Apply backpressure when available capacity is low (meaning channel is getting full)
         // If available capacity is <= 20% of max, then the channel is >= 80% full
