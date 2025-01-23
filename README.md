@@ -13,8 +13,8 @@ Features include:
 
 
 ## Prerequisites
-- Python 3.12+
-- uv (for local Python setup)
+- Rust 1.75+ 
+- Cargo
 - Docker and Docker Compose (for local containerized setup)
 - Terraform (for cloud deployment)
 
@@ -42,28 +42,36 @@ cp config.yml.example config.yml
 ```
 
 2. Edit `config.yml` with your settings:
-- **Chain**: Specify a single chain to index (ethereum, arbitrum, or zksync) and its RPC URLs
-- **Datasets**: Choose which data types to index (blocks, transactions, and/or logs)
-- **Storage**: Configure your data storage settings (Note: Currently GCP Bigquery is the only supported storage option)
+- **Project Name**: Name used for cloud resources and logging
+- **Chain Settings**: 
+  - `chain_name`: The blockchain to index (e.g., "ethereum", "zksync")
+  - `chain_id`: The network ID (e.g., 1 for Ethereum mainnet, 324 for ZKSync)
+  - `chain_tip_buffer`: Number of blocks to stay behind the chain head
+- **RPC**: URL for your blockchain node (not all RPC providers have been tested)
+- **Datasets**: Choose which data types to index:
+  - blocks
+  - transactions
+  - logs
+  - traces
+- **Metrics**: Enable or disable metrics collection
 
 The actual `config.yml` file is excluded from version control. See `config.yml.example` for a template with all supported options.
 
 
 ## Deployment Options
 
-### 1. Local Python Setup
-Run directly on your machine using uv:
+### 1. Local Rust Setup
+Run directly on your machine using Cargo:
 ```bash
 # Clone repository
 git clone https://github.com/lgingerich/blockchain-indexer.git
 cd blockchain-indexer
 
-# Setup Python environment
-uv venv
-uv pip install -e .
+# Build and run in development mode
+cargo run
 
-# Run indexer
-uv run src/main.py
+# Build and run with optimizations
+cargo run --release
 ```
 
 ### 2. Local Docker Setup
@@ -76,6 +84,9 @@ cd blockchain-indexer
 
 # Start the indexer
 docker compose up
+
+# Start the indexer with a config file at a custom path
+CONFIG_SOURCE=path/to/your/other-config.yml docker compose up
 ```
 
 ### 3. Cloud Deployment with Terraform

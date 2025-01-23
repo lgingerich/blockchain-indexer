@@ -11,3 +11,6 @@ datasets:                         # List of datasets to index
   - "transactions"
   - "logs"
   - "traces"
+
+metrics:
+  enabled: false                  # Set to true to enable metrics
