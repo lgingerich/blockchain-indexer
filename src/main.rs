@@ -131,6 +131,12 @@ async fn main() -> Result<()> {
     // Initialize data for loop
     let mut block_number_to_process = BlockNumberOrTag::Number(block_number);
 
+    // Get initial latest block number before loop
+    let mut last_known_latest_block = indexer::get_latest_block_number(&provider, metrics.as_ref())
+        .await?
+        .as_number()
+        .unwrap();
+
     println!();
     info!("========================= STARTING INDEXER =========================");
     
@@ -146,23 +152,20 @@ async fn main() -> Result<()> {
         let mut receipts = None;
         let mut traces = None;
 
-        // Get latest block number
-        // Note: Since the indexer is not real-time, this never gets used other than to check if we're too close to the tip
-        let latest_block: BlockNumberOrTag =
-            indexer::get_latest_block_number(&provider, metrics.as_ref()).await?;
-
-        info!("Block number to process: {:?}", block_number_to_process);
+        // Only check latest block if we're within 2x buffer of last known tip
+        if block_number_to_process.as_number().unwrap() > (last_known_latest_block - chain_tip_buffer * 2) {
+            let latest_block: BlockNumberOrTag =
+                indexer::get_latest_block_number(&provider, metrics.as_ref()).await?;
+            last_known_latest_block = latest_block.as_number().unwrap();
+        }
 
         // If indexer gets too close to tip, back off and retry
-        // Note: Real-time processing is not implemented
-        if block_number_to_process.as_number().unwrap()
-            > (latest_block.as_number().unwrap() - chain_tip_buffer)
-        {
+        if block_number_to_process.as_number().unwrap() > (last_known_latest_block - chain_tip_buffer) {
             info!(
-                "Buffer limit reached. Waiting for current block to be {} blocks behind tip: {:?} — current distance: {:?} - sleeping for 1s",
+                "Buffer limit reached. Waiting for current block to be {} blocks behind tip: {} - current distance: {} - sleeping for 1s",
                 chain_tip_buffer,
-                hex_to_u64(latest_block.to_string()).unwrap(),
-                (hex_to_u64(latest_block.to_string()).unwrap() - hex_to_u64(block_number_to_process.to_string()).unwrap())
+                last_known_latest_block,
+                last_known_latest_block - block_number_to_process.as_number().unwrap()
             );
             tokio::time::sleep(tokio::time::Duration::from_millis(SLEEP_DURATION)).await;
             continue;
@@ -294,11 +297,11 @@ async fn main() -> Result<()> {
                 &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
             );
             metrics_instance.chain_tip_block.record(
-                latest_block.as_number().unwrap(),
+                last_known_latest_block,
                 &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
             );
             metrics_instance.chain_tip_lag.record(
-                latest_block.as_number().unwrap() - block_number_to_process.as_number().unwrap(),
+                last_known_latest_block - block_number_to_process.as_number().unwrap(),
                 &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
             );
         }
