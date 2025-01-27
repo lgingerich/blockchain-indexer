@@ -25,7 +25,7 @@ use crate::metrics::Metrics;
 use crate::models::common::Chain;
 use crate::models::datasets::blocks::RpcHeaderData;
 use crate::storage::setup_channels;
-use crate::utils::{hex_to_u64, load_config};
+use crate::utils::load_config;
 
 const SLEEP_DURATION: u64 = 1000; // ms
 

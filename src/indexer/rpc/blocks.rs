@@ -6,7 +6,7 @@ use alloy_consensus::{TxEip4844Variant, TxEnvelope};
 use alloy_eips::eip2930::AccessList;
 use alloy_network::{primitives::BlockTransactions, AnyRpcBlock, AnyTxEnvelope};
 use alloy_primitives::{Address, Bytes, FixedBytes, Uint};
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use chrono::DateTime;
 
 use crate::models::common::{Chain, TransactionTo};
@@ -17,6 +17,7 @@ use crate::models::datasets::transactions::{
     CommonRpcTransactionData, EthereumRpcTransactionData, RpcTransactionData,
     ZKsyncRpcTransactionData,
 };
+use crate::models::errors::BlockError;
 use crate::utils::hex_to_u64;
 
 pub trait BlockParser {
@@ -327,12 +328,13 @@ impl BlockParser for AnyRpcBlock {
                                                 .and_then(hex_to_u64),
                                         })
                                     },
-                                    _ => unreachable!("Expected Ethereum transaction format for legacy transaction")
+                                    _ => unreachable!("Expected Ethereum transaction format for legacy transaction") // TODO: Is this ok?
                                 }
                             }
                         }
                         // Ethereum should never enter this match arm
                         // Other chains will enter this match arm for tx_type != Legacy
+                        // TODO: Handle better
                         AnyTxEnvelope::Unknown(unknown) => {
 
                             let other_fields = &unknown.inner.fields;
@@ -404,7 +406,7 @@ impl BlockParser for AnyRpcBlock {
 
                             match chain {
                                 Chain::Ethereum => {
-                                    unreachable!("Ethereum transactions should be handled by AnyTxEnvelope::Ethereum variant")
+                                    unreachable!("Ethereum transactions should be handled by AnyTxEnvelope::Ethereum variant") // TODO: Is this ok?
                                 }
                                 Chain::ZKsync => {
                                     RpcTransactionData::ZKsync(ZKsyncRpcTransactionData {
@@ -426,12 +428,10 @@ impl BlockParser for AnyRpcBlock {
                 .collect())
             }
             BlockTransactions::Hashes(_) => {
-                Err(anyhow!(
-                    "Block contains only transaction hashes, full transaction data required"
-                )) // Throw error if full tx objects are not included
+                Err(BlockError::TransactionHashesOnly.into())
             }
             BlockTransactions::Uncle => {
-                Err(anyhow!("Uncle blocks not supported")) // TODO: Handle better
+                Err(BlockError::UncleBlocksNotSupported.into())
             }
         }
     }
