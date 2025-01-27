@@ -7,6 +7,7 @@ use crate::models::datasets::traces::{RpcTraceData, TransformedTraceData};
 use crate::models::datasets::transactions::{
     RpcTransactionData, RpcTransactionReceiptData, TransformedTransactionData,
 };
+use crate::models::errors::ChainError;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MetricsConfig {
@@ -31,16 +32,17 @@ pub enum Chain {
 }
 
 impl Chain {
-    pub fn from_chain_id(chain_id: u64) -> Self {
+    pub fn from_chain_id(chain_id: u64) -> Result<Self, ChainError> {
         match chain_id {
-            1 => Self::Ethereum,
-            324 => Self::ZKsync,    // ZKsync Era
-            325 => Self::ZKsync,    // GRVT
-            388 => Self::ZKsync,    // Cronos zkEVM
-            50104 => Self::ZKsync,  // Sophon
-            61166 => Self::ZKsync,  // Treasury Chain
-            543210 => Self::ZKsync, // Zero Network
-            _ => Self::ZKsync,      // Default to ZKsync for unknown chains
+            1 => Ok(Self::Ethereum),
+            324 => Ok(Self::ZKsync),    // ZKsync Era
+            325 => Ok(Self::ZKsync),    // GRVT
+            388 => Ok(Self::ZKsync),    // Cronos zkEVM
+            2741 => Ok(Self::ZKsync),   // Abstract
+            50104 => Ok(Self::ZKsync),  // Sophon
+            61166 => Ok(Self::ZKsync),  // Treasury Chain
+            543210 => Ok(Self::ZKsync), // Zero Network
+            _ => Err(ChainError::UnsupportedChainId { chain_id }),
         }
     }
 }

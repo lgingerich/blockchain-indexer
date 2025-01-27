@@ -53,14 +53,11 @@ async fn main() -> Result<()> {
 
     // Parse configs
     let dataset_id = config.project_name.as_str();
-    let chain_name = config.chain_name.to_owned(); // Create owned String to pass to metrics
-    let chain_id = config.chain_id;
+    let chain_name = config.chain_name.to_owned();
     let chain_tip_buffer = config.chain_tip_buffer;
     let rpc = config.rpc_url.as_str();
     let datasets = config.datasets;
     let metrics_enabled = config.metrics.enabled;
-
-    let chain = Chain::from_chain_id(chain_id);
 
     // Initialize optional metrics
     let metrics = if metrics_enabled {
@@ -82,6 +79,19 @@ async fn main() -> Result<()> {
         datasets.contains(&"logs".to_string()) || datasets.contains(&"transactions".to_string()); // Logs and transactions are dependendent on eth_getBlockReceipts
     let need_traces = datasets.contains(&"traces".to_string()); // Traces are dependendent on eth_debug_traceBlockByNumber
 
+    // Create RPC provider
+    let rpc_url: Url = rpc.parse()?;
+    info!("RPC URL: {:?}", rpc);
+    let provider = ProviderBuilder::new()
+        .network::<AnyNetwork>()
+        .on_http(rpc_url);
+
+    // Get chain ID
+    let chain_id = indexer::get_chain_id(&provider, metrics.as_ref()).await?;
+    let chain = Chain::from_chain_id(chain_id)?;
+    info!("Chain ID: {:?}", chain_id);
+
+
     // Set up channels
     let channels = setup_channels(dataset_id).await?;
 
@@ -100,7 +110,7 @@ async fn main() -> Result<()> {
     // Create dataset and tables. Handles existing datasets and tables.
     let _ = storage::bigquery::create_dataset_with_retry(dataset_id).await;
     for table in ["blocks", "logs", "transactions", "traces"] {
-        if datasets.contains(&table.to_string()) {
+        if datasets.contains(&table.to_owned()) {
             let _ = storage::bigquery::create_table_with_retry(dataset_id, table, chain).await;
         }
     }
@@ -116,17 +126,6 @@ async fn main() -> Result<()> {
     };
 
     info!("Starting block number: {:?}", block_number);
-
-    // Create RPC provider
-    let rpc_url: Url = rpc.parse()?;
-    info!("RPC URL: {:?}", rpc);
-    let provider = ProviderBuilder::new()
-        .network::<AnyNetwork>()
-        .on_http(rpc_url);
-
-    // Get chain ID
-    let chain_id = indexer::get_chain_id(&provider, metrics.as_ref()).await?;
-    info!("Chain ID: {:?}", chain_id);
 
     // Initialize data for loop
     let mut block_number_to_process = BlockNumberOrTag::Number(block_number);

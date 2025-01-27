@@ -1,6 +1,12 @@
 use thiserror::Error;
 
 #[derive(Error, Debug)]
+pub enum ChainError {
+    #[error("Unsupported chain ID: {chain_id}")]
+    UnsupportedChainId { chain_id: u64 },
+}
+
+#[derive(Error, Debug)]
 pub enum BlockError {
     #[error("Invalid block format: Expected full transaction objects but received only transaction hashes")]
     TransactionHashesOnly,
