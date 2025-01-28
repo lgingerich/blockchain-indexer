@@ -1,7 +1,5 @@
 chain_name: "ethereum"            # Used in dataset names
-
 chain_tip_buffer: 100             # Number of blocks to stay away from chain tip
-
 rpc_url: "https://eth.drpc.org"   # URL of the RPC provider
 
 datasets:                         # List of datasets to index
@@ -12,3 +10,5 @@ datasets:                         # List of datasets to index
 
 metrics:
   enabled: false                  # Set to true to enable metrics
+  address: "0.0.0.0"              # Metrics server address
+  port: 9100                      # Metrics server port
