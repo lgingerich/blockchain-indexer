@@ -12,16 +12,16 @@ use crate::models::errors::ChainError;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MetricsConfig {
     pub enabled: bool,
+    pub address: String,
+    pub port: u16,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
-    pub project_name: String,
     pub chain_name: String,
+    pub chain_tip_buffer: u64,
     pub rpc_url: String,
     pub datasets: Vec<String>,
-    pub chain_id: u64,
-    pub chain_tip_buffer: u64,
     pub metrics: MetricsConfig,
 }
 

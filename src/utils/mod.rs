@@ -24,7 +24,6 @@ pub fn load_config<P: AsRef<Path>>(file_name: P) -> Result<Config> {
         serde_yaml::from_str(&contents).context("failed to parse config YAML")?;
 
     // Convert hyphens to underscores in all relevant fields
-    config.project_name = config.project_name.replace('-', "_");
     config.chain_name = config.chain_name.replace('-', "_");
 
     Ok(config)

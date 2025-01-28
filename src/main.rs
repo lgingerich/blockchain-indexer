@@ -58,6 +58,8 @@ async fn main() -> Result<()> {
     let rpc = config.rpc_url.as_str();
     let datasets = config.datasets;
     let metrics_enabled = config.metrics.enabled;
+    let metrics_addr = config.metrics.address;
+    let metrics_port = config.metrics.port;
 
     // Initialize optional metrics
     let metrics = if metrics_enabled {
@@ -69,7 +71,7 @@ async fn main() -> Result<()> {
 
     // Start metrics server if metrics are enabled
     if let Some(metrics_instance) = &metrics {
-        metrics_instance.start_metrics_server("0.0.0.0", 9100).await; // Prometheus port is currently hardcoded to 9100 in prometheus.yml
+        metrics_instance.start_metrics_server(metrics_addr.as_str(), metrics_port).await;
     }
 
     // Track which RPC responses we need
