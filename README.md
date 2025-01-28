@@ -31,6 +31,11 @@ Features include:
 - [ ] Add batched RPC calls
 - [ ] Remove clones
 
+### Misc Improvements
+- [ ] `serde_yaml` is no longer maintained but doesn't have a good replacement yet. Check for other possibly unmaintained crates.
+- [ ] Add benchmarks
+- [ ] Finish migration to enum-based error handling with `thiserror`
+
 
 ## Indexer Configuration
 

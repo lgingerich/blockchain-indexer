@@ -103,7 +103,7 @@ impl DataChannels {
     }
 }
 
-pub async fn setup_channels(dataset_id: &str) -> Result<DataChannels> {
+pub async fn setup_channels(chain_name: &str) -> Result<DataChannels> {
     let (blocks_tx, mut blocks_rx) = mpsc::channel::<(Vec<TransformedBlockData>, u64)>(MAX_CHANNEL_CAPACITY);
     let (transactions_tx, mut transactions_rx) = mpsc::channel::<(Vec<TransformedTransactionData>, u64)>(MAX_CHANNEL_CAPACITY);
     let (logs_tx, mut logs_rx) = mpsc::channel::<(Vec<TransformedLogData>, u64)>(MAX_CHANNEL_CAPACITY);
@@ -111,7 +111,7 @@ pub async fn setup_channels(dataset_id: &str) -> Result<DataChannels> {
     let (shutdown_tx, _) = broadcast::channel(1);
 
     // Spawn worker for blocks
-    let blocks_dataset = dataset_id.to_owned();
+    let blocks_dataset = chain_name.to_owned();
     let mut shutdown_rx = shutdown_tx.subscribe();
     tokio::spawn(async move {
         loop {
@@ -140,7 +140,7 @@ pub async fn setup_channels(dataset_id: &str) -> Result<DataChannels> {
     });
 
     // Spawn worker for transactions
-    let transactions_dataset = dataset_id.to_owned();
+    let transactions_dataset = chain_name.to_owned();
     let mut shutdown_rx = shutdown_tx.subscribe();
     tokio::spawn(async move {
         loop {
@@ -169,7 +169,7 @@ pub async fn setup_channels(dataset_id: &str) -> Result<DataChannels> {
     });
 
     // Spawn worker for logs
-    let logs_dataset = dataset_id.to_owned();
+    let logs_dataset = chain_name.to_owned();
     let mut shutdown_rx = shutdown_tx.subscribe();
     tokio::spawn(async move {
         loop {
@@ -198,7 +198,7 @@ pub async fn setup_channels(dataset_id: &str) -> Result<DataChannels> {
     });
 
     // Spawn worker for traces
-    let traces_dataset = dataset_id.to_owned();
+    let traces_dataset = chain_name.to_owned();
     let mut shutdown_rx = shutdown_tx.subscribe();
     tokio::spawn(async move {
         loop {

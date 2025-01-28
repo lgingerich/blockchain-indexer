@@ -24,8 +24,9 @@ use url::Url;
 use crate::metrics::Metrics;
 use crate::models::common::Chain;
 use crate::models::datasets::blocks::RpcHeaderData;
+use crate::models::errors::RpcError;
 use crate::storage::setup_channels;
-use crate::utils::{hex_to_u64, load_config};
+use crate::utils::load_config;
 
 const SLEEP_DURATION: u64 = 1000; // ms
 
@@ -52,15 +53,13 @@ async fn main() -> Result<()> {
     };
 
     // Parse configs
-    let dataset_id = config.project_name.as_str();
-    let chain_name = config.chain_name.to_owned(); // Create owned String to pass to metrics
-    let chain_id = config.chain_id;
+    let chain_name = config.chain_name;
     let chain_tip_buffer = config.chain_tip_buffer;
     let rpc = config.rpc_url.as_str();
     let datasets = config.datasets;
     let metrics_enabled = config.metrics.enabled;
-
-    let chain = Chain::from_chain_id(chain_id);
+    let metrics_addr = config.metrics.address;
+    let metrics_port = config.metrics.port;
 
     // Initialize optional metrics
     let metrics = if metrics_enabled {
@@ -72,7 +71,7 @@ async fn main() -> Result<()> {
 
     // Start metrics server if metrics are enabled
     if let Some(metrics_instance) = &metrics {
-        metrics_instance.start_metrics_server("0.0.0.0", 9100).await; // Prometheus port is currently hardcoded to 9100 in prometheus.yml
+        metrics_instance.start_metrics_server(metrics_addr.as_str(), metrics_port).await;
     }
 
     // Track which RPC responses we need
@@ -82,8 +81,20 @@ async fn main() -> Result<()> {
         datasets.contains(&"logs".to_string()) || datasets.contains(&"transactions".to_string()); // Logs and transactions are dependendent on eth_getBlockReceipts
     let need_traces = datasets.contains(&"traces".to_string()); // Traces are dependendent on eth_debug_traceBlockByNumber
 
+    // Create RPC provider
+    let rpc_url: Url = rpc.parse()?;
+    info!("RPC URL: {:?}", rpc);
+    let provider = ProviderBuilder::new()
+        .network::<AnyNetwork>()
+        .on_http(rpc_url);
+
+    // Get chain ID
+    let chain_id = indexer::get_chain_id(&provider, metrics.as_ref()).await?;
+    let chain = Chain::from_chain_id(chain_id)?;
+    info!("Chain ID: {:?}", chain_id);
+
     // Set up channels
-    let channels = setup_channels(dataset_id).await?;
+    let channels = setup_channels(chain_name.as_str()).await?;
 
     // Create a shutdown signal handler. Flush channels before shutting down.
     let mut shutdown_signal = channels.shutdown_signal();
@@ -98,17 +109,17 @@ async fn main() -> Result<()> {
     });
 
     // Create dataset and tables. Handles existing datasets and tables.
-    let _ = storage::bigquery::create_dataset_with_retry(dataset_id).await;
+    let _ = storage::bigquery::create_dataset_with_retry(chain_name.as_str()).await;
     for table in ["blocks", "logs", "transactions", "traces"] {
-        if datasets.contains(&table.to_string()) {
-            let _ = storage::bigquery::create_table_with_retry(dataset_id, table, chain).await;
+        if datasets.contains(&table.to_owned()) {
+            let _ = storage::bigquery::create_table_with_retry(chain_name.as_str(), table, chain).await;
         }
     }
 
     // Get last processed block number from storage
     // If it exists, start from the next block, else start from 0
     let last_processed_block =
-        storage::bigquery::get_last_processed_block(dataset_id, &datasets).await?;
+        storage::bigquery::get_last_processed_block(chain_name.as_str(), &datasets).await?;
     let mut block_number = if last_processed_block > 0 {
         last_processed_block + 1
     } else {
@@ -117,19 +128,16 @@ async fn main() -> Result<()> {
 
     info!("Starting block number: {:?}", block_number);
 
-    // Create RPC provider
-    let rpc_url: Url = rpc.parse()?;
-    info!("RPC URL: {:?}", rpc);
-    let provider = ProviderBuilder::new()
-        .network::<AnyNetwork>()
-        .on_http(rpc_url);
-
-    // Get chain ID
-    let chain_id = indexer::get_chain_id(&provider, metrics.as_ref()).await?;
-    info!("Chain ID: {:?}", chain_id);
-
     // Initialize data for loop
     let mut block_number_to_process = BlockNumberOrTag::Number(block_number);
+
+    // Get initial latest block number before loop
+    let mut last_known_latest_block = indexer::get_latest_block_number(&provider, metrics.as_ref())
+        .await?
+        .as_number()
+        .ok_or_else(|| RpcError::InvalidBlockNumberResponse { 
+            got: block_number_to_process.to_string() 
+        })?;
 
     println!();
     info!("========================= STARTING INDEXER =========================");
@@ -146,23 +154,27 @@ async fn main() -> Result<()> {
         let mut receipts = None;
         let mut traces = None;
 
-        // Get latest block number
-        // Note: Since the indexer is not real-time, this never gets used other than to check if we're too close to the tip
-        let latest_block: BlockNumberOrTag =
-            indexer::get_latest_block_number(&provider, metrics.as_ref()).await?;
-
-        info!("Block number to process: {:?}", block_number_to_process);
+        // Only check latest block if we're within 2x buffer of last known tip
+        if block_number_to_process.as_number()
+            .ok_or_else(|| RpcError::InvalidBlockNumberResponse { 
+                got: block_number_to_process.to_string() 
+            })? > (last_known_latest_block - chain_tip_buffer * 2) 
+        {
+            let latest_block: BlockNumberOrTag =
+                indexer::get_latest_block_number(&provider, metrics.as_ref()).await?;
+            last_known_latest_block = latest_block.as_number()
+                .ok_or_else(|| RpcError::InvalidBlockNumberResponse { 
+                    got: latest_block.to_string() 
+                })?;
+        }
 
         // If indexer gets too close to tip, back off and retry
-        // Note: Real-time processing is not implemented
-        if block_number_to_process.as_number().unwrap()
-            > (latest_block.as_number().unwrap() - chain_tip_buffer)
-        {
+        if block_number_to_process.as_number().unwrap() > (last_known_latest_block - chain_tip_buffer) {
             info!(
-                "Buffer limit reached. Waiting for current block to be {} blocks behind tip: {:?} — current distance: {:?} - sleeping for 1s",
+                "Buffer limit reached. Waiting for current block to be {} blocks behind tip: {} - current distance: {} - sleeping for 1s",
                 chain_tip_buffer,
-                hex_to_u64(latest_block.to_string()).unwrap(),
-                (hex_to_u64(latest_block.to_string()).unwrap() - hex_to_u64(block_number_to_process.to_string()).unwrap())
+                last_known_latest_block,
+                last_known_latest_block - block_number_to_process.as_number().unwrap()
             );
             tokio::time::sleep(tokio::time::Duration::from_millis(SLEEP_DURATION)).await;
             continue;
@@ -294,11 +306,11 @@ async fn main() -> Result<()> {
                 &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
             );
             metrics_instance.chain_tip_block.record(
-                latest_block.as_number().unwrap(),
+                last_known_latest_block,
                 &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
             );
             metrics_instance.chain_tip_lag.record(
-                latest_block.as_number().unwrap() - block_number_to_process.as_number().unwrap(),
+                last_known_latest_block - block_number_to_process.as_number().unwrap(),
                 &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
             );
         }

@@ -47,8 +47,8 @@ async fn get_client() -> Result<Arc<(Client, String)>> {
 }
 
 // Verify that a dataset exists and is accessible
-async fn verify_dataset(client: &Client, project_id: &str, dataset_id: &str) -> Result<bool> {
-    match client.dataset().get(project_id, dataset_id).await {
+async fn verify_dataset(client: &Client, project_id: &str, chain_name: &str) -> Result<bool> {
+    match client.dataset().get(project_id, chain_name).await {
         Ok(_) => Ok(true),
         Err(BigQueryError::Response(resp)) if resp.message.contains("Not found") => Ok(false),
         Err(e) => Err(anyhow!("Failed to verify dataset: {}", e)),
@@ -59,10 +59,10 @@ async fn verify_dataset(client: &Client, project_id: &str, dataset_id: &str) -> 
 async fn verify_table(
     client: &Client,
     project_id: &str,
-    dataset_id: &str,
+    chain_name: &str,
     table_id: &str,
 ) -> Result<bool> {
-    match client.table().get(project_id, dataset_id, table_id).await {
+    match client.table().get(project_id, chain_name, table_id).await {
         Ok(_) => Ok(true),
         Err(BigQueryError::Response(resp)) if resp.message.contains("Not found") => Ok(false),
         Err(e) => Err(anyhow!("Failed to verify table: {}", e)),
@@ -70,28 +70,28 @@ async fn verify_table(
 }
 
 // Create a dataset
-async fn create_dataset(dataset_id: &str) -> Result<()> {
+async fn create_dataset(chain_name: &str) -> Result<()> {
     let (client, project_id) = &*get_client().await?;
     let dataset_client = client.dataset();
 
     let metadata = Dataset {
         dataset_reference: DatasetReference {
             project_id: project_id.clone(),
-            dataset_id: dataset_id.to_string(),
+            dataset_id: chain_name.to_string(),
         },
         ..Default::default()
     };
 
     match dataset_client.create(&metadata).await {
         Ok(_) => {
-            info!(dataset_id, project_id = ?project_id, "Dataset successfully created");
+            info!(chain_name, project_id = ?project_id, "Dataset successfully created");
             Ok(())
         }
         Err(e) => {
             match e {
                 BigQueryError::Response(resp) => {
                     if resp.message.contains("Already Exists") {
-                        info!("Dataset '{}' already exists", dataset_id);
+                        info!("Dataset '{}' already exists", chain_name);
                         return Ok(());
                     }
                     error!("BigQuery API Error: {}", resp.message);
@@ -111,34 +111,34 @@ async fn create_dataset(dataset_id: &str) -> Result<()> {
     }
 }
 
-pub async fn create_dataset_with_retry(dataset_id: &str) -> Result<()> {
+pub async fn create_dataset_with_retry(chain_name: &str) -> Result<()> {
     let (client, project_id) = &*get_client().await?;
     let retry_config = RetryConfig::default();
 
     retry(
         || async {
             // Check if dataset exists
-            if verify_dataset(client, project_id, dataset_id).await? {
-                info!("Dataset '{}' already exists and is accessible", dataset_id);
+            if verify_dataset(client, project_id, chain_name).await? {
+                info!("Dataset '{}' already exists and is accessible", chain_name);
                 return Ok(());
             }
 
             // Create and verify dataset
-            create_dataset(dataset_id).await?;
-            if verify_dataset(client, project_id, dataset_id).await? {
-                info!("Dataset '{}' created and verified", dataset_id);
+            create_dataset(chain_name).await?;
+            if verify_dataset(client, project_id, chain_name).await? {
+                info!("Dataset '{}' created and verified", chain_name);
                 Ok(())
             } else {
                 Err(anyhow!("Dataset creation could not be verified"))
             }
         },
         &retry_config,
-        &format!("create_dataset_{}", dataset_id),
+        &format!("create_dataset_{}", chain_name),
     )
     .await
 }
 
-async fn create_table(dataset_id: &str, table_id: &str, chain: Chain) -> Result<()> {
+async fn create_table(chain_name: &str, table_id: &str, chain: Chain) -> Result<()> {
     let (client, project_id) = &*get_client().await?;
     let table_client = client.table(); // Create BigqueryTableClient
     let schema = match table_id {
@@ -152,7 +152,7 @@ async fn create_table(dataset_id: &str, table_id: &str, chain: Chain) -> Result<
     let metadata = Table {
         table_reference: TableReference {
             project_id: project_id.clone(),
-            dataset_id: dataset_id.to_string(),
+            dataset_id: chain_name.to_string(),
             table_id: table_id.to_string(),
         },
         schema: Some(schema),
@@ -163,7 +163,7 @@ async fn create_table(dataset_id: &str, table_id: &str, chain: Chain) -> Result<
         Ok(_) => {
             info!(
                 "Table '{}' successfully created in dataset '{}'",
-                table_id, dataset_id
+                table_id, chain_name
             );
             Ok(())
         }
@@ -173,7 +173,7 @@ async fn create_table(dataset_id: &str, table_id: &str, chain: Chain) -> Result<
                     if resp.message.contains("Already Exists") {
                         info!(
                             "Table '{}' already exists in dataset '{}'",
-                            table_id, dataset_id
+                            table_id, chain_name
                         );
                         return Ok(());
                     }
@@ -194,38 +194,38 @@ async fn create_table(dataset_id: &str, table_id: &str, chain: Chain) -> Result<
     }
 }
 
-pub async fn create_table_with_retry(dataset_id: &str, table_id: &str, chain: Chain) -> Result<()> {
+pub async fn create_table_with_retry(chain_name: &str, table_id: &str, chain: Chain) -> Result<()> {
     let (client, project_id) = &*get_client().await?;
     let retry_config = RetryConfig::default();
 
     retry(
         || async {
             // Check if table exists
-            if verify_table(client, project_id, dataset_id, table_id).await? {
+            if verify_table(client, project_id, chain_name, table_id).await? {
                 info!(
                     "Table '{}.{}' already exists and is accessible",
-                    dataset_id, table_id
+                    chain_name, table_id
                 );
                 return Ok(());
             }
 
             // Create and verify table
-            create_table(dataset_id, table_id, chain).await?;
-            if verify_table(client, project_id, dataset_id, table_id).await? {
-                info!("Table '{}.{}' created and verified", dataset_id, table_id);
+            create_table(chain_name, table_id, chain).await?;
+            if verify_table(client, project_id, chain_name, table_id).await? {
+                info!("Table '{}.{}' created and verified", chain_name, table_id);
                 Ok(())
             } else {
                 Err(anyhow!("Table creation could not be verified"))
             }
         },
         &retry_config,
-        &format!("create_table_{}_{}", dataset_id, table_id),
+        &format!("create_table_{}_{}", chain_name, table_id),
     )
     .await
 }
 
 async fn insert_data<T: serde::Serialize>(
-    dataset_id: &str,
+    chain_name: &str,
     table_id: &str,
     data: &[T],
     block_number: u64,
@@ -236,7 +236,7 @@ async fn insert_data<T: serde::Serialize>(
     if data.is_empty() {
         info!(
             "No data to insert into {}.{}.{}",
-            project_id, dataset_id, table_id
+            project_id, chain_name, table_id
         );
         return Ok(());
     }
@@ -262,7 +262,7 @@ async fn insert_data<T: serde::Serialize>(
         };
 
         match tabledata_client
-            .insert(project_id, dataset_id, table_id, &request)
+            .insert(project_id, chain_name, table_id, &request)
             .await
         {
             Ok(response) => {
@@ -312,7 +312,7 @@ async fn insert_data<T: serde::Serialize>(
         "Successfully inserted {} rows into {}.{}.{} for block {}",
         total_rows,
         project_id,
-        dataset_id,
+        chain_name,
         table_id,
         block_number
     );
@@ -321,7 +321,7 @@ async fn insert_data<T: serde::Serialize>(
 }
 
 pub async fn insert_data_with_retry<T: serde::Serialize>(
-    dataset_id: &str,
+    chain_name: &str,
     table_id: &str,
     data: Vec<T>,
     block_number: u64,
@@ -332,32 +332,32 @@ pub async fn insert_data_with_retry<T: serde::Serialize>(
     retry(
         || async {
             // Verify table exists before attempting insert
-            if !verify_table(client, project_id, dataset_id, table_id).await? {
+            if !verify_table(client, project_id, chain_name, table_id).await? {
                 return Err(anyhow!("Table not found before insert attempt"));
             }
 
-            insert_data(dataset_id, table_id, &data, block_number).await
+            insert_data(chain_name, table_id, &data, block_number).await
         },
         &retry_config,
-        &format!("insert_data_{}_{}", dataset_id, table_id),
+        &format!("insert_data_{}_{}", chain_name, table_id),
     )
     .await
 }
 
-pub async fn get_last_processed_block(dataset_id: &str, datasets: &Vec<String>) -> Result<u64> {
+pub async fn get_last_processed_block(chain_name: &str, datasets: &Vec<String>) -> Result<u64> {
     let (client, project_id) = &*get_client().await?;
     let job_client = client.job(); // Create BigqueryJobClient
     let mut min_block: Option<u64> = None;
 
     for table_id in datasets {
         // Skip tables that don't exist
-        if !verify_table(client, project_id, dataset_id, table_id).await? {
+        if !verify_table(client, project_id, chain_name, table_id).await? {
             continue;
         }
 
         let query = format!(
             "SELECT MAX(block_number) AS max_block FROM `{}.{}.{}`",
-            project_id, dataset_id, table_id
+            project_id, chain_name, table_id
         );
         let request = QueryRequest {
             query,

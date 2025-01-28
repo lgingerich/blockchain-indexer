@@ -1,9 +1,5 @@
-project_name: "ethereum-indexing" # Used in cloud and logging stuff
 chain_name: "ethereum"            # Used in dataset names
-chain_id: 1                       # Chain ID — used for chain-specific logic
-
 chain_tip_buffer: 100             # Number of blocks to stay away from chain tip
-
 rpc_url: "https://eth.drpc.org"   # URL of the RPC provider
 
 datasets:                         # List of datasets to index
@@ -14,3 +10,5 @@ datasets:                         # List of datasets to index
 
 metrics:
   enabled: false                  # Set to true to enable metrics
+  address: "0.0.0.0"              # Metrics server address
+  port: 9100                      # Metrics server port
