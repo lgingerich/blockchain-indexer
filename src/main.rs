@@ -24,6 +24,7 @@ use url::Url;
 use crate::metrics::Metrics;
 use crate::models::common::Chain;
 use crate::models::datasets::blocks::RpcHeaderData;
+use crate::models::errors::RpcError;
 use crate::storage::setup_channels;
 use crate::utils::load_config;
 
@@ -52,8 +53,7 @@ async fn main() -> Result<()> {
     };
 
     // Parse configs
-    let dataset_id = config.project_name.as_str();
-    let chain_name = config.chain_name.to_owned();
+    let chain_name = config.chain_name;
     let chain_tip_buffer = config.chain_tip_buffer;
     let rpc = config.rpc_url.as_str();
     let datasets = config.datasets;
@@ -91,9 +91,8 @@ async fn main() -> Result<()> {
     let chain = Chain::from_chain_id(chain_id)?;
     info!("Chain ID: {:?}", chain_id);
 
-
     // Set up channels
-    let channels = setup_channels(dataset_id).await?;
+    let channels = setup_channels(chain_name.as_str()).await?;
 
     // Create a shutdown signal handler. Flush channels before shutting down.
     let mut shutdown_signal = channels.shutdown_signal();
@@ -108,17 +107,17 @@ async fn main() -> Result<()> {
     });
 
     // Create dataset and tables. Handles existing datasets and tables.
-    let _ = storage::bigquery::create_dataset_with_retry(dataset_id).await;
+    let _ = storage::bigquery::create_dataset_with_retry(chain_name.as_str()).await;
     for table in ["blocks", "logs", "transactions", "traces"] {
         if datasets.contains(&table.to_owned()) {
-            let _ = storage::bigquery::create_table_with_retry(dataset_id, table, chain).await;
+            let _ = storage::bigquery::create_table_with_retry(chain_name.as_str(), table, chain).await;
         }
     }
 
     // Get last processed block number from storage
     // If it exists, start from the next block, else start from 0
     let last_processed_block =
-        storage::bigquery::get_last_processed_block(dataset_id, &datasets).await?;
+        storage::bigquery::get_last_processed_block(chain_name.as_str(), &datasets).await?;
     let mut block_number = if last_processed_block > 0 {
         last_processed_block + 1
     } else {
@@ -134,7 +133,9 @@ async fn main() -> Result<()> {
     let mut last_known_latest_block = indexer::get_latest_block_number(&provider, metrics.as_ref())
         .await?
         .as_number()
-        .unwrap();
+        .ok_or_else(|| RpcError::InvalidBlockNumberResponse { 
+            got: block_number_to_process.to_string() 
+        })?;
 
     println!();
     info!("========================= STARTING INDEXER =========================");
@@ -152,10 +153,17 @@ async fn main() -> Result<()> {
         let mut traces = None;
 
         // Only check latest block if we're within 2x buffer of last known tip
-        if block_number_to_process.as_number().unwrap() > (last_known_latest_block - chain_tip_buffer * 2) {
+        if block_number_to_process.as_number()
+            .ok_or_else(|| RpcError::InvalidBlockNumberResponse { 
+                got: block_number_to_process.to_string() 
+            })? > (last_known_latest_block - chain_tip_buffer * 2) 
+        {
             let latest_block: BlockNumberOrTag =
                 indexer::get_latest_block_number(&provider, metrics.as_ref()).await?;
-            last_known_latest_block = latest_block.as_number().unwrap();
+            last_known_latest_block = latest_block.as_number()
+                .ok_or_else(|| RpcError::InvalidBlockNumberResponse { 
+                    got: latest_block.to_string() 
+                })?;
         }
 
         // If indexer gets too close to tip, back off and retry

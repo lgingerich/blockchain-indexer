@@ -7,6 +7,12 @@ pub enum ChainError {
 }
 
 #[derive(Error, Debug)]
+pub enum RpcError {
+    #[error("Invalid block number response: expected number, got {got}")]
+    InvalidBlockNumberResponse { got: String },
+}
+
+#[derive(Error, Debug)]
 pub enum BlockError {
     #[error("Invalid block format: Expected full transaction objects but received only transaction hashes")]
     TransactionHashesOnly,
