@@ -25,6 +25,4 @@ pub enum ReceiptError {
     #[error("Missing required field in receipt: {field}")]
     MissingField { field: String },
     
-    #[error("Invalid timestamp value {value} in log receipt")]
-    InvalidTimestamp { value: i64 },
 }

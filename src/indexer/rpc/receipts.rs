@@ -90,15 +90,13 @@ impl ReceiptParser for Vec<AnyTransactionReceipt> {
                     .into_iter()
                     .map(|log| {
                         let common = CommonRpcLogReceiptData {
-                            block_time: Some(log
+                            block_time: log
+                                .block_timestamp
+                                .and_then(|ts| DateTime::from_timestamp(ts as i64, 0)),
+                            block_date: log
                                 .block_timestamp
                                 .and_then(|ts| DateTime::from_timestamp(ts as i64, 0))
-                                .ok_or(ReceiptError::InvalidTimestamp { value: log.block_timestamp.unwrap() as i64 })?),
-                            block_date: Some(log
-                                .block_timestamp
-                                .and_then(|ts| DateTime::from_timestamp(ts as i64, 0))
-                                .map(|dt| dt.date_naive())
-                                .ok_or(ReceiptError::InvalidTimestamp { value: log.block_timestamp.unwrap() as i64 })?),
+                                .map(|dt| dt.date_naive()),
                             block_number: log.block_number,
                             block_hash: log.block_hash,
                             tx_hash: log.transaction_hash,
