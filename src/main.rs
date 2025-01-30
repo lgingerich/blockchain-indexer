@@ -13,10 +13,7 @@ use alloy_rpc_types_trace::geth::{
 };
 use anyhow::{anyhow, Result};
 use opentelemetry::KeyValue;
-use tokio::{
-    signal,
-    time::Instant,
-};
+use tokio::{signal, time::Instant};
 use tracing::{error, info};
 use tracing_subscriber::{self, EnvFilter};
 use url::Url;
@@ -54,6 +51,8 @@ async fn main() -> Result<()> {
 
     // Parse configs
     let chain_name = config.chain_name;
+    let start_block = config.start_block;
+    let end_block = config.end_block;
     let chain_tip_buffer = config.chain_tip_buffer;
     let rpc = config.rpc_url.as_str();
     let datasets = config.datasets;
@@ -71,7 +70,9 @@ async fn main() -> Result<()> {
 
     // Start metrics server if metrics are enabled
     if let Some(metrics_instance) = &metrics {
-        metrics_instance.start_metrics_server(metrics_addr.as_str(), metrics_port).await;
+        metrics_instance
+            .start_metrics_server(metrics_addr.as_str(), metrics_port)
+            .await;
     }
 
     // Track which RPC responses we need
@@ -102,7 +103,7 @@ async fn main() -> Result<()> {
     tokio::spawn(async move {
         if let Ok(()) = signal::ctrl_c().await {
             info!("Received Ctrl+C signal, initiating shutdown...");
-            if let Err(e) = shutdown_channels.shutdown().await {
+            if let Err(e) = shutdown_channels.shutdown(None).await {
                 error!("Error during shutdown: {}", e);
             }
         }
@@ -112,18 +113,27 @@ async fn main() -> Result<()> {
     let _ = storage::bigquery::create_dataset_with_retry(chain_name.as_str()).await;
     for table in ["blocks", "logs", "transactions", "traces"] {
         if datasets.contains(&table.to_owned()) {
-            let _ = storage::bigquery::create_table_with_retry(chain_name.as_str(), table, chain).await;
+            let _ =
+                storage::bigquery::create_table_with_retry(chain_name.as_str(), table, chain).await;
         }
     }
 
     // Get last processed block number from storage
-    // If it exists, start from the next block, else start from 0
+    // Use the maximum of last_processed_block + 1 and start_block (if specified)
     let last_processed_block =
         storage::bigquery::get_last_processed_block(chain_name.as_str(), &datasets).await?;
     let mut block_number = if last_processed_block > 0 {
-        last_processed_block + 1
+        // If we have processed blocks, start from the next one
+        let next_block = last_processed_block + 1;
+        // If start_block is specified, use the maximum of next_block and start_block
+        if let Some(start) = start_block {
+            next_block.max(start)
+        } else {
+            next_block
+        }
     } else {
-        0
+        // If no blocks processed yet, use start_block or 0
+        start_block.unwrap_or(0)
     };
 
     info!("Starting block number: {:?}", block_number);
@@ -135,17 +145,19 @@ async fn main() -> Result<()> {
     let mut last_known_latest_block = indexer::get_latest_block_number(&provider, metrics.as_ref())
         .await?
         .as_number()
-        .ok_or_else(|| RpcError::InvalidBlockNumberResponse { 
-            got: block_number_to_process.to_string() 
+        .ok_or_else(|| RpcError::InvalidBlockNumberResponse {
+            got: block_number_to_process.to_string(),
         })?;
 
     println!();
     info!("========================= STARTING INDEXER =========================");
-    
+
     loop {
         // Check for shutdown signal (non-blocking)
         if shutdown_signal.try_recv().is_ok() {
             info!("Shutting down main processing loop...");
+            // Ensure all channels are flushed before breaking
+            channels.shutdown(None).await?;
             break Ok(());
         }
 
@@ -155,21 +167,26 @@ async fn main() -> Result<()> {
         let mut traces = None;
 
         // Only check latest block if we're within 2x buffer of last known tip
-        if block_number_to_process.as_number()
-            .ok_or_else(|| RpcError::InvalidBlockNumberResponse { 
-                got: block_number_to_process.to_string() 
-            })? > (last_known_latest_block - chain_tip_buffer * 2) 
+        if block_number_to_process.as_number().ok_or_else(|| {
+            RpcError::InvalidBlockNumberResponse {
+                got: block_number_to_process.to_string(),
+            }
+        })? > (last_known_latest_block - chain_tip_buffer * 2)
         {
             let latest_block: BlockNumberOrTag =
                 indexer::get_latest_block_number(&provider, metrics.as_ref()).await?;
-            last_known_latest_block = latest_block.as_number()
-                .ok_or_else(|| RpcError::InvalidBlockNumberResponse { 
-                    got: latest_block.to_string() 
-                })?;
+            last_known_latest_block =
+                latest_block
+                    .as_number()
+                    .ok_or_else(|| RpcError::InvalidBlockNumberResponse {
+                        got: latest_block.to_string(),
+                    })?;
         }
 
         // If indexer gets too close to tip, back off and retry
-        if block_number_to_process.as_number().unwrap() > (last_known_latest_block - chain_tip_buffer) {
+        if block_number_to_process.as_number().unwrap()
+            > (last_known_latest_block - chain_tip_buffer)
+        {
             info!(
                 "Buffer limit reached. Waiting for current block to be {} blocks behind tip: {} - current distance: {} - sleeping for 1s",
                 chain_tip_buffer,
@@ -179,10 +196,13 @@ async fn main() -> Result<()> {
             tokio::time::sleep(tokio::time::Duration::from_millis(SLEEP_DURATION)).await;
             continue;
         }
-        
+
         // Check channel capacity and apply backpressure if needed
         while !channels.check_capacity(metrics.as_ref()).await? {
-            info!("Applying backpressure - sleeping for {} seconds...", SLEEP_DURATION / 1000);
+            info!(
+                "Applying backpressure - sleeping for {} seconds...",
+                SLEEP_DURATION / 1000
+            );
             tokio::time::sleep(tokio::time::Duration::from_millis(SLEEP_DURATION)).await;
         }
 
@@ -194,9 +214,14 @@ async fn main() -> Result<()> {
         if need_block {
             let kind = BlockTransactionsKind::Full; // Hashes: only include tx hashes, Full: include full tx objects
             block = Some(
-                indexer::get_block_by_number(&provider, block_number_to_process, kind, metrics.as_ref())
-                    .await?
-                    .ok_or_else(|| anyhow!("Provider returned no block"))?,
+                indexer::get_block_by_number(
+                    &provider,
+                    block_number_to_process,
+                    kind,
+                    metrics.as_ref(),
+                )
+                .await?
+                .ok_or_else(|| anyhow!("Provider returned no block"))?,
             );
         }
 
@@ -265,27 +290,60 @@ async fn main() -> Result<()> {
         // Transform all data into final output formats (blocks, transactions, logs, traces)
         let transformed_data = indexer::transform_data(chain, parsed_data, &datasets).await?;
 
+        info!(
+            "Finished processing block {}",
+            block_number_to_process.as_number().unwrap()
+        );
+
         // Send transformed data through channels for saving to storage
         if datasets.contains(&"blocks".to_string()) {
-            if let Err(e) = channels.blocks_tx.send((transformed_data.blocks, block_number_to_process.as_number().unwrap())).await {
+            if let Err(e) = channels
+                .blocks_tx
+                .send((
+                    transformed_data.blocks,
+                    block_number_to_process.as_number().unwrap(),
+                ))
+                .await
+            {
                 error!("Failed to send blocks batch to channel: {}", e);
             }
         }
-        
+
         if datasets.contains(&"transactions".to_string()) {
-            if let Err(e) = channels.transactions_tx.send((transformed_data.transactions, block_number_to_process.as_number().unwrap())).await {
+            if let Err(e) = channels
+                .transactions_tx
+                .send((
+                    transformed_data.transactions,
+                    block_number_to_process.as_number().unwrap(),
+                ))
+                .await
+            {
                 error!("Failed to send transactions batch to channel: {}", e);
             }
         }
-        
+
         if datasets.contains(&"logs".to_string()) {
-            if let Err(e) = channels.logs_tx.send((transformed_data.logs, block_number_to_process.as_number().unwrap())).await {
+            if let Err(e) = channels
+                .logs_tx
+                .send((
+                    transformed_data.logs,
+                    block_number_to_process.as_number().unwrap(),
+                ))
+                .await
+            {
                 error!("Failed to send logs batch to channel: {}", e);
             }
         }
-        
+
         if datasets.contains(&"traces".to_string()) {
-            if let Err(e) = channels.traces_tx.send((transformed_data.traces, block_number_to_process.as_number().unwrap())).await {
+            if let Err(e) = channels
+                .traces_tx
+                .send((
+                    transformed_data.traces,
+                    block_number_to_process.as_number().unwrap(),
+                ))
+                .await
+            {
                 error!("Failed to send traces batch to channel: {}", e);
             }
         }
@@ -295,8 +353,10 @@ async fn main() -> Result<()> {
 
         // Update metrics
         if let Some(metrics_instance) = &metrics {
-            metrics_instance.blocks_processed
-                .add(1, &[KeyValue::new("chain", metrics_instance.chain_name.clone())]);
+            metrics_instance.blocks_processed.add(
+                1,
+                &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
+            );
             metrics_instance.latest_processed_block.record(
                 block_number_to_process.as_number().unwrap(),
                 &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
@@ -318,5 +378,19 @@ async fn main() -> Result<()> {
         // Increment the raw number and update BlockNumberOrTag
         block_number += 1;
         block_number_to_process = BlockNumberOrTag::Number(block_number);
+
+        // Check if we've completed processing the end block (if specified)
+        if let Some(end) = end_block {
+            if block_number > end {
+                info!(
+                    "Finished processing end block {}, waiting for channels to flush...",
+                    end
+                );
+                // Pass the end block to shutdown so it can verify completion
+                channels.shutdown(Some(end)).await?;
+                info!("All channels flushed, shutting down.");
+                break Ok(());
+            }
+        }
     }
 }

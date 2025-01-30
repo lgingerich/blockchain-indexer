@@ -235,15 +235,15 @@ async fn insert_data<T: serde::Serialize>(
 
     if data.is_empty() {
         info!(
-            "No data to insert into {}.{}.{}",
-            project_id, chain_name, table_id
+            "No data to insert into {}.{}.{} for block {}",
+            project_id, chain_name, table_id, block_number
         );
         return Ok(());
     }
 
     const BATCH_SIZE: usize = 1000;
     let total_rows = data.len();
-    
+
     for chunk in data.chunks(BATCH_SIZE) {
         let rows = chunk
             .iter()
@@ -310,11 +310,7 @@ async fn insert_data<T: serde::Serialize>(
 
     info!(
         "Successfully inserted {} rows into {}.{}.{} for block {}",
-        total_rows,
-        project_id,
-        chain_name,
-        table_id,
-        block_number
+        total_rows, project_id, chain_name, table_id, block_number
     );
 
     Ok(())

@@ -19,6 +19,8 @@ pub struct MetricsConfig {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
     pub chain_name: String,
+    pub start_block: Option<u64>,
+    pub end_block: Option<u64>,
     pub chain_tip_buffer: u64,
     pub rpc_url: String,
     pub datasets: Vec<String>,

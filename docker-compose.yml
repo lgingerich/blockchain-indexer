@@ -21,8 +21,7 @@ services:
       - monitoring
     restart: unless-stopped
 
-# Uncomment if you need to connect to a monitoring network
 networks:
   monitoring:
-    external: true
+    external: false
     name: monitoring

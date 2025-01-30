@@ -50,7 +50,7 @@ COPY ./${CONFIG_SOURCE} ${CONFIG_PATH}
 EXPOSE 9100
 
 # Copy the binary from builder
-COPY --from=builder /app/target/release/rust /usr/local/bin/app
+COPY --from=builder /app/target/release/blockchain-indexer /usr/local/bin/app
 
 # Print config path and run app
 CMD ["sh", "-c", "echo \"Using config from: ${CONFIG_SOURCE}\" && echo \"Config path in container: ${CONFIG_PATH}\" && app --config ${CONFIG_PATH}"]

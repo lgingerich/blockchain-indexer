@@ -52,7 +52,9 @@ pub fn block_schema(chain: Chain) -> TableSchema {
             name: "nonce".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Nullable),
-            description: Some("Unique value used to prove block computation in PoW consensus".to_string()),
+            description: Some(
+                "Unique value used to prove block computation in PoW consensus".to_string(),
+            ),
             ..Default::default()
         },
         TableFieldSchema {
@@ -473,7 +475,9 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
             name: "max_priority_fee_per_gas".to_string(),
             data_type: TableFieldType::Integer,
             mode: Some(TableFieldMode::Nullable),
-            description: Some("Maximum tip per unit of gas willing to be paid to validator".to_string()),
+            description: Some(
+                "Maximum tip per unit of gas willing to be paid to validator".to_string(),
+            ),
             ..Default::default()
         },
         TableFieldSchema {
@@ -524,7 +528,9 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
                     ..Default::default()
                 },
             ]),
-            description: Some("List of addresses and storage keys accessed by the transaction".to_string()),
+            description: Some(
+                "List of addresses and storage keys accessed by the transaction".to_string(),
+            ),
             ..Default::default()
         },
         TableFieldSchema {
@@ -538,7 +544,9 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
             name: "blob_versioned_hashes".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Repeated),
-            description: Some("Version hashes of the blobs included in the transaction".to_string()),
+            description: Some(
+                "Version hashes of the blobs included in the transaction".to_string(),
+            ),
             ..Default::default()
         },
         TableFieldSchema {

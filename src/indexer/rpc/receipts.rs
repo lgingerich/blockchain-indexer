@@ -59,18 +59,26 @@ impl ReceiptParser for Vec<AnyTransactionReceipt> {
                     Chain::ZKsync => {
                         RpcTransactionReceiptData::ZKsync(ZKsyncRpcTransactionReceiptData {
                             common,
-                            l1_batch_number: Some(receipt
-                                .other
-                                .get_deserialized::<String>("l1BatchNumber")
-                                .and_then(|result| result.ok())
-                                .and_then(hex_to_u64)
-                                .ok_or(ReceiptError::MissingField { field: "l1BatchNumber".to_string() })?),
-                            l1_batch_tx_index: Some(receipt
-                                .other
-                                .get_deserialized::<String>("l1BatchTxIndex")
-                                .and_then(|result| result.ok())
-                                .and_then(hex_to_u64)
-                                .ok_or(ReceiptError::MissingField { field: "l1BatchTxIndex".to_string() })?),
+                            l1_batch_number: Some(
+                                receipt
+                                    .other
+                                    .get_deserialized::<String>("l1BatchNumber")
+                                    .and_then(|result| result.ok())
+                                    .and_then(hex_to_u64)
+                                    .ok_or(ReceiptError::MissingField {
+                                        field: "l1BatchNumber".to_string(),
+                                    })?,
+                            ),
+                            l1_batch_tx_index: Some(
+                                receipt
+                                    .other
+                                    .get_deserialized::<String>("l1BatchTxIndex")
+                                    .and_then(|result| result.ok())
+                                    .and_then(hex_to_u64)
+                                    .ok_or(ReceiptError::MissingField {
+                                        field: "l1BatchTxIndex".to_string(),
+                                    })?,
+                            ),
                         })
                     }
                 };
@@ -90,15 +98,13 @@ impl ReceiptParser for Vec<AnyTransactionReceipt> {
                     .into_iter()
                     .map(|log| {
                         let common = CommonRpcLogReceiptData {
-                            block_time: Some(log
+                            block_time: log
+                                .block_timestamp
+                                .and_then(|ts| DateTime::from_timestamp(ts as i64, 0)),
+                            block_date: log
                                 .block_timestamp
                                 .and_then(|ts| DateTime::from_timestamp(ts as i64, 0))
-                                .ok_or(ReceiptError::InvalidTimestamp { value: log.block_timestamp.unwrap() as i64 })?),
-                            block_date: Some(log
-                                .block_timestamp
-                                .and_then(|ts| DateTime::from_timestamp(ts as i64, 0))
-                                .map(|dt| dt.date_naive())
-                                .ok_or(ReceiptError::InvalidTimestamp { value: log.block_timestamp.unwrap() as i64 })?),
+                                .map(|dt| dt.date_naive()),
                             block_number: log.block_number,
                             block_hash: log.block_hash,
                             tx_hash: log.transaction_hash,
