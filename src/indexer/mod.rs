@@ -25,7 +25,10 @@ use crate::models::common::{Chain, ParsedData, TransformedData};
 use crate::models::datasets::blocks::RpcHeaderData;
 use crate::utils::retry::{retry, RetryConfig};
 
-pub async fn get_chain_id<T, N>(provider: &dyn Provider<T, N>, metrics: Option<&Metrics>) -> Result<u64>
+pub async fn get_chain_id<T, N>(
+    provider: &dyn Provider<T, N>,
+    metrics: Option<&Metrics>,
+) -> Result<u64>
 where
     T: Transport + Clone,
     N: Network,
@@ -35,7 +38,7 @@ where
     retry(
         || async {
             let start = std::time::Instant::now();
-            
+
             // Record metrics if enabled
             if let Some(metrics) = metrics {
                 metrics.rpc_requests.add(
@@ -58,7 +61,7 @@ where
                         KeyValue::new("method", "get_chain_id"),
                     ],
                 );
-                
+
                 if result.is_err() {
                     metrics.rpc_errors.add(
                         1,
@@ -90,7 +93,7 @@ where
     retry(
         || async {
             let start = std::time::Instant::now();
-            
+
             if let Some(metrics) = metrics {
                 metrics.rpc_requests.add(
                     1,
@@ -147,7 +150,7 @@ where
     retry(
         || async {
             let start = std::time::Instant::now();
-            
+
             if let Some(metrics) = metrics {
                 metrics.rpc_requests.add(
                     1,
@@ -204,7 +207,7 @@ where
     retry(
         || async {
             let start = std::time::Instant::now();
-            
+
             if let Some(metrics) = metrics {
                 metrics.rpc_requests.add(
                     1,
@@ -265,7 +268,7 @@ where
     retry(
         || async {
             let start = std::time::Instant::now();
-            
+
             if let Some(metrics) = metrics {
                 metrics.rpc_requests.add(
                     1,

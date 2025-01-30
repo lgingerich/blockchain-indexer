@@ -1,4 +1,6 @@
 chain_name: "ethereum"            # Used in dataset names
+start_block: 100                  # (Optional) Start block. If not provided, will start from the latest processedblock.
+end_block: 101                    # (Optional) End block. If not provided, will run continuously until interrupted.
 chain_tip_buffer: 100             # Number of blocks to stay away from chain tip
 rpc_url: "https://eth.drpc.org"   # URL of the RPC provider
 

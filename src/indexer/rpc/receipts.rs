@@ -59,18 +59,26 @@ impl ReceiptParser for Vec<AnyTransactionReceipt> {
                     Chain::ZKsync => {
                         RpcTransactionReceiptData::ZKsync(ZKsyncRpcTransactionReceiptData {
                             common,
-                            l1_batch_number: Some(receipt
-                                .other
-                                .get_deserialized::<String>("l1BatchNumber")
-                                .and_then(|result| result.ok())
-                                .and_then(hex_to_u64)
-                                .ok_or(ReceiptError::MissingField { field: "l1BatchNumber".to_string() })?),
-                            l1_batch_tx_index: Some(receipt
-                                .other
-                                .get_deserialized::<String>("l1BatchTxIndex")
-                                .and_then(|result| result.ok())
-                                .and_then(hex_to_u64)
-                                .ok_or(ReceiptError::MissingField { field: "l1BatchTxIndex".to_string() })?),
+                            l1_batch_number: Some(
+                                receipt
+                                    .other
+                                    .get_deserialized::<String>("l1BatchNumber")
+                                    .and_then(|result| result.ok())
+                                    .and_then(hex_to_u64)
+                                    .ok_or(ReceiptError::MissingField {
+                                        field: "l1BatchNumber".to_string(),
+                                    })?,
+                            ),
+                            l1_batch_tx_index: Some(
+                                receipt
+                                    .other
+                                    .get_deserialized::<String>("l1BatchTxIndex")
+                                    .and_then(|result| result.ok())
+                                    .and_then(hex_to_u64)
+                                    .ok_or(ReceiptError::MissingField {
+                                        field: "l1BatchTxIndex".to_string(),
+                                    })?,
+                            ),
                         })
                     }
                 };

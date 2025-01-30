@@ -24,5 +24,4 @@ pub enum BlockError {
 pub enum ReceiptError {
     #[error("Missing required field in receipt: {field}")]
     MissingField { field: String },
-    
 }

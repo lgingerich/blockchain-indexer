@@ -427,12 +427,8 @@ impl BlockParser for AnyRpcBlock {
                 })
                 .collect())
             }
-            BlockTransactions::Hashes(_) => {
-                Err(BlockError::TransactionHashesOnly.into())
-            }
-            BlockTransactions::Uncle => {
-                Err(BlockError::UncleBlocksNotSupported.into())
-            }
+            BlockTransactions::Hashes(_) => Err(BlockError::TransactionHashesOnly.into()),
+            BlockTransactions::Uncle => Err(BlockError::UncleBlocksNotSupported.into()),
         }
     }
 }

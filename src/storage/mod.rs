@@ -1,14 +1,14 @@
 pub mod bigquery;
 
 use anyhow::{anyhow, Result};
-use tokio::sync::mpsc::{self, Sender};
-use tokio::sync::broadcast;
-use tokio::time::{Duration, Instant};
-use std::time::Duration as StdDuration;
-use tracing::{error, info, debug};
 use opentelemetry::KeyValue;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::Duration as StdDuration;
+use tokio::sync::broadcast;
+use tokio::sync::mpsc::{self, Sender};
+use tokio::time::{Duration, Instant};
+use tracing::{debug, error, info};
 
 use crate::metrics::Metrics;
 use crate::models::datasets::blocks::TransformedBlockData;
@@ -19,7 +19,6 @@ use crate::storage::bigquery::insert_data_with_retry;
 
 const MAX_CHANNEL_CAPACITY: usize = 64;
 const CAPACITY_THRESHOLD: f32 = 0.2; // Apply backpressure when current capacity is 20% of max
-
 
 // TODO: Improve/condense this whole file
 
@@ -51,10 +50,10 @@ impl DataChannels {
         if let Err(e) = self.shutdown.send(()) {
             error!("Failed to send shutdown signal to workers: {}", e);
         }
-        
+
         let timeout = StdDuration::from_secs(30);
         let start = Instant::now();
-        
+
         while start.elapsed() < timeout {
             if let Some(target) = end_block {
                 // Check if all workers have processed up to the end block
@@ -77,46 +76,57 @@ impl DataChannels {
             }
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
-        
+
         error!("Shutdown timed out with data still being processed");
         Err(anyhow!("Shutdown timed out"))
     }
 
     fn all_workers_completed(&self, target_block: u64) -> bool {
         let blocks = self.last_block_processed.blocks.load(Ordering::Relaxed);
-        let txs = self.last_block_processed.transactions.load(Ordering::Relaxed);
+        let txs = self
+            .last_block_processed
+            .transactions
+            .load(Ordering::Relaxed);
         let logs = self.last_block_processed.logs.load(Ordering::Relaxed);
         let traces = self.last_block_processed.traces.load(Ordering::Relaxed);
 
-        blocks >= target_block && 
-        txs >= target_block && 
-        logs >= target_block && 
-        traces >= target_block
+        blocks >= target_block
+            && txs >= target_block
+            && logs >= target_block
+            && traces >= target_block
     }
 
     // Helper methods to update progress
     pub fn update_blocks_progress(&self, block: u64) {
-        self.last_block_processed.blocks.store(block, Ordering::Relaxed);
+        self.last_block_processed
+            .blocks
+            .store(block, Ordering::Relaxed);
     }
 
     pub fn update_transactions_progress(&self, block: u64) {
-        self.last_block_processed.transactions.store(block, Ordering::Relaxed);
+        self.last_block_processed
+            .transactions
+            .store(block, Ordering::Relaxed);
     }
 
     pub fn update_logs_progress(&self, block: u64) {
-        self.last_block_processed.logs.store(block, Ordering::Relaxed);
+        self.last_block_processed
+            .logs
+            .store(block, Ordering::Relaxed);
     }
 
     pub fn update_traces_progress(&self, block: u64) {
-        self.last_block_processed.traces.store(block, Ordering::Relaxed);
+        self.last_block_processed
+            .traces
+            .store(block, Ordering::Relaxed);
     }
 
     fn all_channels_empty(&self) -> bool {
         // Check if all channels have processed their remaining items
-        self.blocks_tx.capacity() == MAX_CHANNEL_CAPACITY &&
-        self.transactions_tx.capacity() == MAX_CHANNEL_CAPACITY &&
-        self.logs_tx.capacity() == MAX_CHANNEL_CAPACITY &&
-        self.traces_tx.capacity() == MAX_CHANNEL_CAPACITY
+        self.blocks_tx.capacity() == MAX_CHANNEL_CAPACITY
+            && self.transactions_tx.capacity() == MAX_CHANNEL_CAPACITY
+            && self.logs_tx.capacity() == MAX_CHANNEL_CAPACITY
+            && self.traces_tx.capacity() == MAX_CHANNEL_CAPACITY
     }
 
     pub async fn check_capacity(&self, metrics: Option<&Metrics>) -> Result<bool> {
@@ -136,10 +146,9 @@ impl DataChannels {
                 transactions_capacity as u64,
                 &[KeyValue::new("channel", "transactions")],
             );
-            metrics.channel_capacity.record(
-                logs_capacity as u64,
-                &[KeyValue::new("channel", "logs")],
-            );
+            metrics
+                .channel_capacity
+                .record(logs_capacity as u64, &[KeyValue::new("channel", "logs")]);
             metrics.channel_capacity.record(
                 traces_capacity as u64,
                 &[KeyValue::new("channel", "traces")],
@@ -148,11 +157,15 @@ impl DataChannels {
 
         // Apply backpressure when available capacity is low (meaning channel is getting full)
         // If available capacity is <= 20% of max, then the channel is >= 80% full
-        if (blocks_capacity as f32 / MAX_CHANNEL_CAPACITY as f32) <= CAPACITY_THRESHOLD ||
-           (transactions_capacity as f32 / MAX_CHANNEL_CAPACITY as f32) <= CAPACITY_THRESHOLD ||
-           (logs_capacity as f32 / MAX_CHANNEL_CAPACITY as f32) <= CAPACITY_THRESHOLD ||
-           (traces_capacity as f32 / MAX_CHANNEL_CAPACITY as f32) <= CAPACITY_THRESHOLD {
-            info!("Channel within {}% of max capacity", (1.0 - CAPACITY_THRESHOLD) * 100.0);
+        if (blocks_capacity as f32 / MAX_CHANNEL_CAPACITY as f32) <= CAPACITY_THRESHOLD
+            || (transactions_capacity as f32 / MAX_CHANNEL_CAPACITY as f32) <= CAPACITY_THRESHOLD
+            || (logs_capacity as f32 / MAX_CHANNEL_CAPACITY as f32) <= CAPACITY_THRESHOLD
+            || (traces_capacity as f32 / MAX_CHANNEL_CAPACITY as f32) <= CAPACITY_THRESHOLD
+        {
+            info!(
+                "Channel within {}% of max capacity",
+                (1.0 - CAPACITY_THRESHOLD) * 100.0
+            );
             return Ok(false);
         }
 
