@@ -235,8 +235,8 @@ async fn insert_data<T: serde::Serialize>(
 
     if data.is_empty() {
         info!(
-            "No data to insert into {}.{}.{}",
-            project_id, chain_name, table_id
+            "No data to insert into {}.{}.{} for block {}",
+            project_id, chain_name, table_id, block_number
         );
         return Ok(());
     }
