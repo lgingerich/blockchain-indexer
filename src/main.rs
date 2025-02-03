@@ -110,11 +110,10 @@ async fn main() -> Result<()> {
     });
 
     // Create dataset and tables. Handles existing datasets and tables.
-    let _ = storage::bigquery::create_dataset_with_retry(chain_name.as_str()).await;
+    let _ = storage::bigquery::create_dataset(chain_name.as_str()).await;
     for table in ["blocks", "logs", "transactions", "traces"] {
         if datasets.contains(&table.to_owned()) {
-            let _ =
-                storage::bigquery::create_table_with_retry(chain_name.as_str(), table, chain).await;
+            let _ = storage::bigquery::create_table(chain_name.as_str(), table, chain).await;
         }
     }
 

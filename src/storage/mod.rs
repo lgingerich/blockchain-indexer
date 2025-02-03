@@ -15,7 +15,7 @@ use crate::models::datasets::blocks::TransformedBlockData;
 use crate::models::datasets::logs::TransformedLogData;
 use crate::models::datasets::traces::TransformedTraceData;
 use crate::models::datasets::transactions::TransformedTransactionData;
-use crate::storage::bigquery::insert_data_with_retry;
+use crate::storage::bigquery::insert_data;
 
 const MAX_CHANNEL_CAPACITY: usize = 64;
 const CAPACITY_THRESHOLD: f32 = 0.2; // Apply backpressure when current capacity is 20% of max
@@ -205,7 +205,7 @@ pub async fn setup_channels(chain_name: &str) -> Result<DataChannels> {
             loop {
                 tokio::select! {
                     Some((blocks, block_number)) = blocks_rx.recv() => {
-                        if let Err(e) = insert_data_with_retry(&blocks_dataset, "blocks", blocks, block_number).await {
+                        if let Err(e) = insert_data(&blocks_dataset, "blocks", blocks, block_number).await {
                             error!("Failed to insert block data: {}", e);
                         }
                         channels_clone.update_blocks_progress(block_number);
@@ -213,7 +213,7 @@ pub async fn setup_channels(chain_name: &str) -> Result<DataChannels> {
                     _ = shutdown_rx.recv() => {
                         debug!("Blocks worker processing remaining items...");
                         while let Some((blocks, block_number)) = blocks_rx.recv().await {
-                            if let Err(e) = insert_data_with_retry(&blocks_dataset, "blocks", blocks, block_number).await {
+                            if let Err(e) = insert_data(&blocks_dataset, "blocks", blocks, block_number).await {
                                 error!("Failed to insert final block data: {}", e);
                             }
                             channels_clone.update_blocks_progress(block_number);
@@ -241,7 +241,7 @@ pub async fn setup_channels(chain_name: &str) -> Result<DataChannels> {
             loop {
                 tokio::select! {
                     Some((transactions, block_number)) = transactions_rx.recv() => {
-                        if let Err(e) = insert_data_with_retry(&transactions_dataset, "transactions", transactions, block_number).await {
+                        if let Err(e) = insert_data(&transactions_dataset, "transactions", transactions, block_number).await {
                             error!("Failed to insert transaction data: {}", e);
                         }
                         channels_clone.update_transactions_progress(block_number);
@@ -249,7 +249,7 @@ pub async fn setup_channels(chain_name: &str) -> Result<DataChannels> {
                     _ = shutdown_rx.recv() => {
                         debug!("Transactions worker processing remaining items...");
                         while let Some((transactions, block_number)) = transactions_rx.recv().await {
-                            if let Err(e) = insert_data_with_retry(&transactions_dataset, "transactions", transactions, block_number).await {
+                            if let Err(e) = insert_data(&transactions_dataset, "transactions", transactions, block_number).await {
                                 error!("Failed to insert final transaction data: {}", e);
                             }
                             channels_clone.update_transactions_progress(block_number);
@@ -277,7 +277,7 @@ pub async fn setup_channels(chain_name: &str) -> Result<DataChannels> {
             loop {
                 tokio::select! {
                     Some((logs, block_number)) = logs_rx.recv() => {
-                        if let Err(e) = insert_data_with_retry(&logs_dataset, "logs", logs, block_number).await {
+                        if let Err(e) = insert_data(&logs_dataset, "logs", logs, block_number).await {
                             error!("Failed to insert log data: {}", e);
                         }
                         channels_clone.update_logs_progress(block_number);
@@ -285,7 +285,7 @@ pub async fn setup_channels(chain_name: &str) -> Result<DataChannels> {
                     _ = shutdown_rx.recv() => {
                         debug!("Logs worker processing remaining items...");
                         while let Some((logs, block_number)) = logs_rx.recv().await {
-                            if let Err(e) = insert_data_with_retry(&logs_dataset, "logs", logs, block_number).await {
+                            if let Err(e) = insert_data(&logs_dataset, "logs", logs, block_number).await {
                                 error!("Failed to insert final log data: {}", e);
                             }
                             channels_clone.update_logs_progress(block_number);
@@ -313,7 +313,7 @@ pub async fn setup_channels(chain_name: &str) -> Result<DataChannels> {
             loop {
                 tokio::select! {
                     Some((traces, block_number)) = traces_rx.recv() => {
-                        if let Err(e) = insert_data_with_retry(&traces_dataset, "traces", traces, block_number).await {
+                        if let Err(e) = insert_data(&traces_dataset, "traces", traces, block_number).await {
                             error!("Failed to insert trace data: {}", e);
                         }
                         channels_clone.update_traces_progress(block_number);
@@ -321,7 +321,7 @@ pub async fn setup_channels(chain_name: &str) -> Result<DataChannels> {
                     _ = shutdown_rx.recv() => {
                         debug!("Traces worker processing remaining items...");
                         while let Some((traces, block_number)) = traces_rx.recv().await {
-                            if let Err(e) = insert_data_with_retry(&traces_dataset, "traces", traces, block_number).await {
+                            if let Err(e) = insert_data(&traces_dataset, "traces", traces, block_number).await {
                                 error!("Failed to insert final trace data: {}", e);
                             }
                             channels_clone.update_traces_progress(block_number);
