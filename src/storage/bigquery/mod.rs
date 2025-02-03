@@ -25,7 +25,7 @@ static BIGQUERY_CLIENT: OnceCell<Arc<(Client, String)>> = OnceCell::new();
 
 // Initializes and returns the shared BigQuery Client and Project ID.
 // This function ensures that the Client is initialized only once.
-async fn get_client() -> Result<Arc<(Client, String)>> {
+pub async fn get_client() -> Result<Arc<(Client, String)>> {
     if let Some(client) = BIGQUERY_CLIENT.get() {
         return Ok(client.clone());
     }
@@ -48,7 +48,7 @@ async fn get_client() -> Result<Arc<(Client, String)>> {
 }
 
 // Verify that a dataset exists and is accessible
-async fn verify_dataset(client: &Client, project_id: &str, chain_name: &str) -> Result<bool> {
+pub async fn verify_dataset(client: &Client, project_id: &str, chain_name: &str) -> Result<bool> {
     match client.dataset().get(project_id, chain_name).await {
         Ok(_) => Ok(true),
         Err(BigQueryError::Response(resp)) if resp.message.contains("Not found") => Ok(false),
@@ -57,7 +57,7 @@ async fn verify_dataset(client: &Client, project_id: &str, chain_name: &str) -> 
 }
 
 // Verify that a table exists and is accessible
-async fn verify_table(
+pub async fn verify_table(
     client: &Client,
     project_id: &str,
     chain_name: &str,

@@ -94,6 +94,9 @@ async fn main() -> Result<()> {
     let chain = Chain::from_chain_id(chain_id)?;
     info!("Chain ID: {:?}", chain_id);
 
+    // Create dataset and tables. Ensure everything is ready before proceeding.
+    storage::initialize_storage(chain_name.as_str(), &datasets, chain).await?;
+
     // Set up channels
     let channels = setup_channels(chain_name.as_str()).await?;
 
@@ -108,14 +111,6 @@ async fn main() -> Result<()> {
             }
         }
     });
-
-    // Create dataset and tables. Handles existing datasets and tables.
-    let _ = storage::bigquery::create_dataset(chain_name.as_str()).await;
-    for table in ["blocks", "logs", "transactions", "traces"] {
-        if datasets.contains(&table.to_owned()) {
-            let _ = storage::bigquery::create_table(chain_name.as_str(), table, chain).await;
-        }
-    }
 
     // Get last processed block number from storage
     // Use the maximum of last_processed_block + 1 and start_block (if specified)

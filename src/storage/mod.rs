@@ -16,6 +16,7 @@ use crate::models::datasets::logs::TransformedLogData;
 use crate::models::datasets::traces::TransformedTraceData;
 use crate::models::datasets::transactions::TransformedTransactionData;
 use crate::storage::bigquery::insert_data;
+use crate::models::common::Chain;
 
 const MAX_CHANNEL_CAPACITY: usize = 64;
 const CAPACITY_THRESHOLD: f32 = 0.2; // Apply backpressure when current capacity is 20% of max
@@ -341,4 +342,33 @@ pub async fn setup_channels(chain_name: &str) -> Result<DataChannels> {
     });
 
     Ok(channels)
+}
+
+pub async fn initialize_storage(chain_name: &str, datasets: &[String], chain: Chain) -> Result<()> {
+    // Create dataset
+    bigquery::create_dataset(chain_name).await?;
+
+    // Create all required tables
+    for table in ["blocks", "logs", "transactions", "traces"] {
+        if datasets.contains(&table.to_owned()) {
+            bigquery::create_table(chain_name, table, chain).await?;
+        }
+    }
+
+    let (client, project_id) = &*bigquery::get_client().await?;
+    
+    // Verify dataset
+    if !bigquery::verify_dataset(client, project_id, chain_name).await? {
+        return Err(anyhow!("Dataset verification failed after creation"));
+    }
+
+    // Verify all tables
+    for table in datasets {
+        if !bigquery::verify_table(client, project_id, chain_name, table).await? {
+            return Err(anyhow!("Table '{}' verification failed after creation", table));
+        }
+    }
+
+    info!("Storage initialization complete - all datasets and tables verified");
+    Ok(())
 }
