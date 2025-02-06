@@ -33,7 +33,7 @@ pub async fn get_client() -> Result<Arc<(Client, String)>> {
     let (config, project_id_option) = ClientConfig::new_with_auth().await?;
     let client = Client::new(config).await?;
     let project_id = project_id_option.ok_or_else(|| anyhow!("Project ID not found"))?;
-    info!(" ============== Project ID: {}  ============== ", project_id);
+    info!("Project ID: {}", project_id);
 
     let client_arc = Arc::new((client, project_id));
 
@@ -256,7 +256,7 @@ pub async fn insert_data<T: serde::Serialize>(
                                 error!("Token Source error: {}", e);
                             }
                         }
-                        return Err(anyhow!("Data insertion failed"));
+                        Err(anyhow!("Data insertion failed"))
                     }
                 }
             },

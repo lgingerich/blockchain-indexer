@@ -58,7 +58,7 @@ fn flatten_call_frames(
     let common_data = CommonRpcTraceData {
         block_number,
         tx_hash,
-        r#type: frame.typ,
+        r#type: frame.typ.to_lowercase(),
         from: frame.from,
         to: frame.to,
         value: frame.value.map(|v| v.to_string()), // Convert from Uint<256, 4> to String for proper serialization
