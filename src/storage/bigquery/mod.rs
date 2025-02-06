@@ -110,6 +110,9 @@ pub async fn create_dataset(chain_name: &str) -> Result<()> {
         &format!("create_dataset_{}", chain_name),
     )
     .await
+    .map_err(|e| anyhow!("Failed to create dataset after retries: {}", e))?;
+
+    Ok(())
 }
 
 // Create a table
@@ -181,6 +184,9 @@ pub async fn create_table(chain_name: &str, table_id: &str, chain: Chain) -> Res
         &format!("create_table_{}_{}", chain_name, table_id),
     )
     .await
+    .map_err(|e| anyhow!("Failed to create table after retries: {}", e))?;
+
+    Ok(())
 }
 
 // Insert data into a table
