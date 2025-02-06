@@ -15,12 +15,19 @@ use crate::models::datasets::blocks::TransformedBlockData;
 use crate::models::datasets::logs::TransformedLogData;
 use crate::models::datasets::traces::TransformedTraceData;
 use crate::models::datasets::transactions::TransformedTransactionData;
-use crate::storage::bigquery::insert_data_with_retry;
+use crate::storage::bigquery::insert_data;
+use crate::models::common::Chain;
 
 const MAX_CHANNEL_CAPACITY: usize = 64;
 const CAPACITY_THRESHOLD: f32 = 0.2; // Apply backpressure when current capacity is 20% of max
 
-// TODO: Improve/condense this whole file
+#[derive(Debug)]
+pub enum DatasetType {
+    Blocks(Vec<TransformedBlockData>),
+    Transactions(Vec<TransformedTransactionData>),
+    Logs(Vec<TransformedLogData>),
+    Traces(Vec<TransformedTraceData>),
+}
 
 #[derive(Clone)]
 pub struct DataChannels {
@@ -171,6 +178,31 @@ impl DataChannels {
 
         Ok(true)
     }
+
+    pub async fn send_dataset(&self, dataset_type: DatasetType, block_number: u64) {
+        match dataset_type {
+            DatasetType::Blocks(data) => {
+                if let Err(e) = self.blocks_tx.send((data, block_number)).await {
+                    error!("Failed to send blocks batch to channel: {}", e);
+                }
+            }
+            DatasetType::Transactions(data) => {
+                if let Err(e) = self.transactions_tx.send((data, block_number)).await {
+                    error!("Failed to send transactions batch to channel: {}", e);
+                }
+            }
+            DatasetType::Logs(data) => {
+                if let Err(e) = self.logs_tx.send((data, block_number)).await {
+                    error!("Failed to send logs batch to channel: {}", e);
+                }
+            }
+            DatasetType::Traces(data) => {
+                if let Err(e) = self.traces_tx.send((data, block_number)).await {
+                    error!("Failed to send traces batch to channel: {}", e);
+                }
+            }
+        }
+    }
 }
 
 pub async fn setup_channels(chain_name: &str) -> Result<DataChannels> {
@@ -205,7 +237,7 @@ pub async fn setup_channels(chain_name: &str) -> Result<DataChannels> {
             loop {
                 tokio::select! {
                     Some((blocks, block_number)) = blocks_rx.recv() => {
-                        if let Err(e) = insert_data_with_retry(&blocks_dataset, "blocks", blocks, block_number).await {
+                        if let Err(e) = insert_data(&blocks_dataset, "blocks", blocks, block_number).await {
                             error!("Failed to insert block data: {}", e);
                         }
                         channels_clone.update_blocks_progress(block_number);
@@ -213,7 +245,7 @@ pub async fn setup_channels(chain_name: &str) -> Result<DataChannels> {
                     _ = shutdown_rx.recv() => {
                         debug!("Blocks worker processing remaining items...");
                         while let Some((blocks, block_number)) = blocks_rx.recv().await {
-                            if let Err(e) = insert_data_with_retry(&blocks_dataset, "blocks", blocks, block_number).await {
+                            if let Err(e) = insert_data(&blocks_dataset, "blocks", blocks, block_number).await {
                                 error!("Failed to insert final block data: {}", e);
                             }
                             channels_clone.update_blocks_progress(block_number);
@@ -241,7 +273,7 @@ pub async fn setup_channels(chain_name: &str) -> Result<DataChannels> {
             loop {
                 tokio::select! {
                     Some((transactions, block_number)) = transactions_rx.recv() => {
-                        if let Err(e) = insert_data_with_retry(&transactions_dataset, "transactions", transactions, block_number).await {
+                        if let Err(e) = insert_data(&transactions_dataset, "transactions", transactions, block_number).await {
                             error!("Failed to insert transaction data: {}", e);
                         }
                         channels_clone.update_transactions_progress(block_number);
@@ -249,7 +281,7 @@ pub async fn setup_channels(chain_name: &str) -> Result<DataChannels> {
                     _ = shutdown_rx.recv() => {
                         debug!("Transactions worker processing remaining items...");
                         while let Some((transactions, block_number)) = transactions_rx.recv().await {
-                            if let Err(e) = insert_data_with_retry(&transactions_dataset, "transactions", transactions, block_number).await {
+                            if let Err(e) = insert_data(&transactions_dataset, "transactions", transactions, block_number).await {
                                 error!("Failed to insert final transaction data: {}", e);
                             }
                             channels_clone.update_transactions_progress(block_number);
@@ -277,7 +309,7 @@ pub async fn setup_channels(chain_name: &str) -> Result<DataChannels> {
             loop {
                 tokio::select! {
                     Some((logs, block_number)) = logs_rx.recv() => {
-                        if let Err(e) = insert_data_with_retry(&logs_dataset, "logs", logs, block_number).await {
+                        if let Err(e) = insert_data(&logs_dataset, "logs", logs, block_number).await {
                             error!("Failed to insert log data: {}", e);
                         }
                         channels_clone.update_logs_progress(block_number);
@@ -285,7 +317,7 @@ pub async fn setup_channels(chain_name: &str) -> Result<DataChannels> {
                     _ = shutdown_rx.recv() => {
                         debug!("Logs worker processing remaining items...");
                         while let Some((logs, block_number)) = logs_rx.recv().await {
-                            if let Err(e) = insert_data_with_retry(&logs_dataset, "logs", logs, block_number).await {
+                            if let Err(e) = insert_data(&logs_dataset, "logs", logs, block_number).await {
                                 error!("Failed to insert final log data: {}", e);
                             }
                             channels_clone.update_logs_progress(block_number);
@@ -313,7 +345,7 @@ pub async fn setup_channels(chain_name: &str) -> Result<DataChannels> {
             loop {
                 tokio::select! {
                     Some((traces, block_number)) = traces_rx.recv() => {
-                        if let Err(e) = insert_data_with_retry(&traces_dataset, "traces", traces, block_number).await {
+                        if let Err(e) = insert_data(&traces_dataset, "traces", traces, block_number).await {
                             error!("Failed to insert trace data: {}", e);
                         }
                         channels_clone.update_traces_progress(block_number);
@@ -321,7 +353,7 @@ pub async fn setup_channels(chain_name: &str) -> Result<DataChannels> {
                     _ = shutdown_rx.recv() => {
                         debug!("Traces worker processing remaining items...");
                         while let Some((traces, block_number)) = traces_rx.recv().await {
-                            if let Err(e) = insert_data_with_retry(&traces_dataset, "traces", traces, block_number).await {
+                            if let Err(e) = insert_data(&traces_dataset, "traces", traces, block_number).await {
                                 error!("Failed to insert final trace data: {}", e);
                             }
                             channels_clone.update_traces_progress(block_number);
@@ -341,4 +373,33 @@ pub async fn setup_channels(chain_name: &str) -> Result<DataChannels> {
     });
 
     Ok(channels)
+}
+
+pub async fn initialize_storage(chain_name: &str, datasets: &[String], chain: Chain) -> Result<()> {
+    // Create dataset
+    bigquery::create_dataset(chain_name).await?;
+
+    // Create all required tables
+    for table in ["blocks", "logs", "transactions", "traces"] {
+        if datasets.contains(&table.to_owned()) {
+            bigquery::create_table(chain_name, table, chain).await?;
+        }
+    }
+
+    let (client, project_id) = &*bigquery::get_client().await?;
+    
+    // Verify dataset
+    if !bigquery::verify_dataset(client, project_id, chain_name).await? {
+        return Err(anyhow!("Dataset verification failed after creation"));
+    }
+
+    // Verify all tables
+    for table in datasets {
+        if !bigquery::verify_table(client, project_id, chain_name, table).await? {
+            return Err(anyhow!("Table '{}' verification failed after creation", table));
+        }
+    }
+
+    info!("Storage initialization complete - all datasets and tables verified");
+    Ok(())
 }

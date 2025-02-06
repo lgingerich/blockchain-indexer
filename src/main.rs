@@ -22,10 +22,17 @@ use crate::metrics::Metrics;
 use crate::models::common::Chain;
 use crate::models::datasets::blocks::RpcHeaderData;
 use crate::models::errors::RpcError;
-use crate::storage::setup_channels;
+use crate::storage::{DatasetType, setup_channels};
 use crate::utils::load_config;
 
 const SLEEP_DURATION: u64 = 1000; // ms
+
+
+
+// 		- fail and exit if datasets and tables don't get properly created
+		// - make "type" lowercase in traces
+
+
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -94,6 +101,9 @@ async fn main() -> Result<()> {
     let chain = Chain::from_chain_id(chain_id)?;
     info!("Chain ID: {:?}", chain_id);
 
+    // Create dataset and tables. Ensure everything is ready before proceeding.
+    storage::initialize_storage(chain_name.as_str(), &datasets, chain).await?;
+
     // Set up channels
     let channels = setup_channels(chain_name.as_str()).await?;
 
@@ -108,15 +118,6 @@ async fn main() -> Result<()> {
             }
         }
     });
-
-    // Create dataset and tables. Handles existing datasets and tables.
-    let _ = storage::bigquery::create_dataset_with_retry(chain_name.as_str()).await;
-    for table in ["blocks", "logs", "transactions", "traces"] {
-        if datasets.contains(&table.to_owned()) {
-            let _ =
-                storage::bigquery::create_table_with_retry(chain_name.as_str(), table, chain).await;
-        }
-    }
 
     // Get last processed block number from storage
     // Use the maximum of last_processed_block + 1 and start_block (if specified)
@@ -296,55 +297,18 @@ async fn main() -> Result<()> {
         );
 
         // Send transformed data through channels for saving to storage
-        if datasets.contains(&"blocks".to_string()) {
-            if let Err(e) = channels
-                .blocks_tx
-                .send((
-                    transformed_data.blocks,
-                    block_number_to_process.as_number().unwrap(),
-                ))
-                .await
-            {
-                error!("Failed to send blocks batch to channel: {}", e);
-            }
-        }
+        let dataset_mappings = [
+            ("blocks", DatasetType::Blocks(transformed_data.blocks)),
+            ("transactions", DatasetType::Transactions(transformed_data.transactions)),
+            ("logs", DatasetType::Logs(transformed_data.logs)),
+            ("traces", DatasetType::Traces(transformed_data.traces)),
+        ];
 
-        if datasets.contains(&"transactions".to_string()) {
-            if let Err(e) = channels
-                .transactions_tx
-                .send((
-                    transformed_data.transactions,
-                    block_number_to_process.as_number().unwrap(),
-                ))
-                .await
-            {
-                error!("Failed to send transactions batch to channel: {}", e);
-            }
-        }
-
-        if datasets.contains(&"logs".to_string()) {
-            if let Err(e) = channels
-                .logs_tx
-                .send((
-                    transformed_data.logs,
-                    block_number_to_process.as_number().unwrap(),
-                ))
-                .await
-            {
-                error!("Failed to send logs batch to channel: {}", e);
-            }
-        }
-
-        if datasets.contains(&"traces".to_string()) {
-            if let Err(e) = channels
-                .traces_tx
-                .send((
-                    transformed_data.traces,
-                    block_number_to_process.as_number().unwrap(),
-                ))
-                .await
-            {
-                error!("Failed to send traces batch to channel: {}", e);
+        for (dataset_name, dataset) in dataset_mappings {
+            if datasets.contains(&dataset_name.to_string()) {
+                channels
+                    .send_dataset(dataset, block_number_to_process.as_number().unwrap())
+                    .await;
             }
         }
 
