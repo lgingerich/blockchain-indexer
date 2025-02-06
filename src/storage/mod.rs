@@ -21,7 +21,13 @@ use crate::models::common::Chain;
 const MAX_CHANNEL_CAPACITY: usize = 64;
 const CAPACITY_THRESHOLD: f32 = 0.2; // Apply backpressure when current capacity is 20% of max
 
-// TODO: Improve/condense this whole file
+#[derive(Debug)]
+pub enum DatasetType {
+    Blocks(Vec<TransformedBlockData>),
+    Transactions(Vec<TransformedTransactionData>),
+    Logs(Vec<TransformedLogData>),
+    Traces(Vec<TransformedTraceData>),
+}
 
 #[derive(Clone)]
 pub struct DataChannels {
@@ -171,6 +177,31 @@ impl DataChannels {
         }
 
         Ok(true)
+    }
+
+    pub async fn send_dataset(&self, dataset_type: DatasetType, block_number: u64) {
+        match dataset_type {
+            DatasetType::Blocks(data) => {
+                if let Err(e) = self.blocks_tx.send((data, block_number)).await {
+                    error!("Failed to send blocks batch to channel: {}", e);
+                }
+            }
+            DatasetType::Transactions(data) => {
+                if let Err(e) = self.transactions_tx.send((data, block_number)).await {
+                    error!("Failed to send transactions batch to channel: {}", e);
+                }
+            }
+            DatasetType::Logs(data) => {
+                if let Err(e) = self.logs_tx.send((data, block_number)).await {
+                    error!("Failed to send logs batch to channel: {}", e);
+                }
+            }
+            DatasetType::Traces(data) => {
+                if let Err(e) = self.traces_tx.send((data, block_number)).await {
+                    error!("Failed to send traces batch to channel: {}", e);
+                }
+            }
+        }
     }
 }
 
