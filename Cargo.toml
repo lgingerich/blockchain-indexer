@@ -10,6 +10,7 @@ alloy-eips = "0.7.2"
 alloy-network = "0.7.2"
 alloy-primitives = "0.8.14"
 alloy-provider = { version = "0.7.2", features = ["debug-api"] }
+alloy-rpc-types = "0.11.0"
 alloy-rpc-types-debug = "0.7.2"
 alloy-rpc-types-eth = "0.7.2"
 alloy-rpc-types-trace = "0.7.2"

@@ -682,6 +682,15 @@ pub fn trace_schema(chain: Chain) -> TableSchema {
             ..Default::default()
         },
         TableFieldSchema {
+            name: "trace_address".to_string(),
+            data_type: TableFieldType::String,
+            mode: Some(TableFieldMode::Repeated),
+            description: Some(
+                "Array of indices defining the trace's position in the call tree".to_string(),
+            ),
+            ..Default::default()
+        },
+        TableFieldSchema {
             name: "from".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Required),

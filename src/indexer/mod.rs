@@ -10,6 +10,8 @@ use alloy_rpc_types_trace::{
     common::TraceResult,
     geth::{GethDebugTracingOptions, GethTrace},
 };
+
+use alloy_primitives::FixedBytes;
 use alloy_transport::Transport;
 use anyhow::{anyhow, Result};
 use opentelemetry::KeyValue;
@@ -254,9 +256,70 @@ where
     .await
 }
 
-pub async fn debug_trace_block_by_number<T, N>(
+// pub async fn debug_trace_block_by_number<T, N>(
+//     provider: &impl DebugApi<N, T>,
+//     block_number: BlockNumberOrTag,
+//     trace_options: GethDebugTracingOptions,
+//     metrics: Option<&Metrics>,
+// ) -> Result<Option<Vec<TraceResult<GethTrace, String>>>>
+// where
+//     T: Transport + Clone,
+//     N: Network,
+// {
+//     let retry_config = RetryConfig::default();
+//     retry(
+//         || async {
+//             let start = std::time::Instant::now();
+
+//             if let Some(metrics) = metrics {
+//                 metrics.rpc_requests.add(
+//                     1,
+//                     &[
+//                         KeyValue::new("chain", metrics.chain_name.clone()),
+//                         KeyValue::new("method", "debug_trace_block_by_number"),
+//                     ],
+//                 );
+//             }
+
+//             let result = provider
+//                 .debug_trace_block_by_number(block_number, trace_options.clone())
+//                 .await;
+
+//             // Record metrics if enabled
+//             if let Some(metrics) = metrics {
+//                 metrics.rpc_latency.record(
+//                     start.elapsed().as_secs_f64(),
+//                     &[
+//                         KeyValue::new("chain", metrics.chain_name.clone()),
+//                         KeyValue::new("method", "debug_trace_block_by_number"),
+//                     ],
+//                 );
+//                 if result.is_err() {
+//                     metrics.rpc_errors.add(
+//                         1,
+//                         &[
+//                             KeyValue::new("chain", metrics.chain_name.clone()),
+//                             KeyValue::new("method", "debug_trace_block_by_number"),
+//                         ],
+//                     );
+//                 }
+//             }
+
+//             result.map_err(|e| anyhow!("RPC error: {}", e))
+//         },
+//         &retry_config,
+//         &format!(
+//             "debug_trace_block_by_number({})",
+//             block_number.as_number().unwrap_or_default()
+//         ),
+//     )
+//     .await
+//     .map(Some)
+// }
+
+pub async fn debug_trace_transaction_by_hash<T, N>(
     provider: &impl DebugApi<N, T>,
-    block_number: BlockNumberOrTag,
+    transaction_hashes: Vec<FixedBytes<32>>,
     trace_options: GethDebugTracingOptions,
     metrics: Option<&Metrics>,
 ) -> Result<Option<Vec<TraceResult<GethTrace, String>>>>
@@ -274,14 +337,39 @@ where
                     1,
                     &[
                         KeyValue::new("chain", metrics.chain_name.clone()),
-                        KeyValue::new("method", "debug_trace_block_by_number"),
+                        KeyValue::new("method", "debug_trace_transaction"),
                     ],
                 );
             }
 
-            let result = provider
-                .debug_trace_block_by_number(block_number, trace_options.clone())
-                .await;
+            // Collect all transaction traces
+            let mut traces = Vec::new();
+            for tx_hash in &transaction_hashes {
+                let result = provider
+                    .debug_trace_transaction(*tx_hash, trace_options.clone())
+                    .await;
+
+                match result {
+                    Ok(trace) => {
+                        traces.push(TraceResult::Success {
+                            result: trace,
+                            tx_hash: Some(*tx_hash),
+                        });
+                    }
+                    Err(e) => {
+                        if let Some(metrics) = metrics {
+                            metrics.rpc_errors.add(
+                                1,
+                                &[
+                                    KeyValue::new("chain", metrics.chain_name.clone()),
+                                    KeyValue::new("method", "debug_trace_transaction"),
+                                ],
+                            );
+                        }
+                        return Err(anyhow!("RPC error tracing transaction {}: {}", tx_hash, e));
+                    }
+                }
+            }
 
             // Record metrics if enabled
             if let Some(metrics) = metrics {
@@ -289,27 +377,15 @@ where
                     start.elapsed().as_secs_f64(),
                     &[
                         KeyValue::new("chain", metrics.chain_name.clone()),
-                        KeyValue::new("method", "debug_trace_block_by_number"),
+                        KeyValue::new("method", "debug_trace_transaction"),
                     ],
                 );
-                if result.is_err() {
-                    metrics.rpc_errors.add(
-                        1,
-                        &[
-                            KeyValue::new("chain", metrics.chain_name.clone()),
-                            KeyValue::new("method", "debug_trace_block_by_number"),
-                        ],
-                    );
-                }
             }
 
-            result.map_err(|e| anyhow!("RPC error: {}", e))
+            Ok(traces)
         },
         &retry_config,
-        &format!(
-            "debug_trace_block_by_number({})",
-            block_number.as_number().unwrap_or_default()
-        ),
+        "debug_trace_transactions",
     )
     .await
     .map(Some)

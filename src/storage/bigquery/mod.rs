@@ -122,7 +122,10 @@ pub async fn create_table(chain_name: &str, table_id: &str, chain: Chain) -> Res
 
     // Check if table exists
     if verify_table(client, project_id, chain_name, table_id).await? {
-        info!("Table '{}.{}' already exists and is accessible", chain_name, table_id);
+        info!(
+            "Table '{}.{}' already exists and is accessible",
+            chain_name, table_id
+        );
         return Ok(());
     }
 
