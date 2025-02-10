@@ -45,6 +45,7 @@ impl TraceTransformer for ParsedData {
                     block_number: common_data.block_number,
                     tx_hash: common_data.tx_hash,
                     r#type: common_data.r#type.clone(),
+                    trace_address: common_data.trace_address.clone(),
                     from: common_data.from,
                     to: common_data.to,
                     value: common_data.value.clone(),

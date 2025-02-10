@@ -53,45 +53,60 @@ fn flatten_call_frames(
     chain: Chain,
     block_number: u64,
 ) -> Vec<RpcTraceData> {
-    let mut traces = Vec::new();
+    // Helper function to process frame and its children with trace address
+    fn process_frame_with_address(
+        frame: CallFrame,
+        tx_hash: Option<FixedBytes<32>>,
+        chain: Chain,
+        block_number: u64,
+        trace_address: Vec<usize>,
+    ) -> Vec<RpcTraceData> {
+        let mut traces = Vec::new();
 
-    let common_data = CommonRpcTraceData {
-        block_number,
-        tx_hash,
-        r#type: frame.typ.to_lowercase(),
-        from: frame.from,
-        to: frame.to,
-        value: frame.value.map(|v| v.to_string()), // Convert from Uint<256, 4> to String for proper serialization
-        gas: frame.gas.to_string(), // Convert from Uint<256, 4> to String for proper serialization
-        gas_used: frame.gas_used.to_string(), // Convert from Uint<256, 4> to String for proper serialization
-        input: frame.input,
-        output: frame.output,
-        error: frame.error,
-        revert_reason: frame.revert_reason,
-        logs: frame.logs,
-    };
-
-    let trace_data = match chain {
-        Chain::Ethereum => RpcTraceData::Ethereum(EthereumRpcTraceData {
-            common: common_data,
-        }),
-        Chain::ZKsync => RpcTraceData::ZKsync(ZKsyncRpcTraceData {
-            common: common_data,
-        }),
-    };
-
-    // Add the current frame
-    traces.push(trace_data);
-
-    // Recursively process nested calls
-    for nested_call in frame.calls {
-        traces.extend(flatten_call_frames(
-            nested_call,
-            tx_hash,
-            chain,
+        let common_data = CommonRpcTraceData {
             block_number,
-        ));
+            tx_hash,
+            r#type: frame.typ.to_lowercase(),
+            trace_address: trace_address.clone(),
+            from: frame.from,
+            to: frame.to,
+            value: frame.value.map(|v| v.to_string()), // Convert from Uint<256, 4> to String for proper serialization
+            gas: frame.gas.to_string(), // Convert from Uint<256, 4> to String for proper serialization
+            gas_used: frame.gas_used.to_string(), // Convert from Uint<256, 4> to String for proper serialization
+            input: frame.input,
+            output: frame.output,
+            error: frame.error,
+            revert_reason: frame.revert_reason,
+            logs: frame.logs,
+        };
+
+        let trace_data = match chain {
+            Chain::Ethereum => RpcTraceData::Ethereum(EthereumRpcTraceData {
+                common: common_data,
+            }),
+            Chain::ZKsync => RpcTraceData::ZKsync(ZKsyncRpcTraceData {
+                common: common_data,
+            }),
+        };
+
+        traces.push(trace_data);
+
+        // Process children with updated trace_address
+        for (i, nested_call) in frame.calls.into_iter().enumerate() {
+            let mut child_address = trace_address.clone();
+            child_address.push(i);
+            traces.extend(process_frame_with_address(
+                nested_call,
+                tx_hash,
+                chain,
+                block_number,
+                child_address,
+            ));
+        }
+
+        traces
     }
 
-    traces
+    // Start with empty trace_address for top-level frame
+    process_frame_with_address(frame, tx_hash, chain, block_number, Vec::new())
 }

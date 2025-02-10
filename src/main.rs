@@ -4,8 +4,10 @@ mod models;
 mod storage;
 mod utils;
 
+use alloy_consensus::TxEnvelope;
 use alloy_eips::{BlockId, BlockNumberOrTag};
-use alloy_network::{primitives::BlockTransactionsKind, AnyNetwork};
+use alloy_network::{primitives::BlockTransactionsKind, AnyNetwork, AnyTxEnvelope};
+use alloy_primitives::FixedBytes;
 use alloy_provider::ProviderBuilder;
 use alloy_rpc_types_trace::geth::{
     GethDebugBuiltInTracerType, GethDebugTracerConfig, GethDebugTracerType,
@@ -22,17 +24,10 @@ use crate::metrics::Metrics;
 use crate::models::common::Chain;
 use crate::models::datasets::blocks::RpcHeaderData;
 use crate::models::errors::RpcError;
-use crate::storage::{DatasetType, setup_channels};
+use crate::storage::{setup_channels, DatasetType};
 use crate::utils::load_config;
 
 const SLEEP_DURATION: u64 = 1000; // ms
-
-
-
-// 		- fail and exit if datasets and tables don't get properly created
-		// - make "type" lowercase in traces
-
-
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -48,6 +43,7 @@ async fn main() -> Result<()> {
     let config = match load_config("config.yml") {
         Ok(config) => {
             info!("Config loaded successfully");
+            info!("{:?}", config);
             config
         }
         Err(e) => {
@@ -249,10 +245,46 @@ async fn main() -> Result<()> {
                 timeout: Some("10s".to_string()),
             };
             // Get Geth debug traces by block number
+            // Not all nodes include tx_hash in the trace response, so I get traces by transaction hash instead (function below)
+            // traces = Some(
+            //     indexer::debug_trace_block_by_number(
+            //         &provider,
+            //         block_number_to_process,
+            //         trace_options,
+            //         metrics.as_ref(),
+            //     )
+            //     .await?
+            //     .ok_or_else(|| anyhow!("Provider returned no traces"))?,
+            // );
+
+            // Get Geth traces by transaction hash
+            let tx_hashes: Vec<FixedBytes<32>> = if let Some(block_data) = &block {
+                block_data
+                    .transactions
+                    .txns()
+                    .map(|transaction| {
+                        match &transaction.inner.inner {
+                            AnyTxEnvelope::Ethereum(inner) => {
+                                match inner {
+                                    TxEnvelope::Legacy(signed) => *signed.hash(),
+                                    TxEnvelope::Eip2930(signed) => *signed.hash(),
+                                    TxEnvelope::Eip1559(signed) => *signed.hash(),
+                                    TxEnvelope::Eip4844(signed) => *signed.hash(),
+                                    TxEnvelope::Eip7702(signed) => *signed.hash(),
+                                    _ => FixedBytes::<32>::ZERO, // Should never happen
+                                }
+                            }
+                            AnyTxEnvelope::Unknown(unknown) => unknown.hash,
+                        }
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            };
             traces = Some(
-                indexer::debug_trace_block_by_number(
+                indexer::debug_trace_transaction_by_hash(
                     &provider,
-                    block_number_to_process,
+                    tx_hashes,
                     trace_options,
                     metrics.as_ref(),
                 )
@@ -299,7 +331,10 @@ async fn main() -> Result<()> {
         // Send transformed data through channels for saving to storage
         let dataset_mappings = [
             ("blocks", DatasetType::Blocks(transformed_data.blocks)),
-            ("transactions", DatasetType::Transactions(transformed_data.transactions)),
+            (
+                "transactions",
+                DatasetType::Transactions(transformed_data.transactions),
+            ),
             ("logs", DatasetType::Logs(transformed_data.logs)),
             ("traces", DatasetType::Traces(transformed_data.traces)),
         ];

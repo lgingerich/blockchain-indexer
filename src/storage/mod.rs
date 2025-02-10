@@ -11,12 +11,12 @@ use tokio::time::{Duration, Instant};
 use tracing::{debug, error, info};
 
 use crate::metrics::Metrics;
+use crate::models::common::Chain;
 use crate::models::datasets::blocks::TransformedBlockData;
 use crate::models::datasets::logs::TransformedLogData;
 use crate::models::datasets::traces::TransformedTraceData;
 use crate::models::datasets::transactions::TransformedTransactionData;
 use crate::storage::bigquery::insert_data;
-use crate::models::common::Chain;
 
 const MAX_CHANNEL_CAPACITY: usize = 64;
 const CAPACITY_THRESHOLD: f32 = 0.2; // Apply backpressure when current capacity is 20% of max
@@ -387,7 +387,7 @@ pub async fn initialize_storage(chain_name: &str, datasets: &[String], chain: Ch
     }
 
     let (client, project_id) = &*bigquery::get_client().await?;
-    
+
     // Verify dataset
     if !bigquery::verify_dataset(client, project_id, chain_name).await? {
         return Err(anyhow!("Dataset verification failed after creation"));
@@ -396,7 +396,10 @@ pub async fn initialize_storage(chain_name: &str, datasets: &[String], chain: Ch
     // Verify all tables
     for table in datasets {
         if !bigquery::verify_table(client, project_id, chain_name, table).await? {
-            return Err(anyhow!("Table '{}' verification failed after creation", table));
+            return Err(anyhow!(
+                "Table '{}' verification failed after creation",
+                table
+            ));
         }
     }
 
