@@ -1,5 +1,7 @@
+use alloy_consensus::TxEnvelope;
 use alloy_eips::BlockNumberOrTag;
-use alloy_network::AnyNetwork;
+use alloy_network::{AnyNetwork, AnyTxEnvelope};
+use alloy_primitives::FixedBytes;
 use alloy_provider::ProviderBuilder;
 use alloy_rpc_types_trace::geth::{
     GethDebugBuiltInTracerType, GethDebugTracerConfig, GethDebugTracerType,
@@ -61,18 +63,22 @@ async fn test_indexing_pipeline() -> Result<()> {
             let block_number = BlockNumberOrTag::Number(block_number);
 
             // Fetch all data
-            let block = indexer::get_block_by_number(
-                &provider,
-                block_number,
-                alloy_network::primitives::BlockTransactionsKind::Full,
-                None,
-            )
-            .await?
-            .expect("block should exist");
-
-            let receipts = indexer::get_block_receipts(&provider, block_number.into(), None)
+            let block = Some(
+                indexer::get_block_by_number(
+                    &provider,
+                    block_number,
+                    alloy_network::primitives::BlockTransactionsKind::Full,
+                    None,
+                )
                 .await?
-                .expect("receipts should exist");
+                .expect("block should exist"),
+            );
+
+            let receipts = Some(
+                indexer::get_block_receipts(&provider, block_number.into(), None)
+                    .await?
+                    .expect("receipts should exist"),
+            );
 
             let trace_options = GethDebugTracingOptions {
                 config: GethDefaultTracingOptions::default(),
@@ -82,20 +88,43 @@ async fn test_indexing_pipeline() -> Result<()> {
                 tracer_config: GethDebugTracerConfig(serde_json::json!({"onlyTopCall": false})),
                 timeout: Some("10s".to_string()),
             };
-
-            let traces =
-                indexer::debug_trace_block_by_number(&provider, block_number, trace_options, None)
+            let tx_hashes: Vec<FixedBytes<32>> = if let Some(block_data) = &block {
+                block_data
+                    .transactions
+                    .txns()
+                    .map(|transaction| {
+                        match &transaction.inner.inner {
+                            AnyTxEnvelope::Ethereum(inner) => {
+                                match inner {
+                                    TxEnvelope::Legacy(signed) => *signed.hash(),
+                                    TxEnvelope::Eip2930(signed) => *signed.hash(),
+                                    TxEnvelope::Eip1559(signed) => *signed.hash(),
+                                    TxEnvelope::Eip4844(signed) => *signed.hash(),
+                                    TxEnvelope::Eip7702(signed) => *signed.hash(),
+                                    _ => FixedBytes::<32>::ZERO, // Should never happen
+                                }
+                            }
+                            AnyTxEnvelope::Unknown(unknown) => unknown.hash,
+                        }
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            let traces = Some(
+                indexer::debug_trace_transaction_by_hash(&provider, tx_hashes, trace_options, None)
                     .await?
-                    .expect("traces should exist");
+                    .expect("traces should exist"),
+            );
 
             // Parse the raw data
             let parsed_data = indexer::parse_data(
                 chain,
                 chain_id,
                 block_number.as_number().unwrap(),
-                Some(block),
-                Some(receipts),
-                Some(traces),
+                block,
+                receipts,
+                traces,
             )
             .await?;
 
