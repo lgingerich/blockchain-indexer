@@ -149,6 +149,8 @@ async fn main() -> Result<()> {
     println!();
     info!("========================= STARTING INDEXER =========================");
 
+    let start_time = Instant::now();
+
     loop {
         // Check for shutdown signal (non-blocking)
         if shutdown_signal.try_recv().is_ok() {
@@ -388,6 +390,9 @@ async fn main() -> Result<()> {
                 // Pass the end block to shutdown so it can verify completion
                 channels.shutdown(Some(end)).await?;
                 info!("All channels flushed, shutting down.");
+                let total_runtime = start_time.elapsed();
+                info!("Total runtime: {:.2?}", total_runtime);
+                info!("Blocks processed per second: {:.2?}", (end_block.unwrap_or(0) as f64 - start_block.unwrap_or(0) as f64) / total_runtime.as_secs_f64());
                 break Ok(());
             }
         }

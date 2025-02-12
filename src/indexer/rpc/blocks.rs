@@ -21,12 +21,12 @@ use crate::models::errors::BlockError;
 use crate::utils::hex_to_u64;
 
 pub trait BlockParser {
-    fn parse_header(self, chain: Chain) -> Result<Vec<RpcHeaderData>>;
-    fn parse_transactions(self, chain: Chain) -> Result<Vec<RpcTransactionData>>;
+    fn parse_header(&self, chain: Chain) -> Result<Vec<RpcHeaderData>>;
+    fn parse_transactions(&self, chain: Chain) -> Result<Vec<RpcTransactionData>>;
 }
 
 impl BlockParser for AnyRpcBlock {
-    fn parse_header(self, chain: Chain) -> Result<Vec<RpcHeaderData>> {
+    fn parse_header(&self, chain: Chain) -> Result<Vec<RpcHeaderData>> {
         let inner = self.header.inner.clone();
         let other = self.other.clone();
 
@@ -88,7 +88,7 @@ impl BlockParser for AnyRpcBlock {
         Ok(vec![header])
     }
 
-    fn parse_transactions(self, chain: Chain) -> Result<Vec<RpcTransactionData>> {
+    fn parse_transactions(&self, chain: Chain) -> Result<Vec<RpcTransactionData>> {
         match self.transactions {
             BlockTransactions::Full(_) => {
                 Ok(self

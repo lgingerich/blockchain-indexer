@@ -15,12 +15,12 @@ use crate::models::errors::ReceiptError;
 use crate::utils::hex_to_u64;
 
 pub trait ReceiptParser {
-    fn parse_transaction_receipts(self, chain: Chain) -> Result<Vec<RpcTransactionReceiptData>>;
-    fn parse_log_receipts(self, chain: Chain) -> Result<Vec<RpcLogReceiptData>>;
+    fn parse_transaction_receipts(&self, chain: Chain) -> Result<Vec<RpcTransactionReceiptData>>;
+    fn parse_log_receipts(&self, chain: Chain) -> Result<Vec<RpcLogReceiptData>>;
 }
 
 impl ReceiptParser for Vec<AnyTransactionReceipt> {
-    fn parse_transaction_receipts(self, chain: Chain) -> Result<Vec<RpcTransactionReceiptData>> {
+    fn parse_transaction_receipts(&self, chain: Chain) -> Result<Vec<RpcTransactionReceiptData>> {
         self.into_iter()
             .map(|receipt| {
                 // Access the inner ReceiptWithBloom through the AnyReceiptEnvelope
@@ -46,7 +46,7 @@ impl ReceiptParser for Vec<AnyTransactionReceipt> {
                     cumulative_gas_used: receipt_with_bloom.receipt.cumulative_gas_used,
                     blob_gas_price: receipt.inner.blob_gas_price,
                     blob_gas_used: receipt.inner.blob_gas_used,
-                    authorization_list: receipt.inner.authorization_list.unwrap_or_default(),
+                    authorization_list: receipt.inner.authorization_list.clone().unwrap_or_default(),
                     logs_bloom: receipt_with_bloom.logs_bloom,
                 };
 
@@ -87,7 +87,7 @@ impl ReceiptParser for Vec<AnyTransactionReceipt> {
             .collect()
     }
 
-    fn parse_log_receipts(self, chain: Chain) -> Result<Vec<RpcLogReceiptData>> {
+    fn parse_log_receipts(&self, chain: Chain) -> Result<Vec<RpcLogReceiptData>> {
         self.into_iter()
             .flat_map(|receipt| {
                 let receipt_with_bloom = &receipt.inner.inner.inner;
