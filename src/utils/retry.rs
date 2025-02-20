@@ -58,10 +58,7 @@ where
                 // Exponential backoff with full jitter
                 // https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
                 let next_delay = delay as f64 * config.exponential;
-                delay = std::cmp::min(
-                    config.max_delay_ms,
-                    (fastrand::f64() * next_delay) as u64,
-                );
+                delay = std::cmp::min(config.max_delay_ms, (fastrand::f64() * next_delay) as u64);
                 attempt += 1;
             }
         }

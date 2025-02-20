@@ -365,7 +365,7 @@ where
                             );
                             continue;
                         }
-                        
+
                         if let Some(metrics) = metrics {
                             metrics.rpc_errors.add(
                                 1,

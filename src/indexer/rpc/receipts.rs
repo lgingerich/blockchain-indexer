@@ -70,8 +70,8 @@ impl ReceiptParser for Vec<AnyTransactionReceipt> {
 
                         RpcTransactionReceiptData::ZKsync(ZKsyncRpcTransactionReceiptData {
                             common,
-                            l1_batch_number: l1_batch_number,
-                            l1_batch_tx_index: l1_batch_tx_index,
+                            l1_batch_number,
+                            l1_batch_tx_index,
                         })
                     }
                 };
