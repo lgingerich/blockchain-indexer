@@ -36,15 +36,14 @@ fn strip_html(error: &str) -> String {
         error
             .lines()
             .map(|line| line.trim())
-            .filter(|line| {
-                !line.starts_with('<') && 
-                !line.ends_with('>') && 
-                !line.is_empty() &&
-                !line.starts_with("<!") &&
-                *line != "html" &&
-                *line != "body"
+            .find(|line| {
+                !line.starts_with('<')
+                    && !line.ends_with('>')
+                    && !line.is_empty()
+                    && !line.starts_with("<!")
+                    && *line != "html"
+                    && *line != "body"
             })
-            .next()
             .unwrap_or(error)
             .to_string()
     } else {
