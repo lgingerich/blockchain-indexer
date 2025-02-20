@@ -28,3 +28,27 @@ pub fn load_config<P: AsRef<Path>>(file_name: P) -> Result<Config> {
 
     Ok(config)
 }
+
+fn strip_html(error: &str) -> String {
+    // If the error contains HTML tags, extract just the text content
+    if error.contains("<!doctype html>") || error.contains("<html>") {
+        // Remove all HTML tags and return the first non-empty line of text
+        error
+            .lines()
+            .map(|line| line.trim())
+            .filter(|line| {
+                !line.starts_with('<') && 
+                !line.ends_with('>') && 
+                !line.is_empty() &&
+                !line.starts_with("<!") &&
+                *line != "html" &&
+                *line != "body"
+            })
+            .next()
+            .unwrap_or(error)
+            .to_string()
+    } else {
+        // Return original error if no HTML
+        error.to_string()
+    }
+}
