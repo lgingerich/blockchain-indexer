@@ -16,6 +16,7 @@ use alloy_transport::Transport;
 use anyhow::{anyhow, Result};
 use opentelemetry::KeyValue;
 use std::collections::HashMap;
+use tracing::warn;
 
 use crate::indexer::rpc::{blocks::BlockParser, receipts::ReceiptParser, traces::TraceParser};
 use crate::indexer::transformations::{
@@ -357,6 +358,14 @@ where
                         });
                     }
                     Err(e) => {
+                        if e.to_string().contains("-32008") {
+                            warn!(
+                                "Skipping oversized trace for transaction {}: {}",
+                                tx_hash, e
+                            );
+                            continue;
+                        }
+
                         if let Some(metrics) = metrics {
                             metrics.rpc_errors.add(
                                 1,
