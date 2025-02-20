@@ -3,6 +3,8 @@ use std::{future::Future, time::Duration};
 use tokio::time::sleep;
 use tracing::{error, warn};
 
+use crate::utils::strip_html;
+
 pub struct RetryConfig {
     pub max_attempts: u32,
     pub base_delay_ms: u64,
@@ -38,12 +40,12 @@ where
                         "Operation '{}' failed after {} attempts. Final error: {}",
                         context, attempt, e
                     );
-                    return Err(anyhow!(e).context(format!("Failed after {} attempts", attempt)));
+                    return Err(anyhow!(strip_html(&e.to_string())).context(format!("Failed after {} attempts", attempt)));
                 }
 
                 warn!(
                     "Attempt {}/{} for '{}' failed: {}. Retrying in {}ms...",
-                    attempt, config.max_attempts, context, e, delay
+                    attempt, config.max_attempts, context, strip_html(&e.to_string()), delay
                 );
 
                 sleep(Duration::from_millis(delay)).await;
