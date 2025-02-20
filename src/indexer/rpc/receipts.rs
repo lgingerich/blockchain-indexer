@@ -11,7 +11,6 @@ use crate::models::datasets::transactions::{
     CommonRpcTransactionReceiptData, EthereumRpcTransactionReceiptData, RpcTransactionReceiptData,
     ZKsyncRpcTransactionReceiptData,
 };
-use crate::models::errors::ReceiptError;
 use crate::utils::hex_to_u64;
 
 pub trait ReceiptParser {
@@ -57,28 +56,22 @@ impl ReceiptParser for Vec<AnyTransactionReceipt> {
                         })
                     }
                     Chain::ZKsync => {
+                        let l1_batch_number = receipt
+                            .other
+                            .get_deserialized::<String>("l1BatchNumber")
+                            .and_then(|result| result.ok())
+                            .and_then(hex_to_u64);
+
+                        let l1_batch_tx_index = receipt
+                            .other
+                            .get_deserialized::<String>("l1BatchTxIndex")
+                            .and_then(|result| result.ok())
+                            .and_then(hex_to_u64);
+
                         RpcTransactionReceiptData::ZKsync(ZKsyncRpcTransactionReceiptData {
                             common,
-                            l1_batch_number: Some(
-                                receipt
-                                    .other
-                                    .get_deserialized::<String>("l1BatchNumber")
-                                    .and_then(|result| result.ok())
-                                    .and_then(hex_to_u64)
-                                    .ok_or(ReceiptError::MissingField {
-                                        field: "l1BatchNumber".to_string(),
-                                    })?,
-                            ),
-                            l1_batch_tx_index: Some(
-                                receipt
-                                    .other
-                                    .get_deserialized::<String>("l1BatchTxIndex")
-                                    .and_then(|result| result.ok())
-                                    .and_then(hex_to_u64)
-                                    .ok_or(ReceiptError::MissingField {
-                                        field: "l1BatchTxIndex".to_string(),
-                                    })?,
-                            ),
+                            l1_batch_number: l1_batch_number,
+                            l1_batch_tx_index: l1_batch_tx_index,
                         })
                     }
                 };
