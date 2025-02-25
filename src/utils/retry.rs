@@ -79,17 +79,18 @@ where
 
                 sleep(Duration::from_millis(delay)).await;
 
-                // Exponential backoff with full jitter
-                // https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
-                let next_delay = delay as f64 * config.exponential;
-                let jittered_delay = (fastrand::f64() * next_delay) as u64;
-                
-                // Apply minimum delay to ensure we don't back off too aggressively
-                delay = std::cmp::min(
-                    config.max_delay_ms, 
-                    std::cmp::max(config.min_delay_ms, jittered_delay)
+                // Decorrelated jitter backoff algorithm
+                // This ensures each delay is greater than the previous one
+                // Formula: min(max_delay, max(min_delay, random(min_delay, prev_delay * 3)))
+                let next_delay = std::cmp::min(
+                    config.max_delay_ms,
+                    std::cmp::max(
+                        config.min_delay_ms,
+                        delay + (fastrand::u64(0..=delay * 2))
+                    )
                 );
                 
+                delay = next_delay;
                 attempt += 1;
             }
         }
