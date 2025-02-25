@@ -53,7 +53,7 @@ async fn test_indexing_pipeline() -> Result<()> {
             .on_http(rpc_url.parse::<Url>()?);
 
         // Get chain ID
-        let chain_id = indexer::get_chain_id(&provider, None).await?;
+        let chain_id = indexer::get_chain_id(&provider, None, None).await?;
         assert_eq!(chain, Chain::from_chain_id(chain_id)?);
 
         for (block_number, expected_blocks, expected_txs, expected_logs, expected_traces) in
@@ -69,13 +69,14 @@ async fn test_indexing_pipeline() -> Result<()> {
                     block_number,
                     alloy_network::primitives::BlockTransactionsKind::Full,
                     None,
+                    None,
                 )
                 .await?
                 .expect("block should exist"),
             );
 
             let receipts = Some(
-                indexer::get_block_receipts(&provider, block_number.into(), None)
+                indexer::get_block_receipts(&provider, block_number.into(), None, None)
                     .await?
                     .expect("receipts should exist"),
             );
@@ -112,7 +113,7 @@ async fn test_indexing_pipeline() -> Result<()> {
                 Vec::new()
             };
             let traces = Some(
-                indexer::debug_trace_transaction_by_hash(&provider, tx_hashes, trace_options, None)
+                indexer::debug_trace_transaction_by_hash(&provider, tx_hashes, trace_options, None, None)
                     .await?
                     .expect("traces should exist"),
             );
