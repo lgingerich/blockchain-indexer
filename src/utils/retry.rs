@@ -9,6 +9,7 @@ pub struct RetryConfig {
     pub max_attempts: u32,
     pub base_delay_ms: u64,
     pub max_delay_ms: u64,
+    pub min_delay_ms: u64,
     pub exponential: f64,
 }
 
@@ -17,6 +18,7 @@ impl Default for RetryConfig {
         Self {
             max_attempts: 8,
             base_delay_ms: 1_000,
+            min_delay_ms: 500,
             max_delay_ms: 60_000,
             exponential: 2.0,
         }
@@ -58,7 +60,14 @@ where
                 // Exponential backoff with full jitter
                 // https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
                 let next_delay = delay as f64 * config.exponential;
-                delay = std::cmp::min(config.max_delay_ms, (fastrand::f64() * next_delay) as u64);
+                let jittered_delay = (fastrand::f64() * next_delay) as u64;
+                
+                // Apply minimum delay to ensure we don't back off too aggressively
+                delay = std::cmp::min(
+                    config.max_delay_ms, 
+                    std::cmp::max(config.min_delay_ms, jittered_delay)
+                );
+                
                 attempt += 1;
             }
         }
