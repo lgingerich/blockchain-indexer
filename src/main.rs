@@ -160,6 +160,14 @@ async fn main() -> Result<()> {
         start_block.unwrap_or(0)
     };
 
+    // Check if the starting block is already beyond the end block
+    if let Some(end) = end_block {
+        if block_number > end {
+            info!("Starting block number {} is greater than end block {}, nothing to process.", block_number, end);
+            return Ok(());
+        }
+    }
+
     info!("Starting block number: {:?}", block_number);
 
     // Initialize data for loop
@@ -187,6 +195,25 @@ async fn main() -> Result<()> {
             // Shutdown rate limiter
             rate_limiter.shutdown();
             break Ok(());
+        }
+
+        // Check if we've reached the end block (if specified) before processing
+        if let Some(end) = end_block {
+            if block_number > end {
+                info!(
+                    "Reached end block {}, waiting for channels to flush...",
+                    end
+                );
+                // Pass the end block to shutdown so it can verify completion
+                channels.shutdown(Some(end)).await?;
+                // Shutdown rate limiter
+                rate_limiter.shutdown();
+                info!("All channels flushed, shutting down.");
+                let total_runtime = start_time.elapsed();
+                info!("Total runtime: {:.2?}", total_runtime);
+                info!("Blocks processed per second: {:.2?}", (end_block.unwrap_or(0) as f64 - start_block.unwrap_or(0) as f64) / total_runtime.as_secs_f64());
+                break Ok(());
+            }
         }
 
         // Initialize intermediate data
@@ -409,24 +436,5 @@ async fn main() -> Result<()> {
         // Increment the raw number and update BlockNumberOrTag
         block_number += 1;
         block_number_to_process = BlockNumberOrTag::Number(block_number);
-
-        // Check if we've completed processing the end block (if specified)
-        if let Some(end) = end_block {
-            if block_number > end {
-                info!(
-                    "Finished processing end block {}, waiting for channels to flush...",
-                    end
-                );
-                // Pass the end block to shutdown so it can verify completion
-                channels.shutdown(Some(end)).await?;
-                // Shutdown rate limiter
-                rate_limiter.shutdown();
-                info!("All channels flushed, shutting down.");
-                let total_runtime = start_time.elapsed();
-                info!("Total runtime: {:.2?}", total_runtime);
-                info!("Blocks processed per second: {:.2?}", (end_block.unwrap_or(0) as f64 - start_block.unwrap_or(0) as f64) / total_runtime.as_secs_f64());
-                break Ok(());
-            }
-        }
     }
 }
