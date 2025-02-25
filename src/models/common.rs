@@ -42,7 +42,7 @@ impl Chain {
             388 => Ok(Self::ZKsync),    // Cronos zkEVM
             2741 => Ok(Self::ZKsync),   // Abstract
             50104 => Ok(Self::ZKsync),  // Sophon
-            61166 => Ok(Self::ZKsync),  // Treasury Chain
+            61166 => Ok(Self::ZKsync),  // Treasure Chain
             543210 => Ok(Self::ZKsync), // Zero Network
             _ => Err(ChainError::UnsupportedChainId { chain_id }),
         }

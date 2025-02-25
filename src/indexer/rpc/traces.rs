@@ -1,11 +1,11 @@
-use alloy_primitives::FixedBytes;
-use alloy_rpc_types_trace::geth::{CallFrame, GethTrace, TraceResult};
-use anyhow::Result;
-
 use crate::models::common::Chain;
 use crate::models::datasets::traces::{
     CommonRpcTraceData, EthereumRpcTraceData, RpcTraceData, ZKsyncRpcTraceData,
 };
+use alloy_primitives::FixedBytes;
+use alloy_rpc_types_trace::geth::{CallFrame, GethTrace, TraceResult};
+use anyhow::Result;
+use serde_json::Value;
 
 pub trait TraceParser {
     fn parse_traces(self, chain: Chain, block_number: u64) -> Result<Vec<RpcTraceData>>;
@@ -19,13 +19,54 @@ impl TraceParser for Vec<TraceResult> {
                 match trace_result {
                     TraceResult::Success { result, tx_hash } => {
                         match result {
+                            GethTrace::Default(_frame) => {
+                                unimplemented!()
+                            }
                             GethTrace::CallTracer(frame) => {
                                 // Process the frame and all its nested calls
                                 flatten_call_frames(frame, tx_hash, chain, block_number)
                             }
-                            _ => Vec::new(), // Skip other trace types
+                            GethTrace::FlatCallTracer(_frame) => {
+                                unimplemented!()
+                            }
+                            GethTrace::FourByteTracer(_frame) => {
+                                unimplemented!()
+                            }
+                            GethTrace::PreStateTracer(_frame) => {
+                                unimplemented!()
+                            }
+                            GethTrace::NoopTracer(_frame) => {
+                                unimplemented!()
+                            }
+                            GethTrace::MuxTracer(_frame) => {
+                                unimplemented!()
+                            }
+                            GethTrace::JS(frame) => {
+                                match frame {
+                                    Value::Null => {
+                                        // Return empty vector to continue processing
+                                        Vec::new()
+                                    }
+                                    Value::Bool(_bool) => {
+                                        unimplemented!()
+                                    }
+                                    Value::Number(_number) => {
+                                        unimplemented!()
+                                    }
+                                    Value::String(_string) => {
+                                        unimplemented!()
+                                    }
+                                    Value::Array(_arr) => {
+                                        unimplemented!()
+                                    }
+                                    Value::Object(_obj) => {
+                                        unimplemented!()
+                                    }
+                                }
+                            }
                         }
                     }
+
                     // TODO: Should I be using `error` for the `error` or `revert_reason` fields?
                     TraceResult::Error { error, tx_hash } => {
                         // Log failed traces with their error messages

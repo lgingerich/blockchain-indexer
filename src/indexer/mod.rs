@@ -26,11 +26,13 @@ use crate::indexer::transformations::{
 use crate::metrics::Metrics;
 use crate::models::common::{Chain, ParsedData, TransformedData};
 use crate::models::datasets::blocks::RpcHeaderData;
+use crate::utils::rate_limiter::RateLimiter;
 use crate::utils::retry::{retry, RetryConfig};
 
 pub async fn get_chain_id<T, N>(
     provider: &dyn Provider<T, N>,
     metrics: Option<&Metrics>,
+    rate_limiter: Option<&RateLimiter>,
 ) -> Result<u64>
 where
     T: Transport + Clone,
@@ -80,6 +82,7 @@ where
         },
         &retry_config,
         "get_chain_id",
+        rate_limiter,
     )
     .await
 }
@@ -87,6 +90,7 @@ where
 pub async fn get_latest_block_number<T, N>(
     provider: &dyn Provider<T, N>,
     metrics: Option<&Metrics>,
+    rate_limiter: Option<&RateLimiter>,
 ) -> Result<BlockNumberOrTag>
 where
     T: Transport + Clone,
@@ -135,6 +139,7 @@ where
         },
         &retry_config,
         "get_latest_block_number",
+        rate_limiter,
     )
     .await
 }
@@ -144,6 +149,7 @@ pub async fn get_block_by_number<T, N>(
     block_number: BlockNumberOrTag,
     kind: BlockTransactionsKind,
     metrics: Option<&Metrics>,
+    rate_limiter: Option<&RateLimiter>,
 ) -> Result<Option<N::BlockResponse>>
 where
     T: Transport + Clone,
@@ -193,6 +199,7 @@ where
             "get_block_by_number({})",
             block_number.as_number().unwrap_or_default()
         ),
+        rate_limiter,
     )
     .await
 }
@@ -201,6 +208,7 @@ pub async fn get_block_receipts<T, N>(
     provider: &dyn Provider<T, N>,
     block: BlockId,
     metrics: Option<&Metrics>,
+    rate_limiter: Option<&RateLimiter>,
 ) -> Result<Option<Vec<N::ReceiptResponse>>>
 where
     T: Transport + Clone,
@@ -253,6 +261,7 @@ where
             ),
             BlockId::Hash(hash) => format!("get_block_receipts({})", hash),
         },
+        rate_limiter,
     )
     .await
 }
@@ -323,12 +332,15 @@ pub async fn debug_trace_transaction_by_hash<T, N>(
     transaction_hashes: Vec<FixedBytes<32>>,
     trace_options: GethDebugTracingOptions,
     metrics: Option<&Metrics>,
+    rate_limiter: Option<&RateLimiter>,
 ) -> Result<Option<Vec<TraceResult<GethTrace, String>>>>
 where
     T: Transport + Clone,
     N: Network,
 {
+    const BATCH_SIZE: usize = 10; // Configurable batch size
     let retry_config = RetryConfig::default();
+
     retry(
         || async {
             let start = std::time::Instant::now();
@@ -343,39 +355,52 @@ where
                 );
             }
 
-            // Collect all transaction traces
-            let mut traces = Vec::new();
-            for tx_hash in &transaction_hashes {
-                let result = provider
-                    .debug_trace_transaction(*tx_hash, trace_options.clone())
-                    .await;
+            // Process transactions in batches
+            let mut all_traces = Vec::with_capacity(transaction_hashes.len());
+            for tx_batch in transaction_hashes.chunks(BATCH_SIZE) {
+                let mut futures = Vec::with_capacity(tx_batch.len());
 
-                match result {
-                    Ok(trace) => {
-                        traces.push(TraceResult::Success {
-                            result: trace,
-                            tx_hash: Some(*tx_hash),
-                        });
-                    }
-                    Err(e) => {
-                        if e.to_string().contains("-32008") {
-                            warn!(
-                                "Skipping oversized trace for transaction {}: {}",
-                                tx_hash, e
-                            );
-                            continue;
-                        }
+                // Create futures for each transaction in the batch
+                for tx_hash in tx_batch {
+                    futures.push(provider.debug_trace_transaction(*tx_hash, trace_options.clone()));
+                }
 
-                        if let Some(metrics) = metrics {
-                            metrics.rpc_errors.add(
-                                1,
-                                &[
-                                    KeyValue::new("chain", metrics.chain_name.clone()),
-                                    KeyValue::new("method", "debug_trace_transaction"),
-                                ],
-                            );
+                // Execute batch of futures concurrently
+                let batch_results = futures::future::join_all(futures).await;
+
+                // Process results from the batch
+                for (idx, result) in batch_results.into_iter().enumerate() {
+                    match result {
+                        Ok(trace) => {
+                            all_traces.push(TraceResult::Success {
+                                result: trace,
+                                tx_hash: Some(tx_batch[idx]),
+                            });
                         }
-                        return Err(anyhow!("RPC error tracing transaction {}: {}", tx_hash, e));
+                        Err(e) => {
+                            if e.to_string().contains("-32008") {
+                                warn!(
+                                    "Skipping oversized trace for transaction {}: {}",
+                                    tx_batch[idx], e
+                                );
+                                continue;
+                            }
+
+                            if let Some(metrics) = metrics {
+                                metrics.rpc_errors.add(
+                                    1,
+                                    &[
+                                        KeyValue::new("chain", metrics.chain_name.clone()),
+                                        KeyValue::new("method", "debug_trace_transaction"),
+                                    ],
+                                );
+                            }
+                            return Err(anyhow!(
+                                "RPC error tracing transaction {}: {}",
+                                tx_batch[idx],
+                                e
+                            ));
+                        }
                     }
                 }
             }
@@ -391,10 +416,11 @@ where
                 );
             }
 
-            Ok(traces)
+            Ok(all_traces)
         },
         &retry_config,
         "debug_trace_transactions",
+        rate_limiter,
     )
     .await
     .map(Some)
@@ -409,19 +435,16 @@ pub async fn parse_data(
     traces: Option<Vec<TraceResult<GethTrace, String>>>,
 ) -> Result<ParsedData> {
     // Parse block data if available
-    let (header, transactions) = if let Some(block) = block {
-        (
-            block.clone().parse_header(chain)?,
-            block.clone().parse_transactions(chain)?,
-        )
+    let (header, transactions) = if let Some(block) = &block {
+        (block.parse_header(chain)?, block.parse_transactions(chain)?)
     } else {
         (vec![], vec![])
     };
 
     // Parse receipt data if available
-    let (transaction_receipts, logs) = if let Some(receipts) = receipts {
+    let (transaction_receipts, logs) = if let Some(receipts) = &receipts {
         (
-            receipts.clone().parse_transaction_receipts(chain)?,
+            receipts.parse_transaction_receipts(chain)?,
             receipts.parse_log_receipts(chain)?,
         )
     } else {

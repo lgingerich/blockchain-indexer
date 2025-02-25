@@ -85,3 +85,7 @@ logs/
 
 # MacOS
 .DS_Store
+
+# Cursor
+.cursorignore
+.cursor/
