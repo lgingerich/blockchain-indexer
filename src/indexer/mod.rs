@@ -27,10 +27,12 @@ use crate::metrics::Metrics;
 use crate::models::common::{Chain, ParsedData, TransformedData};
 use crate::models::datasets::blocks::RpcHeaderData;
 use crate::utils::retry::{retry, RetryConfig};
+use crate::utils::rate_limiter::RateLimiter;
 
 pub async fn get_chain_id<T, N>(
     provider: &dyn Provider<T, N>,
     metrics: Option<&Metrics>,
+    rate_limiter: Option<&RateLimiter>,
 ) -> Result<u64>
 where
     T: Transport + Clone,
@@ -80,6 +82,7 @@ where
         },
         &retry_config,
         "get_chain_id",
+        rate_limiter
     )
     .await
 }
@@ -87,6 +90,7 @@ where
 pub async fn get_latest_block_number<T, N>(
     provider: &dyn Provider<T, N>,
     metrics: Option<&Metrics>,
+    rate_limiter: Option<&RateLimiter>,
 ) -> Result<BlockNumberOrTag>
 where
     T: Transport + Clone,
@@ -135,6 +139,7 @@ where
         },
         &retry_config,
         "get_latest_block_number",
+        rate_limiter
     )
     .await
 }
@@ -144,6 +149,7 @@ pub async fn get_block_by_number<T, N>(
     block_number: BlockNumberOrTag,
     kind: BlockTransactionsKind,
     metrics: Option<&Metrics>,
+    rate_limiter: Option<&RateLimiter>,
 ) -> Result<Option<N::BlockResponse>>
 where
     T: Transport + Clone,
@@ -193,6 +199,7 @@ where
             "get_block_by_number({})",
             block_number.as_number().unwrap_or_default()
         ),
+        rate_limiter
     )
     .await
 }
@@ -201,6 +208,7 @@ pub async fn get_block_receipts<T, N>(
     provider: &dyn Provider<T, N>,
     block: BlockId,
     metrics: Option<&Metrics>,
+    rate_limiter: Option<&RateLimiter>,
 ) -> Result<Option<Vec<N::ReceiptResponse>>>
 where
     T: Transport + Clone,
@@ -253,6 +261,7 @@ where
             ),
             BlockId::Hash(hash) => format!("get_block_receipts({})", hash),
         },
+        rate_limiter
     )
     .await
 }
@@ -323,6 +332,7 @@ pub async fn debug_trace_transaction_by_hash<T, N>(
     transaction_hashes: Vec<FixedBytes<32>>,
     trace_options: GethDebugTracingOptions,
     metrics: Option<&Metrics>,
+    rate_limiter: Option<&RateLimiter>,
 ) -> Result<Option<Vec<TraceResult<GethTrace, String>>>>
 where
     T: Transport + Clone,
@@ -406,6 +416,7 @@ where
         },
         &retry_config,
         "debug_trace_transactions",
+        rate_limiter
     )
     .await
     .map(Some)
@@ -516,3 +527,4 @@ pub async fn transform_data(
         traces,
     })
 }
+
