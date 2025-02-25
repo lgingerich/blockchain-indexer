@@ -26,8 +26,8 @@ use crate::indexer::transformations::{
 use crate::metrics::Metrics;
 use crate::models::common::{Chain, ParsedData, TransformedData};
 use crate::models::datasets::blocks::RpcHeaderData;
-use crate::utils::retry::{retry, RetryConfig};
 use crate::utils::rate_limiter::RateLimiter;
+use crate::utils::retry::{retry, RetryConfig};
 
 pub async fn get_chain_id<T, N>(
     provider: &dyn Provider<T, N>,
@@ -82,7 +82,7 @@ where
         },
         &retry_config,
         "get_chain_id",
-        rate_limiter
+        rate_limiter,
     )
     .await
 }
@@ -139,7 +139,7 @@ where
         },
         &retry_config,
         "get_latest_block_number",
-        rate_limiter
+        rate_limiter,
     )
     .await
 }
@@ -199,7 +199,7 @@ where
             "get_block_by_number({})",
             block_number.as_number().unwrap_or_default()
         ),
-        rate_limiter
+        rate_limiter,
     )
     .await
 }
@@ -261,7 +261,7 @@ where
             ),
             BlockId::Hash(hash) => format!("get_block_receipts({})", hash),
         },
-        rate_limiter
+        rate_limiter,
     )
     .await
 }
@@ -340,7 +340,7 @@ where
 {
     const BATCH_SIZE: usize = 10; // Configurable batch size
     let retry_config = RetryConfig::default();
-    
+
     retry(
         || async {
             let start = std::time::Instant::now();
@@ -359,7 +359,7 @@ where
             let mut all_traces = Vec::with_capacity(transaction_hashes.len());
             for tx_batch in transaction_hashes.chunks(BATCH_SIZE) {
                 let mut futures = Vec::with_capacity(tx_batch.len());
-                
+
                 // Create futures for each transaction in the batch
                 for tx_hash in tx_batch {
                     futures.push(provider.debug_trace_transaction(*tx_hash, trace_options.clone()));
@@ -395,7 +395,11 @@ where
                                     ],
                                 );
                             }
-                            return Err(anyhow!("RPC error tracing transaction {}: {}", tx_batch[idx], e));
+                            return Err(anyhow!(
+                                "RPC error tracing transaction {}: {}",
+                                tx_batch[idx],
+                                e
+                            ));
                         }
                     }
                 }
@@ -416,7 +420,7 @@ where
         },
         &retry_config,
         "debug_trace_transactions",
-        rate_limiter
+        rate_limiter,
     )
     .await
     .map(Some)
@@ -432,10 +436,7 @@ pub async fn parse_data(
 ) -> Result<ParsedData> {
     // Parse block data if available
     let (header, transactions) = if let Some(block) = &block {
-        (
-            block.parse_header(chain)?,
-            block.parse_transactions(chain)?,
-        )
+        (block.parse_header(chain)?, block.parse_transactions(chain)?)
     } else {
         (vec![], vec![])
     };
@@ -527,4 +528,3 @@ pub async fn transform_data(
         traces,
     })
 }
-

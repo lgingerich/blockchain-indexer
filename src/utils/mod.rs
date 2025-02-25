@@ -1,5 +1,5 @@
-pub mod retry;
 pub mod rate_limiter;
+pub mod retry;
 
 use anyhow::{Context, Result};
 use std::{fs, path::Path};

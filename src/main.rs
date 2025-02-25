@@ -15,11 +15,11 @@ use alloy_rpc_types_trace::geth::{
 };
 use anyhow::{anyhow, Result};
 use opentelemetry::KeyValue;
+use std::sync::Arc;
 use tokio::{signal, time::Instant};
 use tracing::{error, info};
 use tracing_subscriber::{self, EnvFilter};
 use url::Url;
-use std::sync::Arc;
 
 use crate::metrics::Metrics;
 use crate::models::common::Chain;
@@ -65,17 +65,20 @@ async fn main() -> Result<()> {
     let metrics_enabled = config.metrics.enabled;
     let metrics_addr = config.metrics.address;
     let metrics_port = config.metrics.port;
-    
+
     // Initialize rate limiter with adaptive concurrency control
     // These values can be adjusted based on the RPC provider's limits and performance
     let rate_limiter = RateLimiter::new(
-        10,                              // initial_limit: Start with 10 concurrent requests
-        500,                             // max_limit: Maximum of 500 concurrent requests
-        50,                              // window_size: Track last 50 requests for adaptation
-        Duration::from_millis(200),      // target_response_time: Aim for 200ms response time
-        Duration::from_secs(1),          // adaptation_interval: Adjust limits every second
+        10,                         // initial_limit: Start with 10 concurrent requests
+        500,                        // max_limit: Maximum of 500 concurrent requests
+        50,                         // window_size: Track last 50 requests for adaptation
+        Duration::from_millis(200), // target_response_time: Aim for 200ms response time
+        Duration::from_secs(1),     // adaptation_interval: Adjust limits every second
     );
-    info!("Rate limiter initialized with initial concurrency limit: {}", rate_limiter.get_current_limit());
+    info!(
+        "Rate limiter initialized with initial concurrency limit: {}",
+        rate_limiter.get_current_limit()
+    );
 
     // Add a periodic check of the rate limiter status
     let rate_limiter_for_status = Arc::new(rate_limiter);
@@ -83,7 +86,10 @@ async fn main() -> Result<()> {
     tokio::spawn(async move {
         loop {
             tokio::time::sleep(Duration::from_secs(10)).await;
-            info!("Rate limiter status - current limit: {}", rate_limiter_status_clone.get_current_limit());
+            info!(
+                "Rate limiter status - current limit: {}",
+                rate_limiter_status_clone.get_current_limit()
+            );
         }
     });
 
@@ -163,7 +169,10 @@ async fn main() -> Result<()> {
     // Check if the starting block is already beyond the end block
     if let Some(end) = end_block {
         if block_number > end {
-            info!("Starting block number {} is greater than end block {}, nothing to process.", block_number, end);
+            info!(
+                "Starting block number {} is greater than end block {}, nothing to process.",
+                block_number, end
+            );
             return Ok(());
         }
     }
@@ -174,12 +183,13 @@ async fn main() -> Result<()> {
     let mut block_number_to_process = BlockNumberOrTag::Number(block_number);
 
     // Get initial latest block number before loop
-    let mut last_known_latest_block = indexer::get_latest_block_number(&provider, metrics.as_ref(), Some(&rate_limiter))
-        .await?
-        .as_number()
-        .ok_or_else(|| RpcError::InvalidBlockNumberResponse {
-            got: block_number_to_process.to_string(),
-        })?;
+    let mut last_known_latest_block =
+        indexer::get_latest_block_number(&provider, metrics.as_ref(), Some(&rate_limiter))
+            .await?
+            .as_number()
+            .ok_or_else(|| RpcError::InvalidBlockNumberResponse {
+                got: block_number_to_process.to_string(),
+            })?;
 
     println!();
     info!("========================= STARTING INDEXER =========================");
@@ -211,7 +221,11 @@ async fn main() -> Result<()> {
                 info!("All channels flushed, shutting down.");
                 let total_runtime = start_time.elapsed();
                 info!("Total runtime: {:.2?}", total_runtime);
-                info!("Blocks processed per second: {:.2?}", (end_block.unwrap_or(0) as f64 - start_block.unwrap_or(0) as f64) / total_runtime.as_secs_f64());
+                info!(
+                    "Blocks processed per second: {:.2?}",
+                    (end_block.unwrap_or(0) as f64 - start_block.unwrap_or(0) as f64)
+                        / total_runtime.as_secs_f64()
+                );
                 break Ok(());
             }
         }
@@ -229,8 +243,9 @@ async fn main() -> Result<()> {
         })? > (last_known_latest_block - chain_tip_buffer * 2)
         {
             let latest_block: BlockNumberOrTag =
-                indexer::get_latest_block_number(&provider, metrics.as_ref(), Some(&rate_limiter)).await?;
-                
+                indexer::get_latest_block_number(&provider, metrics.as_ref(), Some(&rate_limiter))
+                    .await?;
+
             last_known_latest_block =
                 latest_block
                     .as_number()
@@ -275,12 +290,10 @@ async fn main() -> Result<()> {
                 kind,
                 metrics.as_ref(),
                 Some(&rate_limiter),
-            ).await;
-            
-            block = Some(
-                block_result?
-                .ok_or_else(|| anyhow!("Provider returned no block"))?,
-            );
+            )
+            .await;
+
+            block = Some(block_result?.ok_or_else(|| anyhow!("Provider returned no block"))?);
         }
 
         // Get receipts by block number
@@ -288,16 +301,15 @@ async fn main() -> Result<()> {
         if need_receipts {
             let block_id = BlockId::Number(block_number_to_process);
             let receipts_result = indexer::get_block_receipts(
-                &provider, 
-                block_id, 
+                &provider,
+                block_id,
                 metrics.as_ref(),
                 Some(&rate_limiter),
-            ).await;
-            
-            receipts = Some(
-                receipts_result?
-                .ok_or_else(|| anyhow!("Provider returned no receipts"))?,
-            );
+            )
+            .await;
+
+            receipts =
+                Some(receipts_result?.ok_or_else(|| anyhow!("Provider returned no receipts"))?);
         }
 
         // Create tracing options with CallTracer and nested calls
@@ -336,19 +348,17 @@ async fn main() -> Result<()> {
             } else {
                 Vec::new()
             };
-            
+
             let traces_result = indexer::debug_trace_transaction_by_hash(
                 &provider,
                 tx_hashes,
                 trace_options,
                 metrics.as_ref(),
                 Some(&rate_limiter),
-            ).await;
-            
-            traces = Some(
-                traces_result?
-                .ok_or_else(|| anyhow!("Provider returned no traces"))?,
-            );
+            )
+            .await;
+
+            traces = Some(traces_result?.ok_or_else(|| anyhow!("Provider returned no traces"))?);
         }
 
         // Extract and separate the raw RPC response into distinct datasets (block headers, transactions, receipts, logs, traces)
