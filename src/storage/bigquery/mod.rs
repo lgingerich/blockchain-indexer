@@ -108,6 +108,7 @@ pub async fn create_dataset(chain_name: &str) -> Result<()> {
         },
         &RetryConfig::default(),
         &format!("create_dataset_{}", chain_name),
+        None,
     )
     .await
     .map_err(|e| anyhow!("Failed to create dataset after retries: {}", e))?;
@@ -185,6 +186,7 @@ pub async fn create_table(chain_name: &str, table_id: &str, chain: Chain) -> Res
         },
         &RetryConfig::default(),
         &format!("create_table_{}_{}", chain_name, table_id),
+        None,
     )
     .await
     .map_err(|e| anyhow!("Failed to create table after retries: {}", e))?;
@@ -271,6 +273,7 @@ pub async fn insert_data<T: serde::Serialize>(
             },
             &RetryConfig::default(),
             &format!("insert_data_{}_{}_{}", chain_name, table_id, block_number),
+            None,
         )
         .await?;
     }
