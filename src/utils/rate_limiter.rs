@@ -142,7 +142,7 @@ impl RateLimiter {
                 let mut limit = current_limit.lock().unwrap();
 
                 // If error rate is too high, reduce concurrency
-                if error_rate > 0.1 {
+                if error_rate > 0.05 {
                     *limit = (*limit * 3 / 4).max(1);
                 }
                 // If response time is too high, reduce concurrency
