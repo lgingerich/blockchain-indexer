@@ -11,9 +11,9 @@ use google_cloud_bigquery::http::tabledata::{
     list::Value,
 };
 use once_cell::sync::OnceCell;
+use sha2::{Digest, Sha256};
 use std::sync::Arc;
 use tracing::{error, info, warn};
-use sha2::{Sha256, Digest};
 
 use crate::models::common::Chain;
 use crate::storage::bigquery::schema::{
@@ -222,7 +222,7 @@ pub async fn insert_data<T: serde::Serialize>(
             .map(|item| {
                 // Generate an appropriate insertId based on the table type and data content
                 let insert_id = generate_insert_id(table_id, item, block_number);
-                
+
                 TableRow {
                     insert_id: Some(insert_id),
                     json: item,
@@ -293,7 +293,11 @@ pub async fn insert_data<T: serde::Serialize>(
 }
 
 // Helper function to generate appropriate InsertIDs based on table type and data content
-fn generate_insert_id<T: serde::Serialize>(table_id: &str, data: &T, fallback_block_number: u64) -> String {
+fn generate_insert_id<T: serde::Serialize>(
+    table_id: &str,
+    data: &T,
+    fallback_block_number: u64,
+) -> String {
     // First convert the data to a Value so we can access its fields
     let value = match serde_json::to_value(data) {
         Ok(v) => v,
@@ -305,11 +309,16 @@ fn generate_insert_id<T: serde::Serialize>(table_id: &str, data: &T, fallback_bl
     };
 
     // Get block_number from the data, with fallback to the parameter
-    let block_number = value.get("block_number")
+    let block_number = value
+        .get("block_number")
         .and_then(|v| v.as_u64())
         .unwrap_or_else(|| {
-            if table_id != "blocks" {  // For blocks, block_number might be optional in some cases
-                warn!("Missing block_number in data, using fallback: {}", fallback_block_number);
+            if table_id != "blocks" {
+                // For blocks, block_number might be optional in some cases
+                warn!(
+                    "Missing block_number in data, using fallback: {}",
+                    fallback_block_number
+                );
             }
             fallback_block_number
         });
@@ -325,11 +334,14 @@ fn generate_insert_id<T: serde::Serialize>(table_id: &str, data: &T, fallback_bl
             let tx_hash = match value.get("tx_hash").and_then(|v| v.as_str()) {
                 Some(hash) => hash,
                 None => {
-                    error!("Missing mandatory tx_hash field in transaction data for block {}", block_number);
+                    error!(
+                        "Missing mandatory tx_hash field in transaction data for block {}",
+                        block_number
+                    );
                     return format!("tx-{}-unknown", block_number);
                 }
             };
-                
+
             format!("tx-{}-{}", block_number, tx_hash)
         }
         "logs" => {
@@ -337,54 +349,70 @@ fn generate_insert_id<T: serde::Serialize>(table_id: &str, data: &T, fallback_bl
             let tx_hash = match value.get("tx_hash").and_then(|v| v.as_str()) {
                 Some(hash) => hash,
                 None => {
-                    error!("Missing mandatory tx_hash field in log data for block {}", block_number);
+                    error!(
+                        "Missing mandatory tx_hash field in log data for block {}",
+                        block_number
+                    );
                     return format!("log-{}-unknown-0-0", block_number);
                 }
             };
-                
+
             let tx_index = match value.get("tx_index").and_then(|v| v.as_u64()) {
                 Some(idx) => idx,
                 None => {
-                    error!("Missing mandatory tx_index field in log data for block {}", block_number);
+                    error!(
+                        "Missing mandatory tx_index field in log data for block {}",
+                        block_number
+                    );
                     0
                 }
             };
-                
+
             let log_index = match value.get("log_index").and_then(|v| v.as_u64()) {
                 Some(idx) => idx,
                 None => {
-                    error!("Missing mandatory log_index field in log data for block {}", block_number);
+                    error!(
+                        "Missing mandatory log_index field in log data for block {}",
+                        block_number
+                    );
                     0
                 }
             };
-            
-            format!("log-{}-{}-{}-{}", block_number, tx_hash, tx_index, log_index)
+
+            format!(
+                "log-{}-{}-{}-{}",
+                block_number, tx_hash, tx_index, log_index
+            )
         }
         "traces" => {
             // For traces, combine block_number, tx_hash, and trace_address
             let tx_hash = match value.get("tx_hash").and_then(|v| v.as_str()) {
                 Some(hash) => hash,
                 None => {
-                    error!("Missing mandatory tx_hash field in trace data for block {}", block_number);
+                    error!(
+                        "Missing mandatory tx_hash field in trace data for block {}",
+                        block_number
+                    );
                     return format!("trace-{}-unknown-root", block_number);
                 }
             };
-            
+
             // Handle trace_address which is an array
             let trace_address = match value.get("trace_address").and_then(|v| v.as_array()) {
-                Some(addr_array) => {
-                    addr_array
-                        .iter()
-                        .map(|v| v.as_u64().unwrap_or(0).to_string())
-                        .collect::<Vec<String>>()
-                        .join("-")
-                },
+                Some(addr_array) => addr_array
+                    .iter()
+                    .map(|v| v.as_u64().unwrap_or(0).to_string())
+                    .collect::<Vec<String>>()
+                    .join("-"),
                 None => {
-                    error!("Missing mandatory trace_address field in trace data for block {}", block_number);
+                    error!(
+                        "Missing mandatory trace_address field in trace data for block {}",
+                        block_number
+                    );
                     "root".to_string()
                 }
             };
-            
+
             format!("trace-{}-{}-{}", block_number, tx_hash, trace_address)
         }
         // For any other table types
@@ -396,7 +424,8 @@ fn generate_insert_id<T: serde::Serialize>(table_id: &str, data: &T, fallback_bl
 
     // Check if the base ID exceeds the length limit (128 bytes)
     // UTF-8 characters can be up to 4 bytes each, so we'll be conservative
-    if base_id.len() > 120 {  // Leave some margin for safety
+    if base_id.len() > 120 {
+        // Leave some margin for safety
         // If it's too long, hash it to create a fixed-length ID
         // Use the first 16 bytes of the SHA-256 hash (32 hex chars)
         // and prepend with the table ID and block number for readability
