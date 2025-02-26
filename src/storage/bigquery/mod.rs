@@ -5,7 +5,7 @@ use google_cloud_bigquery::client::{Client, ClientConfig};
 use google_cloud_bigquery::http::dataset::{Dataset, DatasetReference};
 use google_cloud_bigquery::http::error::Error as BigQueryError;
 use google_cloud_bigquery::http::job::query::QueryRequest;
-use google_cloud_bigquery::http::table::{Table, TableReference};
+use google_cloud_bigquery::http::table::{Table, TableReference, TimePartitioning, TimePartitionType};
 use google_cloud_bigquery::http::tabledata::{
     insert_all::{InsertAllRequest, Row as TableRow},
     list::Value,
@@ -146,6 +146,11 @@ pub async fn create_table(chain_name: &str, table_id: &str, chain: Chain) -> Res
             table_id: table_id.to_string(),
         },
         schema: Some(schema),
+        time_partitioning: Some(TimePartitioning {
+            partition_type: TimePartitionType::Day,
+            field: Some("block_date".to_string()),
+            ..Default::default()
+        }),
         ..Default::default()
     };
 
