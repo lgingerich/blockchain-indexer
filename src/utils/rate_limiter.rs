@@ -229,7 +229,6 @@ impl Drop for RateLimitPermit<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::time::sleep;
 
     #[tokio::test]
     async fn test_rate_limiter_basic() {
