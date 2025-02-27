@@ -11,6 +11,8 @@ Features include:
 
 > ⚠️ **Note**: This project is in active development and may have frequent breaking changes. It is not recommended for production use yet.
 
+> ⚠️ **Note**: BigQuery only supports partitioned tables with a maximum of 10 years of history. It is not recommended to use this indexer with Ethereum.
+
 
 ## Prerequisites
 - Rust 1.75+ 

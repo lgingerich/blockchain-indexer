@@ -11,7 +11,7 @@ use crate::models::datasets::transactions::{
     CommonRpcTransactionReceiptData, EthereumRpcTransactionReceiptData, RpcTransactionReceiptData,
     ZKsyncRpcTransactionReceiptData,
 };
-use crate::utils::hex_to_u64;
+use crate::utils::{hex_to_u64, sanitize_block_time};
 
 pub trait ReceiptParser {
     fn parse_transaction_receipts(&self, chain: Chain) -> Result<Vec<RpcTransactionReceiptData>>;
@@ -94,14 +94,23 @@ impl ReceiptParser for Vec<AnyTransactionReceipt> {
                     .clone()
                     .into_iter()
                     .map(|log| {
+                        // Get original block time from timestamp if available
+                        let original_time = log
+                            .block_timestamp
+                            .and_then(|ts| DateTime::from_timestamp(ts as i64, 0));
+
+                        // Sanitize the block time if it's block 0 with a 1970 date
+                        let block_time = if let (Some(block_num), Some(time)) =
+                            (log.block_number, original_time)
+                        {
+                            Some(sanitize_block_time(block_num, time))
+                        } else {
+                            original_time
+                        };
+
                         let common = CommonRpcLogReceiptData {
-                            block_time: log
-                                .block_timestamp
-                                .and_then(|ts| DateTime::from_timestamp(ts as i64, 0)),
-                            block_date: log
-                                .block_timestamp
-                                .and_then(|ts| DateTime::from_timestamp(ts as i64, 0))
-                                .map(|dt| dt.date_naive()),
+                            block_time,
+                            block_date: block_time.map(|time| time.date_naive()),
                             block_number: log.block_number,
                             block_hash: log.block_hash,
                             tx_hash: log.transaction_hash,
