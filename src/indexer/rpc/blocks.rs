@@ -18,7 +18,7 @@ use crate::models::datasets::transactions::{
     ZKsyncRpcTransactionData,
 };
 use crate::models::errors::BlockError;
-use crate::utils::hex_to_u64;
+use crate::utils::{hex_to_u64, sanitize_block_time};
 
 pub trait BlockParser {
     fn parse_header(&self, chain: Chain) -> Result<Vec<RpcHeaderData>>;
@@ -30,13 +30,17 @@ impl BlockParser for AnyRpcBlock {
         let inner = self.header.inner.clone();
         let other = self.other.clone();
 
+        // Get the block timestamp and convert to DateTime
+        let original_time =
+            DateTime::from_timestamp(inner.timestamp as i64, 0).expect("invalid timestamp");
+
+        // Sanitize the block time if it's block 0 with a 1970 date
+        let block_time = sanitize_block_time(inner.number, original_time);
+
         // Define common fields that exist across all chains
         let common = CommonRpcHeaderData {
-            block_time: DateTime::from_timestamp(inner.timestamp as i64, 0)
-                .expect("invalid timestamp"),
-            block_date: DateTime::from_timestamp(inner.timestamp as i64, 0)
-                .expect("invalid timestamp")
-                .date_naive(),
+            block_time,
+            block_date: block_time.date_naive(),
             block_number: inner.number,
             block_hash: self.header.hash,
             parent_hash: inner.parent_hash,

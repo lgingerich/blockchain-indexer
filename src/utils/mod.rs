@@ -2,13 +2,43 @@ pub mod rate_limiter;
 pub mod retry;
 
 use anyhow::{Context, Result};
+use chrono::{DateTime, NaiveDate, Utc};
 use std::{fs, path::Path};
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::models::common::Config;
 
 pub fn hex_to_u64(hex: String) -> Option<u64> {
     u64::from_str_radix(hex.trim_start_matches("0x"), 16).ok()
+}
+
+// Sanitizes block dates for block 0 to avoid BigQuery partitioning errors.
+// BigQuery only supports partitioning up to 3650 days in the past (i.e. 10 years).
+// If block 0 has a date in 1970 (Unix epoch), replaces it with January 1, 2020.
+// January 1, 2020 is an arbitrary date which will allow this indexer to work properly
+// until the year 2030.
+// NOTE: This indexer with BigQuery should not be used for Ethereum. While it could work
+// if the sanitized date was set to 2015 when Ethereum was launched, that will soon be
+// exceeded and then the indexer will fail for all chains. As this is tailored towards
+// usage with L2s, we will focus on safe usage with L2s.
+
+pub fn sanitize_block_time(block_number: u64, datetime: DateTime<Utc>) -> DateTime<Utc> {
+    // If this is block 0 with a Unix epoch date (or very close to it)
+    if block_number == 0 && datetime.format("%Y").to_string() == "1970" {
+        // Use January 1, 2020 as the fallback date
+        let fallback_date = NaiveDate::from_ymd_opt(2020, 1, 1).unwrap();
+        let fallback_time = datetime.time();
+        let fallback_datetime =
+            DateTime::<Utc>::from_naive_utc_and_offset(fallback_date.and_time(fallback_time), Utc);
+
+        warn!(
+            "Sanitized block 0 time from {} (Unix epoch) to {} to avoid BigQuery partitioning errors",
+            datetime, fallback_datetime
+        );
+        fallback_datetime
+    } else {
+        datetime
+    }
 }
 
 pub fn load_config<P: AsRef<Path>>(file_name: P) -> Result<Config> {
