@@ -3,7 +3,7 @@ use std::{future::Future, time::Duration};
 use tokio::time::sleep;
 use tracing::{error, warn};
 
-use crate::utils::{rate_limiter::RateLimiter, strip_html};
+use crate::utils::strip_html;
 pub struct RetryConfig {
     pub max_attempts: u32,
     pub base_delay_ms: u64,
@@ -26,7 +26,6 @@ pub async fn retry<F, Fut, T>(
     operation: F,
     config: &RetryConfig,
     context: &str,
-    rate_limiter: Option<&RateLimiter>,
 ) -> Result<T, Error>
 where
     F: Fn() -> Fut,
@@ -36,27 +35,10 @@ where
     let mut delay = config.base_delay_ms;
 
     loop {
-        // Acquire rate limit permit if limiter is provided
-        let permit = if let Some(limiter) = rate_limiter {
-            Some(limiter.acquire().await?)
-        } else {
-            None
-        };
 
         match operation().await {
-            Ok(result) => {
-                // Record success if we have a permit
-                if let Some(p) = permit {
-                    p.record_result(false);
-                }
-                return Ok(result);
-            }
+            Ok(result) => return Ok(result),
             Err(e) => {
-                // Record error if we have a permit
-                if let Some(p) = permit {
-                    p.record_result(true);
-                }
-
                 if attempt >= config.max_attempts {
                     error!(
                         "Operation '{}' failed after {} attempts. Final error: {}",

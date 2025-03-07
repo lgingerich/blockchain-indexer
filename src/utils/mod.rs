@@ -1,4 +1,3 @@
-pub mod rate_limiter;
 pub mod retry;
 
 use anyhow::{Context, Result};
