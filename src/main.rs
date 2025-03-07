@@ -15,7 +15,6 @@ use alloy_rpc_types_trace::geth::{
 };
 use anyhow::{anyhow, Result};
 use opentelemetry::KeyValue;
-use std::sync::Arc;
 use tokio::{signal, time::Instant};
 use tracing::{error, info};
 use tracing_subscriber::{self, EnvFilter};
@@ -27,8 +26,6 @@ use crate::models::datasets::blocks::RpcHeaderData;
 use crate::models::errors::RpcError;
 use crate::storage::{setup_channels, DatasetType};
 use crate::utils::load_config;
-use crate::utils::rate_limiter::RateLimiter;
-use std::time::Duration;
 
 const SLEEP_DURATION: u64 = 1000; // ms
 
@@ -66,35 +63,6 @@ async fn main() -> Result<()> {
     let metrics_addr = config.metrics.address;
     let metrics_port = config.metrics.port;
 
-    // Initialize rate limiter with adaptive concurrency control
-    // These values can be adjusted based on the RPC provider's limits and performance
-    let rate_limiter = RateLimiter::new(
-        10,                         // initial_limit: Start with 10 concurrent requests
-        500,                        // max_limit: Maximum of 500 concurrent requests
-        50,                         // window_size: Track last 50 requests for adaptation
-        Duration::from_millis(200), // target_response_time: Aim for 200ms response time
-        Duration::from_secs(1),     // adaptation_interval: Adjust limits every second
-    );
-    info!(
-        "Rate limiter initialized with initial concurrency limit: {}",
-        rate_limiter.get_current_limit()
-    );
-
-    // Add a periodic check of the rate limiter status
-    let rate_limiter_for_status = Arc::new(rate_limiter);
-    let rate_limiter_status_clone = Arc::clone(&rate_limiter_for_status);
-    tokio::spawn(async move {
-        loop {
-            tokio::time::sleep(Duration::from_secs(10)).await;
-            info!(
-                "Rate limiter status - current limit: {}",
-                rate_limiter_status_clone.get_current_limit()
-            );
-        }
-    });
-
-    // Use the Arc-wrapped rate limiter for the rest of the code
-    let rate_limiter = rate_limiter_for_status;
 
     // Initialize optional metrics
     let metrics = if metrics_enabled {
@@ -126,7 +94,7 @@ async fn main() -> Result<()> {
         .on_http(rpc_url);
 
     // Get chain ID
-    let chain_id = indexer::get_chain_id(&provider, metrics.as_ref(), Some(&rate_limiter)).await?;
+    let chain_id = indexer::get_chain_id(&provider, metrics.as_ref()).await?;
     let chain = Chain::from_chain_id(chain_id)?;
     info!("Chain ID: {:?}", chain_id);
 
@@ -184,7 +152,7 @@ async fn main() -> Result<()> {
 
     // Get initial latest block number before loop
     let mut last_known_latest_block =
-        indexer::get_latest_block_number(&provider, metrics.as_ref(), Some(&rate_limiter))
+        indexer::get_latest_block_number(&provider, metrics.as_ref())
             .await?
             .as_number()
             .ok_or_else(|| RpcError::InvalidBlockNumberResponse {
@@ -202,8 +170,6 @@ async fn main() -> Result<()> {
             info!("Shutting down main processing loop...");
             // Ensure all channels are flushed before breaking
             channels.shutdown(None).await?;
-            // Shutdown rate limiter
-            rate_limiter.shutdown();
             break Ok(());
         }
 
@@ -216,8 +182,6 @@ async fn main() -> Result<()> {
                 );
                 // Pass the end block to shutdown so it can verify completion
                 channels.shutdown(Some(end)).await?;
-                // Shutdown rate limiter
-                rate_limiter.shutdown();
                 info!("All channels flushed, shutting down.");
                 let total_runtime = start_time.elapsed();
                 info!("Total runtime: {:.2?}", total_runtime);
@@ -243,7 +207,7 @@ async fn main() -> Result<()> {
         })? > (last_known_latest_block - chain_tip_buffer * 2)
         {
             let latest_block: BlockNumberOrTag =
-                indexer::get_latest_block_number(&provider, metrics.as_ref(), Some(&rate_limiter))
+                indexer::get_latest_block_number(&provider, metrics.as_ref())
                     .await?;
 
             last_known_latest_block =
@@ -289,7 +253,6 @@ async fn main() -> Result<()> {
                 block_number_to_process,
                 kind,
                 metrics.as_ref(),
-                Some(&rate_limiter),
             )
             .await;
 
@@ -304,7 +267,6 @@ async fn main() -> Result<()> {
                 &provider,
                 block_id,
                 metrics.as_ref(),
-                Some(&rate_limiter),
             )
             .await;
 
@@ -354,7 +316,6 @@ async fn main() -> Result<()> {
                 tx_hashes,
                 trace_options,
                 metrics.as_ref(),
-                Some(&rate_limiter),
             )
             .await;
 
@@ -392,9 +353,8 @@ async fn main() -> Result<()> {
         let transformed_data = indexer::transform_data(chain, parsed_data, &datasets).await?;
 
         info!(
-            "Finished processing block {} (concurrency limit: {})",
-            block_number_to_process.as_number().unwrap(),
-            rate_limiter.get_current_limit()
+            "Finished processing block {}",
+            block_number_to_process.as_number().unwrap()
         );
 
         // Send transformed data through channels for saving to storage
