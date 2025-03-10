@@ -14,6 +14,7 @@ pub struct Metrics {
 
     // Block processing metrics
     pub blocks_processed: Counter<u64>,
+    pub blocks_per_second: Gauge<f64>,
     pub latest_processed_block: Gauge<u64>,
     pub latest_block_processing_time: Gauge<f64>,
 
@@ -47,6 +48,11 @@ impl Metrics {
         let blocks_processed = meter
             .u64_counter("indexer_blocks_processed")
             .with_description("Total number of blocks processed")
+            .build();
+
+        let blocks_per_second = meter
+            .f64_gauge("indexer_blocks_per_second")
+            .with_description("Average number of blocks processed per second")
             .build();
 
         let latest_processed_block = meter
@@ -98,6 +104,7 @@ impl Metrics {
             _provider: provider,
             chain_name,
             blocks_processed,
+            blocks_per_second,
             latest_processed_block,
             latest_block_processing_time,
             chain_tip_block,

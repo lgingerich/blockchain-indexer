@@ -151,6 +151,8 @@ async fn main() -> Result<()> {
     info!("========================= STARTING INDEXER =========================");
 
     let start_time = Instant::now();
+    let mut last_metric_update = Instant::now();
+    let mut blocks_since_last_metric = 0;
 
     loop {
         // Check for shutdown signal (non-blocking)
@@ -322,6 +324,7 @@ async fn main() -> Result<()> {
                         }
                     }
 
+                    info!("Successfully processed and queued block {} for storage", block_num);
                     successful_blocks += 1;
                 }
                 Err(e) => {
@@ -348,6 +351,27 @@ async fn main() -> Result<()> {
             // Only increment by the number of successfully processed blocks if we didn't find any unavailable blocks
             block_number += successful_blocks as u64;
             block_number_to_process = BlockNumberOrTag::Number(block_number);
+        }
+
+        if let Some(metrics_instance) = &metrics {
+            // Update blocks processed count
+            blocks_since_last_metric += successful_blocks;
+            
+            // Update blocks per second every second
+            let elapsed = last_metric_update.elapsed();
+            if elapsed.as_secs() >= 1 {
+                let blocks_per_second = blocks_since_last_metric as f64 / elapsed.as_secs_f64();
+                metrics_instance.blocks_per_second.record(
+                    blocks_per_second,
+                    &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
+                );
+                
+                // Reset counters
+                blocks_since_last_metric = 0;
+                last_metric_update = Instant::now();
+            }
+            
+            // ... existing metrics code ...
         }
     }
 }
