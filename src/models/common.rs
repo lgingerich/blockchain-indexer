@@ -25,6 +25,7 @@ pub struct Config {
     pub rpc_url: String,
     pub datasets: Vec<String>,
     pub metrics: MetricsConfig,
+    pub max_concurrent_blocks: Option<u64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -37,13 +38,7 @@ impl Chain {
     pub fn from_chain_id(chain_id: u64) -> Result<Self, ChainError> {
         match chain_id {
             1 => Ok(Self::Ethereum),
-            324 => Ok(Self::ZKsync),    // ZKsync Era
-            325 => Ok(Self::ZKsync),    // GRVT
-            388 => Ok(Self::ZKsync),    // Cronos zkEVM
-            2741 => Ok(Self::ZKsync),   // Abstract
-            50104 => Ok(Self::ZKsync),  // Sophon
-            61166 => Ok(Self::ZKsync),  // Treasure Chain
-            543210 => Ok(Self::ZKsync), // Zero Network
+            324 | 325 | 388 | 2741 | 50104 | 61166 | 543210 => Ok(Self::ZKsync), // ZKsync Era | GRVT | Cronos zkEVM | Abstract | Sophon | Treasure Chain | Zero Network
             _ => Err(ChainError::UnsupportedChainId { chain_id }),
         }
     }

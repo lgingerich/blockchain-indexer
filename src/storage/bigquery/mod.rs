@@ -26,6 +26,9 @@ use crate::utils::retry::{retry, RetryConfig};
 // Define a static OnceCell to hold the shared Client and Project ID
 static BIGQUERY_CLIENT: OnceCell<Arc<(Client, String)>> = OnceCell::new();
 
+// BigQuery has a 10MB payload size limit
+const MAX_PAYLOAD_SIZE: usize = 9_000_000; // 9MB to be safe (under 10MB limit)
+
 // Initializes and returns the shared BigQuery Client and Project ID.
 // This function ensures that the Client is initialized only once.
 pub async fn get_client() -> Result<Arc<(Client, String)>> {
@@ -41,8 +44,8 @@ pub async fn get_client() -> Result<Arc<(Client, String)>> {
     let client_arc = Arc::new((client, project_id));
 
     match BIGQUERY_CLIENT.set(client_arc.clone()) {
-        Ok(_) => Ok(client_arc),
-        Err(_) => {
+        Ok(()) => Ok(client_arc),
+        Err(_e) => {
             // If we failed to set (because another thread set it first),
             // return the value that was set by the other thread
             Ok(BIGQUERY_CLIENT.get().unwrap().clone())
@@ -110,7 +113,7 @@ pub async fn create_dataset(chain_name: &str) -> Result<()> {
             }
         },
         &RetryConfig::default(),
-        &format!("create_dataset_{}", chain_name),
+        &format!("create_dataset_{chain_name}"),
     )
     .await
     .map_err(|e| anyhow!("Failed to create dataset after retries: {}", e))?;
@@ -192,7 +195,7 @@ pub async fn create_table(chain_name: &str, table_id: &str, chain: Chain) -> Res
             }
         },
         &RetryConfig::default(),
-        &format!("create_table_{}_{}", chain_name, table_id),
+        &format!("create_table_{chain_name}_{table_id}"),
     )
     .await
     .map_err(|e| anyhow!("Failed to create table after retries: {}", e))?;
@@ -218,8 +221,6 @@ pub async fn insert_data<T: serde::Serialize>(
         return Ok(());
     }
 
-    // BigQuery has a 10MB payload size limit
-    const MAX_PAYLOAD_SIZE: usize = 9_000_000; // 9MB to be safe (under 10MB limit)
     let total_rows = data.len();
 
     let mut current_batch = Vec::new();
@@ -295,10 +296,7 @@ pub async fn insert_data<T: serde::Serialize>(
                     }
                 },
                 &RetryConfig::default(),
-                &format!(
-                    "insert_data_{}_{}_{}_{}",
-                    chain_name, table_id, block_number, batches_sent
-                ),
+                &format!("insert_data_{chain_name}_{table_id}_{block_number}_{batches_sent}"),
             )
             .await?;
 
@@ -377,10 +375,7 @@ pub async fn insert_data<T: serde::Serialize>(
                 }
             },
             &RetryConfig::default(),
-            &format!(
-                "insert_data_{}_{}_{}_{}",
-                chain_name, table_id, block_number, batches_sent
-            ),
+            &format!("insert_data_{chain_name}_{table_id}_{block_number}_{batches_sent}"),
         )
         .await?;
     }
@@ -410,14 +405,14 @@ fn generate_insert_id<T: serde::Serialize>(
         Err(e) => {
             error!("Failed to serialize data for InsertID generation: {}", e);
             // If serialization fails, fall back to a simple block-based ID
-            return format!("{}-{}", table_id, fallback_block_number);
+            return format!("{table_id}-{fallback_block_number}");
         }
     };
 
     // Get block_number from the data, with fallback to the parameter
     let block_number = value
         .get("block_number")
-        .and_then(|v| v.as_u64())
+        .and_then(serde_json::Value::as_u64)
         .unwrap_or_else(|| {
             if table_id != "blocks" {
                 // For blocks, block_number might be optional in some cases
@@ -433,98 +428,79 @@ fn generate_insert_id<T: serde::Serialize>(
     let base_id = match table_id {
         "blocks" => {
             // For blocks, just use the block number
-            format!("block-{}", block_number)
+            format!("block-{block_number}")
         }
         "transactions" => {
             // For transactions, combine block_number and tx_hash
-            let tx_hash = match value.get("tx_hash").and_then(|v| v.as_str()) {
-                Some(hash) => hash,
-                None => {
-                    error!(
-                        "Missing mandatory tx_hash field in transaction data for block {}",
-                        block_number
-                    );
-                    return format!("tx-{}-unknown", block_number);
-                }
+            let Some(tx_hash) = value.get("tx_hash").and_then(|v| v.as_str()) else {
+                error!(
+                    "Missing mandatory tx_hash field in transaction data for block {}",
+                    block_number
+                );
+                return format!("tx-{block_number}-unknown");
             };
 
-            format!("tx-{}-{}", block_number, tx_hash)
+            format!("tx-{block_number}-{tx_hash}")
         }
         "logs" => {
             // For logs, combine block_number, tx_hash, tx_index, and log_index
-            let tx_hash = match value.get("tx_hash").and_then(|v| v.as_str()) {
-                Some(hash) => hash,
-                None => {
-                    error!(
-                        "Missing mandatory tx_hash field in log data for block {}",
-                        block_number
-                    );
-                    return format!("log-{}-unknown-0-0", block_number);
-                }
+            let Some(tx_hash) = value.get("tx_hash").and_then(serde_json::Value::as_str) else {
+                error!(
+                    "Missing mandatory tx_hash field in log data for block {}",
+                    block_number
+                );
+                return format!("log-{block_number}-unknown-0-0");
             };
 
-            let tx_index = match value.get("tx_index").and_then(|v| v.as_u64()) {
-                Some(idx) => idx,
-                None => {
-                    error!(
-                        "Missing mandatory tx_index field in log data for block {}",
-                        block_number
-                    );
-                    0
-                }
+            let Some(tx_index) = value.get("tx_index").and_then(serde_json::Value::as_u64) else {
+                error!(
+                    "Missing mandatory tx_index field in log data for block {}",
+                    block_number
+                );
+                return format!("log-{block_number}-unknown-0-0");
             };
 
-            let log_index = match value.get("log_index").and_then(|v| v.as_u64()) {
-                Some(idx) => idx,
-                None => {
-                    error!(
-                        "Missing mandatory log_index field in log data for block {}",
-                        block_number
-                    );
-                    0
-                }
+            let Some(log_index) = value.get("log_index").and_then(serde_json::Value::as_u64) else {
+                error!(
+                    "Missing mandatory log_index field in log data for block {}",
+                    block_number
+                );
+                return format!("log-{block_number}-unknown-0-0");
             };
 
-            format!(
-                "log-{}-{}-{}-{}",
-                block_number, tx_hash, tx_index, log_index
-            )
+            format!("log-{block_number}-{tx_hash}-{tx_index}-{log_index}")
         }
         "traces" => {
             // For traces, combine block_number, tx_hash, and trace_address
-            let tx_hash = match value.get("tx_hash").and_then(|v| v.as_str()) {
-                Some(hash) => hash,
-                None => {
-                    error!(
-                        "Missing mandatory tx_hash field in trace data for block {}",
-                        block_number
-                    );
-                    return format!("trace-{}-unknown-root", block_number);
-                }
+            let Some(tx_hash) = value.get("tx_hash").and_then(|v| v.as_str()) else {
+                error!(
+                    "Missing mandatory tx_hash field in trace data for block {}",
+                    block_number
+                );
+                return format!("trace-{block_number}-unknown-root");
             };
 
             // Handle trace_address which is an array
-            let trace_address = match value.get("trace_address").and_then(|v| v.as_array()) {
-                Some(addr_array) => addr_array
-                    .iter()
-                    .map(|v| v.as_u64().unwrap_or(0).to_string())
-                    .collect::<Vec<String>>()
-                    .join("-"),
-                None => {
-                    error!(
-                        "Missing mandatory trace_address field in trace data for block {}",
-                        block_number
-                    );
-                    "root".to_string()
-                }
+            let Some(addr_array) = value.get("trace_address").and_then(|v| v.as_array()) else {
+                error!(
+                    "Missing mandatory trace_address field in trace data for block {}",
+                    block_number
+                );
+                return format!("trace-{block_number}-unknown-root");
             };
 
-            format!("trace-{}-{}-{}", block_number, tx_hash, trace_address)
+            let trace_address = addr_array
+                .iter()
+                .map(|v| v.as_u64().unwrap_or(0).to_string())
+                .collect::<Vec<String>>()
+                .join("-");
+
+            format!("trace-{block_number}-{tx_hash}-{trace_address}")
         }
         // For any other table types
         _ => {
             warn!("Invalid table ID: {}", table_id);
-            format!("{}-{}", table_id, block_number)
+            format!("{table_id}-{block_number}")
         }
     };
 
@@ -538,7 +514,7 @@ fn generate_insert_id<T: serde::Serialize>(
         let mut hasher = Sha256::new();
         hasher.update(base_id.as_bytes());
         let hash = format!("{:x}", hasher.finalize());
-        format!("{}-{}-{}", table_id, block_number, &hash[..32])
+        format!("{table_id}-{block_number}-{}", &hash[..32])
     } else {
         // If it's within the limit, use the base ID as is
         base_id
@@ -558,8 +534,7 @@ pub async fn get_last_processed_block(chain_name: &str, datasets: &Vec<String>) 
         }
 
         let query = format!(
-            "SELECT MAX(block_number) AS max_block FROM `{}.{}.{}`",
-            project_id, chain_name, table_id
+            "SELECT MAX(block_number) AS max_block FROM `{project_id}.{chain_name}.{table_id}`",
         );
         let request = QueryRequest {
             query,

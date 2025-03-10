@@ -87,7 +87,7 @@ impl TraceParser for Vec<TraceResult> {
     }
 }
 
-/// Recursively flattens a CallFrame and its nested calls into a vector of TraceData
+// Recursively flattens a CallFrame and its nested calls into a vector of TraceData
 fn flatten_call_frames(
     frame: CallFrame,
     tx_hash: Option<FixedBytes<32>>,
@@ -108,7 +108,7 @@ fn flatten_call_frames(
             block_number,
             tx_hash,
             r#type: frame.typ.to_lowercase(),
-            trace_address: trace_address.clone(),
+            trace_address: trace_address.to_owned(),
             from: frame.from,
             to: frame.to,
             value: frame.value.map(|v| v.to_string()), // Convert from Uint<256, 4> to String for proper serialization
@@ -134,7 +134,7 @@ fn flatten_call_frames(
 
         // Process children with updated trace_address
         for (i, nested_call) in frame.calls.into_iter().enumerate() {
-            let mut child_address = trace_address.clone();
+            let mut child_address = trace_address.to_owned();
             child_address.push(i);
             traces.extend(process_frame_with_address(
                 nested_call,
