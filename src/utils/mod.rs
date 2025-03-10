@@ -65,7 +65,7 @@ fn strip_html(error: &str) -> String {
         // Remove all HTML tags and return the first non-empty line of text
         error
             .lines()
-            .map(|line| line.trim())
+            .map(str::trim)
             .find(|line| {
                 !line.starts_with('<')
                     && !line.ends_with('>')

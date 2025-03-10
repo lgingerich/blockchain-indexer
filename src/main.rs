@@ -4,33 +4,27 @@ mod models;
 mod storage;
 mod utils;
 
-use alloy_consensus::TxEnvelope;
-use alloy_eips::{BlockId, BlockNumberOrTag};
-use alloy_network::{primitives::BlockTransactionsKind, AnyNetwork, AnyTxEnvelope};
-use alloy_primitives::FixedBytes;
+use alloy_eips::BlockNumberOrTag;
+use alloy_network::AnyNetwork;
 use alloy_provider::ProviderBuilder;
-use alloy_rpc_types_trace::geth::{
-    GethDebugBuiltInTracerType, GethDebugTracerConfig, GethDebugTracerType,
-    GethDebugTracingOptions, GethDefaultTracingOptions,
-};
+
 use anyhow::{anyhow, Result};
 use opentelemetry::KeyValue;
+use rayon::prelude::*;
 use tokio::{signal, time::Instant};
 use tracing::{error, info};
 use tracing_subscriber::{self, EnvFilter};
 use url::Url;
-use tokio::task;
-use futures::stream::{self, StreamExt};
-use std::sync::Arc;
 
 use crate::metrics::Metrics;
-use crate::models::common::Chain;
-use crate::models::datasets::blocks::RpcHeaderData;
+use crate::models::common::{Chain, TransformedData};
+use crate::models::datasets::blocks::TransformedBlockData;
 use crate::models::errors::RpcError;
 use crate::storage::{setup_channels, DatasetType};
 use crate::utils::load_config;
 
 const SLEEP_DURATION: u64 = 1000; // ms
+const BATCH_SIZE: usize = 10; // Number of blocks to process in parallel
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -65,7 +59,6 @@ async fn main() -> Result<()> {
     let metrics_enabled = config.metrics.enabled;
     let metrics_addr = config.metrics.address;
     let metrics_port = config.metrics.port;
-    let max_concurrent_blocks = config.max_concurrent_blocks.unwrap_or(10);
 
     // Initialize optional metrics
     let metrics = if metrics_enabled {
@@ -143,30 +136,24 @@ async fn main() -> Result<()> {
 
     info!("Starting block number: {:?}", block_number);
 
+    // Initialize data for loop
+    let mut block_number_to_process = BlockNumberOrTag::Number(block_number);
+
     // Get initial latest block number before loop
-    let mut last_known_latest_block =
-        indexer::get_latest_block_number(&provider, metrics.as_ref())
-            .await?
-            .as_number()
-            .ok_or_else(|| RpcError::InvalidBlockNumberResponse {
-                got: block_number.to_string(),
-            })?;
+    let mut last_known_latest_block = indexer::get_latest_block_number(&provider, metrics.as_ref())
+        .await?
+        .as_number()
+        .ok_or_else(|| RpcError::InvalidBlockNumberResponse {
+            got: block_number_to_process.to_string(),
+        })?;
 
     println!();
     info!("========================= STARTING INDEXER =========================");
 
     let start_time = Instant::now();
+    let mut last_metric_update = Instant::now();
+    let mut blocks_since_last_metric = 0;
 
-    // Create block processor
-    let block_processor = Arc::new(indexer::block_processor::BlockProcessor::new(
-        Box::new(provider),
-        chain,
-        chain_id,
-        metrics.clone(),
-        datasets.clone(),
-    ));
-
-    // Main processing loop
     loop {
         // Check for shutdown signal (non-blocking)
         if shutdown_signal.try_recv().is_ok() {
@@ -176,13 +163,14 @@ async fn main() -> Result<()> {
             break Ok(());
         }
 
-        // Check if we've reached the end block
+        // Check if we've reached the end block (if specified) before processing
         if let Some(end) = end_block {
             if block_number > end {
                 info!(
                     "Reached end block {}, waiting for channels to flush...",
                     end
                 );
+                // Pass the end block to shutdown so it can verify completion
                 channels.shutdown(Some(end)).await?;
                 info!("All channels flushed, shutting down.");
                 let total_runtime = start_time.elapsed();
@@ -197,22 +185,32 @@ async fn main() -> Result<()> {
         }
 
         // Only check latest block if we're within 2x buffer of last known tip
-        if block_number > (last_known_latest_block - chain_tip_buffer * 2) {
-            let latest_block = indexer::get_latest_block_number(&provider, metrics.as_ref()).await?;
-            last_known_latest_block = latest_block
-                .as_number()
-                .ok_or_else(|| RpcError::InvalidBlockNumberResponse {
-                    got: latest_block.to_string(),
-                })?;
+        if block_number_to_process.as_number().ok_or_else(|| {
+            RpcError::InvalidBlockNumberResponse {
+                got: block_number_to_process.to_string(),
+            }
+        })? > (last_known_latest_block - chain_tip_buffer * 2)
+        {
+            let latest_block: BlockNumberOrTag =
+                indexer::get_latest_block_number(&provider, metrics.as_ref()).await?;
+
+            last_known_latest_block =
+                latest_block
+                    .as_number()
+                    .ok_or_else(|| RpcError::InvalidBlockNumberResponse {
+                        got: latest_block.to_string(),
+                    })?;
         }
 
         // If indexer gets too close to tip, back off and retry
-        if block_number > (last_known_latest_block - chain_tip_buffer) {
+        if block_number_to_process.as_number().unwrap()
+            > (last_known_latest_block - chain_tip_buffer)
+        {
             info!(
                 "Buffer limit reached. Waiting for current block to be {} blocks behind tip: {} - current distance: {} - sleeping for 1s",
                 chain_tip_buffer,
                 last_known_latest_block,
-                last_known_latest_block - block_number
+                last_known_latest_block - block_number_to_process.as_number().unwrap()
             );
             tokio::time::sleep(tokio::time::Duration::from_millis(SLEEP_DURATION)).await;
             continue;
@@ -227,33 +225,87 @@ async fn main() -> Result<()> {
             tokio::time::sleep(tokio::time::Duration::from_millis(SLEEP_DURATION)).await;
         }
 
-        // Calculate the range of blocks to process in parallel
-        let end_block_batch = if let Some(end) = end_block {
-            (block_number + max_concurrent_blocks - 1).min(end)
+        // Calculate how many blocks we can process in this batch
+        let blocks_to_process = if let Some(end) = end_block {
+            let remaining = end - block_number + 1;
+            BATCH_SIZE.min(remaining as usize)
         } else {
-            block_number + max_concurrent_blocks - 1
+            BATCH_SIZE
         };
 
-        // Process blocks in parallel
-        let block_processor = Arc::clone(&block_processor);
-        let channels = channels.clone();
-        let block_numbers: Vec<u64> = (block_number..=end_block_batch).collect();
+        // Create a batch of block numbers to process
+        let block_batch: Vec<u64> = (0..blocks_to_process)
+            .map(|i| block_number + i as u64)
+            .collect();
 
-        let results = stream::iter(block_numbers)
-            .map(|block_num| {
-                let block_processor = Arc::clone(&block_processor);
-                task::spawn(async move { block_processor.process_block(block_num).await })
+        // Process blocks in parallel using Rayon
+        let results: Vec<Result<TransformedData>> = block_batch
+            .par_iter()
+            .map(|&block_num| {
+                let block_start_time = Instant::now();
+
+                // Process the block
+                let result =
+                    tokio::runtime::Runtime::new()
+                        .unwrap()
+                        .block_on(indexer::process_block(
+                            &provider,
+                            BlockNumberOrTag::Number(block_num),
+                            chain,
+                            chain_id,
+                            &datasets,
+                            metrics.as_ref(),
+                        ));
+
+                // Update metrics for this block
+                if let Some(metrics_instance) = &metrics {
+                    metrics_instance.blocks_processed.add(
+                        1,
+                        &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
+                    );
+                    metrics_instance.latest_processed_block.record(
+                        block_num,
+                        &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
+                    );
+                    metrics_instance.latest_block_processing_time.record(
+                        block_start_time.elapsed().as_secs_f64(),
+                        &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
+                    );
+                    metrics_instance.chain_tip_block.record(
+                        last_known_latest_block,
+                        &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
+                    );
+                    metrics_instance.chain_tip_lag.record(
+                        last_known_latest_block - block_num,
+                        &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
+                    );
+                }
+
+                result
             })
-            .buffer_unordered(max_concurrent_blocks as usize)
-            .collect::<Vec<_>>()
-            .await;
+            .collect();
 
-        // Process results and send to storage
-        for result in results {
+        // Process and save results
+        // Check if any L1 batch data is missing and retry if so
+        let mut first_unavailable_block: Option<u64> = None;
+        let mut successful_blocks = 0;
+
+        for (block_num, result) in block_batch.iter().zip(results) {
             match result {
-                Ok(Ok(processed_block)) => {
-                    let block_num = processed_block.block_number;
-                    let transformed_data = processed_block.data;
+                Ok(transformed_data) => {
+                    // Check for ZKSync L1 batch number availability
+                    if let Some(TransformedBlockData::ZKsync(zk_block)) =
+                        transformed_data.blocks.first()
+                    {
+                        if zk_block.l1_batch_number.is_none() {
+                            info!(
+                                "L1 batch number not yet available for block {}. Will retry this and subsequent blocks.",
+                                block_num
+                            );
+                            first_unavailable_block = Some(*block_num);
+                            break; // Exit the loop - no point processing further blocks
+                        }
+                    }
 
                     // Send transformed data through channels for saving to storage
                     let dataset_mappings = [
@@ -268,42 +320,56 @@ async fn main() -> Result<()> {
 
                     for (dataset_name, dataset) in dataset_mappings {
                         if datasets.contains(&dataset_name.to_string()) {
-                            channels.send_dataset(dataset, block_num).await;
+                            channels.send_dataset(dataset, *block_num).await;
                         }
                     }
 
-                    // Update metrics
-                    if let Some(metrics_instance) = &metrics {
-                        metrics_instance.blocks_processed.add(
-                            1,
-                            &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
-                        );
-                        metrics_instance.latest_processed_block.record(
-                            block_num,
-                            &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
-                        );
-                        metrics_instance.chain_tip_block.record(
-                            last_known_latest_block,
-                            &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
-                        );
-                        metrics_instance.chain_tip_lag.record(
-                            last_known_latest_block - block_num,
-                            &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
-                        );
-                    }
-                }
-                Ok(Err(e)) => {
-                    error!("Error processing block: {}", e);
-                    // Consider implementing retry logic here
+                    info!("Successfully processed and queued block {} for storage", block_num);
+                    successful_blocks += 1;
                 }
                 Err(e) => {
-                    error!("Task error: {}", e);
-                    // Consider implementing retry logic here
+                    // This is an unrecoverable error that survived all retries in mod.rs
+                    error!("Fatal error processing block {}: {}", block_num, e);
+                    return Err(e); // Exit the program - something is seriously wrong
                 }
             }
         }
 
-        // Update block number for next iteration
-        block_number = end_block_batch + 1;
+        // If we found any block with missing L1 batch number
+        if let Some(unavailable_block) = first_unavailable_block {
+            info!(
+                "Waiting for L1 batch number to become available for block {}",
+                unavailable_block
+            );
+            // Sleep for a full second before retrying
+            tokio::time::sleep(tokio::time::Duration::from_millis(SLEEP_DURATION)).await;
+            // Set block_number to the first unavailable block
+            block_number = unavailable_block;
+            block_number_to_process = BlockNumberOrTag::Number(block_number);
+            continue;
+        } else {
+            // Only increment by the number of successfully processed blocks if we didn't find any unavailable blocks
+            block_number += successful_blocks as u64;
+            block_number_to_process = BlockNumberOrTag::Number(block_number);
+        }
+
+        if let Some(metrics_instance) = &metrics {
+            // Update blocks processed count
+            blocks_since_last_metric += successful_blocks;
+            
+            // Update blocks per second every second
+            let elapsed = last_metric_update.elapsed();
+            if elapsed.as_secs() >= 1 {
+                let blocks_per_second = blocks_since_last_metric as f64 / elapsed.as_secs_f64();
+                metrics_instance.blocks_per_second.record(
+                    blocks_per_second,
+                    &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
+                );
+                
+                // Reset counters
+                blocks_since_last_metric = 0;
+                last_metric_update = Instant::now();
+            }
+        }
     }
 }

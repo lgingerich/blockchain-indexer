@@ -29,6 +29,28 @@ use crate::models::common::{Chain, ParsedData, TransformedData};
 use crate::models::datasets::blocks::RpcHeaderData;
 use crate::utils::retry::{retry, RetryConfig};
 
+use alloy_consensus::TxEnvelope;
+use alloy_network::AnyTxEnvelope;
+use alloy_rpc_types_trace::geth::{
+    GethDebugBuiltInTracerType, GethDebugTracerConfig, GethDebugTracerType,
+    GethDefaultTracingOptions,
+};
+
+pub trait ProviderDebugApi<T, N>: Provider<T, N> + DebugApi<N, T>
+where
+    T: Transport + Clone + Send + Sync,
+    N: Network,
+{
+}
+
+impl<T, N, U> ProviderDebugApi<T, N> for U
+where
+    U: Provider<T, N> + DebugApi<N, T>,
+    T: Transport + Clone + Send + Sync,
+    N: Network,
+{
+}
+
 pub async fn get_chain_id<T, N>(
     provider: &dyn Provider<T, N>,
     metrics: Option<&Metrics>,
@@ -244,7 +266,7 @@ where
                 }
             }
 
-            result.map_err(|e| anyhow!("RPC error: {}", e))
+            result.map_err(|e| anyhow!("RPC error: {e}"))
         },
         &retry_config,
         &match block {
@@ -252,7 +274,7 @@ where
                 "get_block_receipts({})",
                 num.as_number().unwrap_or_default()
             ),
-            BlockId::Hash(hash) => format!("get_block_receipts({})", hash),
+            BlockId::Hash(hash) => format!("get_block_receipts({hash})"),
         },
     )
     .await
@@ -320,7 +342,7 @@ where
 // }
 
 pub async fn debug_trace_transaction_by_hash<T, N>(
-    provider: &impl DebugApi<N, T>,
+    provider: &(impl DebugApi<N, T> + ?Sized),
     transaction_hashes: Vec<FixedBytes<32>>,
     trace_options: GethDebugTracingOptions,
     metrics: Option<&Metrics>,
@@ -517,4 +539,97 @@ pub async fn transform_data(
         logs,
         traces,
     })
+}
+
+pub async fn process_block<T, N>(
+    provider: &impl ProviderDebugApi<T, N>,
+    block_number: BlockNumberOrTag,
+    chain: Chain,
+    chain_id: u64,
+    datasets: &[String],
+    metrics: Option<&Metrics>,
+) -> Result<TransformedData>
+where
+    T: Transport + Clone + Send + Sync,
+    N: Network<BlockResponse = AnyRpcBlock, ReceiptResponse = AnyTransactionReceipt>,
+{
+    // Track which RPC responses we need to fetch
+    let need_block =
+        datasets.contains(&"blocks".to_string()) || datasets.contains(&"transactions".to_string());
+    let need_receipts =
+        datasets.contains(&"logs".to_string()) || datasets.contains(&"transactions".to_string());
+    let need_traces = datasets.contains(&"traces".to_string());
+
+    // Fetch block data if needed
+    let block = if need_block {
+        Some(
+            get_block_by_number(provider, block_number, BlockTransactionsKind::Full, metrics)
+                .await?
+                .ok_or_else(|| anyhow!("Provider returned no block"))?,
+        )
+    } else {
+        None
+    };
+
+    // Fetch receipts if needed
+    let receipts = if need_receipts {
+        let block_id = BlockId::Number(block_number);
+        Some(
+            get_block_receipts(provider, block_id, metrics)
+                .await?
+                .ok_or_else(|| anyhow!("Provider returned no receipts"))?,
+        )
+    } else {
+        None
+    };
+
+    // Fetch traces if needed
+    let traces = if need_traces {
+        // Get transaction hashes from block if we have it
+        let tx_hashes = if let Some(block_data) = &block {
+            block_data
+                .transactions
+                .txns()
+                .map(|transaction| match &transaction.inner.inner {
+                    AnyTxEnvelope::Ethereum(inner) => match inner {
+                        TxEnvelope::Legacy(signed) => *signed.hash(),
+                        TxEnvelope::Eip2930(signed) => *signed.hash(),
+                        TxEnvelope::Eip1559(signed) => *signed.hash(),
+                        TxEnvelope::Eip4844(signed) => *signed.hash(),
+                        TxEnvelope::Eip7702(signed) => *signed.hash(),
+                        _ => FixedBytes::<32>::ZERO,
+                    },
+                    AnyTxEnvelope::Unknown(unknown) => unknown.hash,
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+
+        let trace_options = GethDebugTracingOptions {
+            config: GethDefaultTracingOptions::default(),
+            tracer: Some(GethDebugTracerType::BuiltInTracer(
+                GethDebugBuiltInTracerType::CallTracer,
+            )),
+            tracer_config: GethDebugTracerConfig(serde_json::json!({"onlyTopCall": false})),
+            timeout: Some("10s".to_string()),
+        };
+
+        debug_trace_transaction_by_hash(provider, tx_hashes, trace_options, metrics).await?
+    } else {
+        None
+    };
+
+    // Parse and transform the data
+    let parsed_data = parse_data(
+        chain,
+        chain_id,
+        block_number.as_number().unwrap(),
+        block,
+        receipts,
+        traces,
+    )
+    .await?;
+
+    transform_data(chain, parsed_data, datasets).await
 }

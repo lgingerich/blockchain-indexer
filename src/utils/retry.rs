@@ -22,11 +22,7 @@ impl Default for RetryConfig {
     }
 }
 
-pub async fn retry<F, Fut, T>(
-    operation: F,
-    config: &RetryConfig,
-    context: &str,
-) -> Result<T, Error>
+pub async fn retry<F, Fut, T>(operation: F, config: &RetryConfig, context: &str) -> Result<T, Error>
 where
     F: Fn() -> Fut,
     Fut: Future<Output = std::result::Result<T, Error>>,
@@ -35,7 +31,6 @@ where
     let mut delay = config.base_delay_ms;
 
     loop {
-
         match operation().await {
             Ok(result) => return Ok(result),
             Err(e) => {
@@ -45,7 +40,7 @@ where
                         context, attempt, e
                     );
                     return Err(anyhow!(strip_html(&e.to_string()))
-                        .context(format!("Failed after {} attempts", attempt)));
+                        .context(format!("Failed after {attempt} attempts")));
                 }
 
                 warn!(
