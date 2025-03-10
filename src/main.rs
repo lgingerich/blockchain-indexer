@@ -19,6 +19,9 @@ use tokio::{signal, time::Instant};
 use tracing::{error, info};
 use tracing_subscriber::{self, EnvFilter};
 use url::Url;
+use tokio::task;
+use futures::stream::{self, StreamExt};
+use std::sync::Arc;
 
 use crate::metrics::Metrics;
 use crate::models::common::Chain;
@@ -62,7 +65,7 @@ async fn main() -> Result<()> {
     let metrics_enabled = config.metrics.enabled;
     let metrics_addr = config.metrics.address;
     let metrics_port = config.metrics.port;
-
+    let max_concurrent_blocks = config.max_concurrent_blocks.unwrap_or(10);
 
     // Initialize optional metrics
     let metrics = if metrics_enabled {
@@ -78,13 +81,6 @@ async fn main() -> Result<()> {
             .start_metrics_server(metrics_addr.as_str(), metrics_port)
             .await;
     }
-
-    // Track which RPC responses we need
-    let need_block =
-        datasets.contains(&"blocks".to_string()) || datasets.contains(&"transactions".to_string()); // Blocks and transactions are dependendent on eth_getBlockByNumber
-    let need_receipts =
-        datasets.contains(&"logs".to_string()) || datasets.contains(&"transactions".to_string()); // Logs and transactions are dependendent on eth_getBlockReceipts
-    let need_traces = datasets.contains(&"traces".to_string()); // Traces are dependendent on eth_debug_traceBlockByNumber
 
     // Create RPC provider
     let rpc_url: Url = rpc.parse()?;
@@ -147,16 +143,13 @@ async fn main() -> Result<()> {
 
     info!("Starting block number: {:?}", block_number);
 
-    // Initialize data for loop
-    let mut block_number_to_process = BlockNumberOrTag::Number(block_number);
-
     // Get initial latest block number before loop
     let mut last_known_latest_block =
         indexer::get_latest_block_number(&provider, metrics.as_ref())
             .await?
             .as_number()
             .ok_or_else(|| RpcError::InvalidBlockNumberResponse {
-                got: block_number_to_process.to_string(),
+                got: block_number.to_string(),
             })?;
 
     println!();
@@ -164,6 +157,16 @@ async fn main() -> Result<()> {
 
     let start_time = Instant::now();
 
+    // Create block processor
+    let block_processor = Arc::new(indexer::block_processor::BlockProcessor::new(
+        Box::new(provider),
+        chain,
+        chain_id,
+        metrics.clone(),
+        datasets.clone(),
+    ));
+
+    // Main processing loop
     loop {
         // Check for shutdown signal (non-blocking)
         if shutdown_signal.try_recv().is_ok() {
@@ -173,14 +176,13 @@ async fn main() -> Result<()> {
             break Ok(());
         }
 
-        // Check if we've reached the end block (if specified) before processing
+        // Check if we've reached the end block
         if let Some(end) = end_block {
             if block_number > end {
                 info!(
                     "Reached end block {}, waiting for channels to flush...",
                     end
                 );
-                // Pass the end block to shutdown so it can verify completion
                 channels.shutdown(Some(end)).await?;
                 info!("All channels flushed, shutting down.");
                 let total_runtime = start_time.elapsed();
@@ -194,39 +196,23 @@ async fn main() -> Result<()> {
             }
         }
 
-        // Initialize intermediate data
-        let mut block = None;
-        let mut receipts = None;
-        let mut traces = None;
-
         // Only check latest block if we're within 2x buffer of last known tip
-        if block_number_to_process.as_number().ok_or_else(|| {
-            RpcError::InvalidBlockNumberResponse {
-                got: block_number_to_process.to_string(),
-            }
-        })? > (last_known_latest_block - chain_tip_buffer * 2)
-        {
-            let latest_block: BlockNumberOrTag =
-                indexer::get_latest_block_number(&provider, metrics.as_ref())
-                    .await?;
-
-            last_known_latest_block =
-                latest_block
-                    .as_number()
-                    .ok_or_else(|| RpcError::InvalidBlockNumberResponse {
-                        got: latest_block.to_string(),
-                    })?;
+        if block_number > (last_known_latest_block - chain_tip_buffer * 2) {
+            let latest_block = indexer::get_latest_block_number(&provider, metrics.as_ref()).await?;
+            last_known_latest_block = latest_block
+                .as_number()
+                .ok_or_else(|| RpcError::InvalidBlockNumberResponse {
+                    got: latest_block.to_string(),
+                })?;
         }
 
         // If indexer gets too close to tip, back off and retry
-        if block_number_to_process.as_number().unwrap()
-            > (last_known_latest_block - chain_tip_buffer)
-        {
+        if block_number > (last_known_latest_block - chain_tip_buffer) {
             info!(
                 "Buffer limit reached. Waiting for current block to be {} blocks behind tip: {} - current distance: {} - sleeping for 1s",
                 chain_tip_buffer,
                 last_known_latest_block,
-                last_known_latest_block - block_number_to_process.as_number().unwrap()
+                last_known_latest_block - block_number
             );
             tokio::time::sleep(tokio::time::Duration::from_millis(SLEEP_DURATION)).await;
             continue;
@@ -241,170 +227,83 @@ async fn main() -> Result<()> {
             tokio::time::sleep(tokio::time::Duration::from_millis(SLEEP_DURATION)).await;
         }
 
-        // Start timing the block processing
-        let block_start_time = Instant::now();
+        // Calculate the range of blocks to process in parallel
+        let end_block_batch = if let Some(end) = end_block {
+            (block_number + max_concurrent_blocks - 1).min(end)
+        } else {
+            block_number + max_concurrent_blocks - 1
+        };
 
-        // Get block by number
-        // Only fetch block data if `blocks` or `transactions` are in the active datasets
-        if need_block {
-            let kind = BlockTransactionsKind::Full; // Hashes: only include tx hashes, Full: include full tx objects
-            let block_result = indexer::get_block_by_number(
-                &provider,
-                block_number_to_process,
-                kind,
-                metrics.as_ref(),
-            )
+        // Process blocks in parallel
+        let block_processor = Arc::clone(&block_processor);
+        let channels = channels.clone();
+        let block_numbers: Vec<u64> = (block_number..=end_block_batch).collect();
+
+        let results = stream::iter(block_numbers)
+            .map(|block_num| {
+                let block_processor = Arc::clone(&block_processor);
+                task::spawn(async move { block_processor.process_block(block_num).await })
+            })
+            .buffer_unordered(max_concurrent_blocks as usize)
+            .collect::<Vec<_>>()
             .await;
 
-            block = Some(block_result?.ok_or_else(|| anyhow!("Provider returned no block"))?);
-        }
+        // Process results and send to storage
+        for result in results {
+            match result {
+                Ok(Ok(processed_block)) => {
+                    let block_num = processed_block.block_number;
+                    let transformed_data = processed_block.data;
 
-        // Get receipts by block number
-        // Only fetch receipts data if `logs` or `transactions` are in the active datasets
-        if need_receipts {
-            let block_id = BlockId::Number(block_number_to_process);
-            let receipts_result = indexer::get_block_receipts(
-                &provider,
-                block_id,
-                metrics.as_ref(),
-            )
-            .await;
+                    // Send transformed data through channels for saving to storage
+                    let dataset_mappings = [
+                        ("blocks", DatasetType::Blocks(transformed_data.blocks)),
+                        (
+                            "transactions",
+                            DatasetType::Transactions(transformed_data.transactions),
+                        ),
+                        ("logs", DatasetType::Logs(transformed_data.logs)),
+                        ("traces", DatasetType::Traces(transformed_data.traces)),
+                    ];
 
-            receipts =
-                Some(receipts_result?.ok_or_else(|| anyhow!("Provider returned no receipts"))?);
-        }
-
-        // Create tracing options with CallTracer and nested calls
-        // Only fetch traces data if `traces` is in the active datasets
-        if need_traces {
-            let trace_options = GethDebugTracingOptions {
-                config: GethDefaultTracingOptions::default(),
-                tracer: Some(GethDebugTracerType::BuiltInTracer(
-                    GethDebugBuiltInTracerType::CallTracer,
-                )),
-                tracer_config: GethDebugTracerConfig(serde_json::json!({"onlyTopCall": false})), // Get nested calls
-                timeout: Some("10s".to_string()),
-            };
-
-            // Get Geth traces by transaction hash
-            let tx_hashes: Vec<FixedBytes<32>> = if let Some(block_data) = &block {
-                block_data
-                    .transactions
-                    .txns()
-                    .map(|transaction| {
-                        match &transaction.inner.inner {
-                            AnyTxEnvelope::Ethereum(inner) => {
-                                match inner {
-                                    TxEnvelope::Legacy(signed) => *signed.hash(),
-                                    TxEnvelope::Eip2930(signed) => *signed.hash(),
-                                    TxEnvelope::Eip1559(signed) => *signed.hash(),
-                                    TxEnvelope::Eip4844(signed) => *signed.hash(),
-                                    TxEnvelope::Eip7702(signed) => *signed.hash(),
-                                    _ => FixedBytes::<32>::ZERO, // Should never happen
-                                }
-                            }
-                            AnyTxEnvelope::Unknown(unknown) => unknown.hash,
+                    for (dataset_name, dataset) in dataset_mappings {
+                        if datasets.contains(&dataset_name.to_string()) {
+                            channels.send_dataset(dataset, block_num).await;
                         }
-                    })
-                    .collect()
-            } else {
-                Vec::new()
-            };
+                    }
 
-            let traces_result = indexer::debug_trace_transaction_by_hash(
-                &provider,
-                tx_hashes,
-                trace_options,
-                metrics.as_ref(),
-            )
-            .await;
-
-            traces = Some(traces_result?.ok_or_else(|| anyhow!("Provider returned no traces"))?);
-        }
-
-        // Extract and separate the raw RPC response into distinct datasets (block headers, transactions, receipts, logs, traces)
-        let parsed_data = indexer::parse_data(
-            chain,
-            chain_id,
-            block_number_to_process.as_number().unwrap(),
-            block,
-            receipts,
-            traces,
-        )
-        .await?;
-
-        // For ZKSync, wait until L1 batch number is available
-        // This is possibly necessary for other L2s as well
-        // Note: For future real-time support, this will need to be improved
-        if chain == Chain::ZKsync {
-            if let Some(RpcHeaderData::ZKsync(zk_header)) = parsed_data.header.first() {
-                if zk_header.l1_batch_number.is_none() {
-                    info!(
-                        "L1 batch number not yet available for block {}. Waiting...",
-                        block_number
-                    );
-                    tokio::time::sleep(tokio::time::Duration::from_millis(SLEEP_DURATION)).await;
-                    continue;
+                    // Update metrics
+                    if let Some(metrics_instance) = &metrics {
+                        metrics_instance.blocks_processed.add(
+                            1,
+                            &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
+                        );
+                        metrics_instance.latest_processed_block.record(
+                            block_num,
+                            &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
+                        );
+                        metrics_instance.chain_tip_block.record(
+                            last_known_latest_block,
+                            &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
+                        );
+                        metrics_instance.chain_tip_lag.record(
+                            last_known_latest_block - block_num,
+                            &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
+                        );
+                    }
+                }
+                Ok(Err(e)) => {
+                    error!("Error processing block: {}", e);
+                    // Consider implementing retry logic here
+                }
+                Err(e) => {
+                    error!("Task error: {}", e);
+                    // Consider implementing retry logic here
                 }
             }
         }
 
-        // Transform all data into final output formats (blocks, transactions, logs, traces)
-        let transformed_data = indexer::transform_data(chain, parsed_data, &datasets).await?;
-
-        info!(
-            "Finished processing block {}",
-            block_number_to_process.as_number().unwrap()
-        );
-
-        // Send transformed data through channels for saving to storage
-        let dataset_mappings = [
-            ("blocks", DatasetType::Blocks(transformed_data.blocks)),
-            (
-                "transactions",
-                DatasetType::Transactions(transformed_data.transactions),
-            ),
-            ("logs", DatasetType::Logs(transformed_data.logs)),
-            ("traces", DatasetType::Traces(transformed_data.traces)),
-        ];
-
-        for (dataset_name, dataset) in dataset_mappings {
-            if datasets.contains(&dataset_name.to_string()) {
-                channels
-                    .send_dataset(dataset, block_number_to_process.as_number().unwrap())
-                    .await;
-            }
-        }
-
-        // Calculate block processing duration
-        let block_processing_duration = block_start_time.elapsed().as_secs_f64();
-
-        // Update metrics
-        if let Some(metrics_instance) = &metrics {
-            metrics_instance.blocks_processed.add(
-                1,
-                &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
-            );
-            metrics_instance.latest_processed_block.record(
-                block_number_to_process.as_number().unwrap(),
-                &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
-            );
-            metrics_instance.latest_block_processing_time.record(
-                block_processing_duration,
-                &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
-            );
-            metrics_instance.chain_tip_block.record(
-                last_known_latest_block,
-                &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
-            );
-            metrics_instance.chain_tip_lag.record(
-                last_known_latest_block - block_number_to_process.as_number().unwrap(),
-                &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
-            );
-        }
-
-        // Increment the raw number and update BlockNumberOrTag
-        block_number += 1;
-        block_number_to_process = BlockNumberOrTag::Number(block_number);
+        // Update block number for next iteration
+        block_number = end_block_batch + 1;
     }
 }
