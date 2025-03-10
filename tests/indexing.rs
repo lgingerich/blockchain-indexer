@@ -1,12 +1,7 @@
-use alloy_consensus::TxEnvelope;
 use alloy_eips::BlockNumberOrTag;
-use alloy_network::{AnyNetwork, AnyTxEnvelope};
-use alloy_primitives::FixedBytes;
+use alloy_network::AnyNetwork;
 use alloy_provider::ProviderBuilder;
-use alloy_rpc_types_trace::geth::{
-    GethDebugBuiltInTracerType, GethDebugTracerConfig, GethDebugTracerType,
-    GethDebugTracingOptions, GethDefaultTracingOptions,
-};
+
 use anyhow::Result;
 use url::Url;
 
@@ -76,83 +71,10 @@ async fn process_chain_test(
     let chain_id = indexer::get_chain_id(&provider, None).await?;
     assert_eq!(chain, Chain::from_chain_id(chain_id)?);
 
-    for (block_number, expected_blocks, expected_txs, expected_logs, expected_traces) in block_cases
-    {
+    // Process blocks sequentially
+    for (block_number, expected_blocks, expected_txs, expected_logs, expected_traces) in block_cases {
         println!("\nProcessing {} block {}", chain_name, block_number);
-        let block_number = BlockNumberOrTag::Number(block_number);
-
-        // Fetch all data
-        let block = Some(
-            indexer::get_block_by_number(
-                &provider,
-                block_number,
-                alloy_network::primitives::BlockTransactionsKind::Full,
-                None,
-            )
-            .await?
-            .expect("block should exist"),
-        );
-
-        let receipts = Some(
-            indexer::get_block_receipts(&provider, block_number.into(), None)
-                .await?
-                .expect("receipts should exist"),
-        );
-
-        let trace_options = GethDebugTracingOptions {
-            config: GethDefaultTracingOptions::default(),
-            tracer: Some(GethDebugTracerType::BuiltInTracer(
-                GethDebugBuiltInTracerType::CallTracer,
-            )),
-            tracer_config: GethDebugTracerConfig(serde_json::json!({"onlyTopCall": false})),
-            timeout: Some("10s".to_string()),
-        };
-        let tx_hashes: Vec<FixedBytes<32>> = if let Some(block_data) = &block {
-            block_data
-                .transactions
-                .txns()
-                .map(|transaction| {
-                    match &transaction.inner.inner {
-                        AnyTxEnvelope::Ethereum(inner) => {
-                            match inner {
-                                TxEnvelope::Legacy(signed) => *signed.hash(),
-                                TxEnvelope::Eip2930(signed) => *signed.hash(),
-                                TxEnvelope::Eip1559(signed) => *signed.hash(),
-                                TxEnvelope::Eip4844(signed) => *signed.hash(),
-                                TxEnvelope::Eip7702(signed) => *signed.hash(),
-                                _ => FixedBytes::<32>::ZERO, // Should never happen
-                            }
-                        }
-                        AnyTxEnvelope::Unknown(unknown) => unknown.hash,
-                    }
-                })
-                .collect()
-        } else {
-            Vec::new()
-        };
-        let traces = Some(
-            indexer::debug_trace_transaction_by_hash(
-                &provider,
-                tx_hashes,
-                trace_options,
-                None,
-            )
-            .await?
-            .expect("traces should exist"),
-        );
-
-        // Parse the raw data
-        let parsed_data = indexer::parse_data(
-            chain,
-            chain_id,
-            block_number.as_number().unwrap(),
-            block,
-            receipts,
-            traces,
-        )
-        .await?;
-
-        // Transform the parsed data
+        
         let datasets = vec![
             "blocks".to_string(),
             "transactions".to_string(),
@@ -160,7 +82,14 @@ async fn process_chain_test(
             "traces".to_string(),
         ];
 
-        let transformed_data = indexer::transform_data(chain, parsed_data, &datasets).await?;
+        let transformed_data = indexer::process_block(
+            &provider,
+            BlockNumberOrTag::Number(block_number),
+            chain,
+            chain_id,
+            &datasets,
+            None,
+        ).await?;
 
         // Verify the transformed data matches expected counts
         assert_eq!(
@@ -168,7 +97,7 @@ async fn process_chain_test(
             expected_blocks,
             "{} Block {}: Expected {} blocks, got {}",
             chain_name,
-            block_number.as_number().unwrap(),
+            block_number,
             expected_blocks,
             transformed_data.blocks.len()
         );
@@ -178,7 +107,7 @@ async fn process_chain_test(
             expected_txs,
             "{} Block {}: Expected {} transactions, got {}",
             chain_name,
-            block_number.as_number().unwrap(),
+            block_number,
             expected_txs,
             transformed_data.transactions.len()
         );
@@ -188,7 +117,7 @@ async fn process_chain_test(
             expected_logs,
             "{} Block {}: Expected {} logs, got {}",
             chain_name,
-            block_number.as_number().unwrap(),
+            block_number,
             expected_logs,
             transformed_data.logs.len()
         );
@@ -198,7 +127,7 @@ async fn process_chain_test(
             expected_traces,
             "{} Block {}: Expected {} traces, got {}",
             chain_name,
-            block_number.as_number().unwrap(),
+            block_number,
             expected_traces,
             transformed_data.traces.len()
         );
@@ -206,7 +135,7 @@ async fn process_chain_test(
         println!(
             "{} Block {} processed successfully:",
             chain_name,
-            block_number.as_number().unwrap()
+            block_number
         );
         println!("- {} blocks", transformed_data.blocks.len());
         println!("- {} transactions", transformed_data.transactions.len());
