@@ -92,9 +92,8 @@ impl TransactionTransformer for ParsedData {
 
                 match chain {
                     Chain::Ethereum => {
-                        let eth_tx = match tx {
-                            RpcTransactionData::Ethereum(t) => t,
-                            _ => panic!("Expected Ethereum transaction for Ethereum chain"),
+                        let RpcTransactionData::Ethereum(eth_tx) = tx else {
+                            panic!("Expected Ethereum transaction for Ethereum chain");
                         };
 
                         TransformedTransactionData::Ethereum(EthereumTransformedTransactionData {
@@ -106,9 +105,8 @@ impl TransactionTransformer for ParsedData {
                         })
                     }
                     Chain::ZKsync => {
-                        let zksync_tx = match tx {
-                            RpcTransactionData::ZKsync(t) => t,
-                            _ => panic!("Expected ZKsync transaction for ZKsync chain"),
+                        let RpcTransactionData::ZKsync(zksync_tx) = tx else {
+                            panic!("Expected ZKsync transaction for ZKsync chain");
                         };
 
                         TransformedTransactionData::ZKsync(ZKsyncTransformedTransactionData {

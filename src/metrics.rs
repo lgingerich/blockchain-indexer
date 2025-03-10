@@ -110,16 +110,16 @@ impl Metrics {
     }
 
     pub async fn start_metrics_server(&self, addr: &str, port: u16) {
-        let addr = format!("{}:{}", addr, port).parse::<SocketAddr>().unwrap();
+        let addr = format!("{addr}:{port}").parse::<SocketAddr>().unwrap();
         let registry = self.registry.clone();
 
         let app = Router::new().route("/metrics", get(move || metrics_handler(registry.clone())));
 
         // Determine the access URL based on the binding address. Only used for logging.
         let access_url = if addr.ip().to_string() == "0.0.0.0" {
-            format!("http://localhost:{}/metrics", port)
+            format!("http://localhost:{port}/metrics")
         } else {
-            format!("http://{}:{}/metrics", addr.ip(), port)
+            format!("http://{}:{port}/metrics", addr.ip())
         };
 
         info!(

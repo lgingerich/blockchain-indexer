@@ -56,9 +56,8 @@ impl BlockTransformer for ParsedData {
                         TransformedBlockData::Ethereum(EthereumTransformedBlockData { common })
                     }
                     Chain::ZKsync => {
-                        let zksync_data = match header {
-                            RpcHeaderData::ZKsync(h) => h,
-                            _ => panic!("Expected ZKsync header for ZKsync chain"),
+                        let RpcHeaderData::ZKsync(zksync_data) = header else {
+                            panic!("Expected ZKsync header for ZKsync chain");
                         };
 
                         TransformedBlockData::ZKsync(ZKsyncTransformedBlockData {

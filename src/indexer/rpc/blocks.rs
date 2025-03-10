@@ -325,10 +325,10 @@ impl BlockParser for AnyRpcBlock {
                                         RpcTransactionData::ZKsync(ZKsyncRpcTransactionData {
                                             common: t.common,
                                             l1_batch_number: other.get_deserialized::<String>("l1BatchNumber")
-                                                .and_then(|result| result.ok())
+                                                .and_then(std::result::Result::ok)
                                                 .and_then(hex_to_u64),
                                             l1_batch_tx_index: other.get_deserialized::<String>("l1BatchTxIndex")
-                                                .and_then(|result| result.ok())
+                                                .and_then(std::result::Result::ok)
                                                 .and_then(hex_to_u64),
                                         })
                                     },
@@ -354,34 +354,34 @@ impl BlockParser for AnyRpcBlock {
                                 tx_type: ty.0, // Gets the first element of the tuple as u8
                                 nonce: other_fields
                                     .get_deserialized::<u64>("nonce")
-                                    .and_then(|result| result.ok())
+                                    .and_then(std::result::Result::ok)
                                     .unwrap_or_default(),
                                 from,
                                 to: other_fields
                                     .get_deserialized::<TransactionTo>("to")
-                                    .and_then(|result| result.ok())
+                                    .and_then(std::result::Result::ok)
                                     .unwrap_or(TransactionTo::Address(Address::ZERO)),
                                 input: other_fields
                                     .get_deserialized::<Bytes>("input")
-                                    .and_then(|result| result.ok()),
+                                    .and_then(std::result::Result::ok),
                                 value: other_fields
                                     .get_deserialized::<Uint<256, 4>>("value")
-                                    .and_then(|result| result.ok())
+                                    .and_then(std::result::Result::ok)
                                     .map(|value| value.to_string()),
                                 gas_price: Some(other_fields
                                     .get_deserialized::<u128>("gasPrice")
-                                    .and_then(|result| result.ok())
+                                    .and_then(std::result::Result::ok)
                                     .unwrap_or_default()),
                                 gas_limit: other_fields
                                     .get_deserialized::<u64>("gas")
-                                    .and_then(|result| result.ok())
+                                    .and_then(std::result::Result::ok)
                                     .unwrap_or_default(),
                                 max_fee_per_gas: other_fields
                                     .get_deserialized::<u128>("maxFeePerGas")
-                                    .and_then(|result| result.ok()),
+                                    .and_then(std::result::Result::ok),
                                 max_priority_fee_per_gas: other_fields
                                     .get_deserialized::<u128>("maxPriorityFeePerGas")
-                                    .and_then(|result| result.ok()),
+                                    .and_then(std::result::Result::ok),
                                 effective_gas_price,
                                 access_list: memo.access_list
                                     .get()
@@ -397,15 +397,15 @@ impl BlockParser for AnyRpcBlock {
                                     .unwrap_or_default(),
                                 r: other_fields
                                     .get_deserialized::<Uint<256, 4>>("r")
-                                    .and_then(|result| result.ok())
+                                    .and_then(std::result::Result::ok)
                                     .map(|r| r.to_string()),
                                 s: other_fields
                                     .get_deserialized::<Uint<256, 4>>("s")
-                                    .and_then(|result| result.ok())
+                                    .and_then(std::result::Result::ok)
                                     .map(|s| s.to_string()),
                                 v: other_fields
                                     .get_deserialized::<bool>("v")
-                                    .and_then(|result| result.ok()), // Deserialized as bool
+                                    .and_then(std::result::Result::ok), // Deserialized as bool
                             };
 
                             match chain {
@@ -417,11 +417,11 @@ impl BlockParser for AnyRpcBlock {
                                         common: common_fields,
                                         l1_batch_number: other_fields
                                             .get_deserialized::<String>("l1BatchNumber")
-                                            .and_then(|result| result.ok())
+                                            .and_then(std::result::Result::ok)
                                             .and_then(hex_to_u64),
                                         l1_batch_tx_index: other_fields
                                             .get_deserialized::<String>("l1BatchTxIndex")
-                                            .and_then(|result| result.ok())
+                                            .and_then(std::result::Result::ok)
                                             .and_then(hex_to_u64),
                                     })
                                 }

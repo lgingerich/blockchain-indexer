@@ -265,7 +265,7 @@ where
                 }
             }
 
-            result.map_err(|e| anyhow!("RPC error: {}", e))
+            result.map_err(|e| anyhow!("RPC error: {e}"))
         },
         &retry_config,
         &match block {
@@ -273,7 +273,7 @@ where
                 "get_block_receipts({})",
                 num.as_number().unwrap_or_default()
             ),
-            BlockId::Hash(hash) => format!("get_block_receipts({})", hash),
+            BlockId::Hash(hash) => format!("get_block_receipts({hash})"),
         },
     )
     .await

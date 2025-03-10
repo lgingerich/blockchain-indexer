@@ -40,7 +40,7 @@ where
                         context, attempt, e
                     );
                     return Err(anyhow!(strip_html(&e.to_string()))
-                        .context(format!("Failed after {} attempts", attempt)));
+                        .context(format!("Failed after {attempt} attempts")));
                 }
 
                 warn!(
