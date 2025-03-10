@@ -1,4 +1,0 @@
-region                  = "region"
-zone                    = "zone"
-machine_type            = "machine-type"
-create_service_account  = false
