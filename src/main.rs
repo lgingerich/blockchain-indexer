@@ -370,8 +370,6 @@ async fn main() -> Result<()> {
                 blocks_since_last_metric = 0;
                 last_metric_update = Instant::now();
             }
-            
-            // ... existing metrics code ...
         }
     }
 }
