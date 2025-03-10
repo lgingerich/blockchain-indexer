@@ -1,6 +1,5 @@
 pub mod rpc;
 pub mod transformations;
-pub mod block_processor;
 
 use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_network::{
