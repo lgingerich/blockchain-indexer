@@ -26,6 +26,9 @@ use crate::indexer::transformations::{
 use crate::metrics::Metrics;
 use crate::models::common::{Chain, ParsedData, TransformedData};
 use crate::models::datasets::blocks::RpcHeaderData;
+use crate::models::datasets::logs::RpcLogReceiptData;
+use crate::models::datasets::traces::RpcTraceData;
+use crate::models::datasets::transactions::RpcTransactionData;
 use crate::utils::retry::{retry, RetryConfig};
 
 use alloy_consensus::TxEnvelope;
@@ -484,12 +487,18 @@ pub async fn transform_data(
     parsed_data: ParsedData,
     active_datasets: &[String],
 ) -> Result<TransformedData> {
-    // Build set of common fields I need to pass across datasets (e.g. block_number -> block_time, block_date)
-    // Hashmap is likely overkill for now with processing only a single block but will be useful for processing multiple blocks
-    let block_map: HashMap<_, _> = parsed_data
-        .header
-        .clone()
-        .into_iter()
+    let ParsedData {
+        chain_id,
+        header,
+        transactions,
+        transaction_receipts,
+        logs,
+        traces,
+    } = parsed_data;
+
+    // Build block_map from header data
+    let block_map: HashMap<_, _> = header
+        .iter()
         .map(|header| match header {
             RpcHeaderData::Ethereum(eth_header) => (
                 eth_header.common.block_number,
@@ -502,35 +511,29 @@ pub async fn transform_data(
         })
         .collect();
 
-    // Only transform data for active datasets, otherwise return empty Vec
     let blocks = if active_datasets.contains(&"blocks".to_string()) {
-        parsed_data.clone().transform_blocks(chain)?
+        <RpcHeaderData as BlockTransformer>::transform_blocks(header, chain, chain_id)?
     } else {
         vec![]
     };
 
-    let transactions = if active_datasets.contains(&"transactions".to_string())
-        && !parsed_data.transactions.is_empty()
-    {
-        parsed_data
-            .clone()
-            .transform_transactions(chain, block_map.clone())?
+    let transactions = if active_datasets.contains(&"transactions".to_string()) && !transactions.is_empty() {
+        <RpcTransactionData as TransactionTransformer>::transform_transactions(transactions, transaction_receipts, chain, chain_id, &block_map)?
     } else {
         vec![]
     };
 
-    let logs = if active_datasets.contains(&"logs".to_string()) && !parsed_data.logs.is_empty() {
-        parsed_data.clone().transform_logs(chain)? // Don't need to pass block_map here as logs already have desired fields
+    let logs = if active_datasets.contains(&"logs".to_string()) && !logs.is_empty() {
+        <RpcLogReceiptData as LogTransformer>::transform_logs(logs, chain, chain_id)?
     } else {
         vec![]
     };
 
-    let traces =
-        if active_datasets.contains(&"traces".to_string()) && !parsed_data.traces.is_empty() {
-            parsed_data.clone().transform_traces(chain, block_map)?
-        } else {
-            vec![]
-        };
+    let traces = if active_datasets.contains(&"traces".to_string()) && !traces.is_empty() {
+        <RpcTraceData as TraceTransformer>::transform_traces(traces, chain, chain_id, &block_map)?
+    } else {
+        vec![]
+    };
 
     Ok(TransformedData {
         blocks,

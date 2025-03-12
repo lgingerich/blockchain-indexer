@@ -2,7 +2,7 @@ use anyhow::Result;
 use chrono::{DateTime, NaiveDate, Utc};
 use std::collections::HashMap;
 
-use crate::models::common::{Chain, ParsedData};
+use crate::models::common::Chain;
 use crate::models::datasets::transactions::{
     CommonTransformedTransactionData, EthereumTransformedTransactionData, RpcTransactionData,
     RpcTransactionReceiptData, TransformedTransactionData, ZKsyncTransformedTransactionData,
@@ -10,38 +10,37 @@ use crate::models::datasets::transactions::{
 
 pub trait TransactionTransformer {
     fn transform_transactions(
-        self,
+        transactions: Vec<RpcTransactionData>,
+        receipts: Vec<RpcTransactionReceiptData>,
         chain: Chain,
-        block_map: HashMap<u64, (DateTime<Utc>, NaiveDate)>,
+        chain_id: u64,
+        block_map: &HashMap<u64, (DateTime<Utc>, NaiveDate)>,
     ) -> Result<Vec<TransformedTransactionData>>;
 }
 
-impl TransactionTransformer for ParsedData {
+impl TransactionTransformer for RpcTransactionData {
     fn transform_transactions(
-        self,
+        transactions: Vec<RpcTransactionData>,
+        receipts: Vec<RpcTransactionReceiptData>,
         chain: Chain,
-        block_map: HashMap<u64, (DateTime<Utc>, NaiveDate)>,
+        chain_id: u64,
+        block_map: &HashMap<u64, (DateTime<Utc>, NaiveDate)>,
     ) -> Result<Vec<TransformedTransactionData>> {
-        // Zip transactions with their corresponding receipts
-        let transactions_with_receipts =
-            self.transactions.into_iter().zip(self.transaction_receipts);
-
-        // Map each (transaction, receipt) pair into a TransformedTransactionData
-        Ok(transactions_with_receipts
+        Ok(transactions
+            .into_iter()
+            .zip(receipts)
             .map(|(tx, receipt)| {
-                // First match on the tx to get the common data
                 let common_tx = match &tx {
                     RpcTransactionData::Ethereum(t) => &t.common,
                     RpcTransactionData::ZKsync(t) => &t.common,
                 };
-                // Then match on the receipt to get the common data
                 let common_receipt = match &receipt {
                     RpcTransactionReceiptData::Ethereum(r) => &r.common,
                     RpcTransactionReceiptData::ZKsync(r) => &r.common,
                 };
 
                 let common = CommonTransformedTransactionData {
-                    chain_id: self.chain_id,
+                    chain_id,
                     block_time: common_tx
                         .block_number
                         .and_then(|num| block_map.get(&num))
@@ -56,10 +55,6 @@ impl TransactionTransformer for ParsedData {
                     block_hash: common_receipt.block_hash,
                     tx_hash: common_receipt.tx_hash,
                     tx_index: common_receipt.tx_index,
-                    // TODO: Improve this
-                    // Use receipt fields if available, otherwise use transaction fields or defaults
-                    // 0 is used as the default value for tx_type if it does not exist, so
-                    // if one field is not 0, it means we should use that field
                     tx_type: if common_receipt.tx_type != 0 {
                         common_receipt.tx_type
                     } else {

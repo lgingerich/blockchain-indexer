@@ -91,8 +91,7 @@ impl ReceiptParser for Vec<AnyTransactionReceipt> {
                 receipt_with_bloom
                     .receipt
                     .logs
-                    .clone()
-                    .into_iter()
+                    .iter()
                     .map(|log| {
                         // Get original block time from timestamp if available
                         let original_time = log
@@ -118,7 +117,7 @@ impl ReceiptParser for Vec<AnyTransactionReceipt> {
                             log_index: log.log_index,
                             address: log.inner.address,
                             topics: log.inner.data.topics().to_vec(),
-                            data: log.inner.data.data,
+                            data: log.inner.data.data.clone(),
                             removed: log.removed,
                         };
 

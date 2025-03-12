@@ -27,8 +27,8 @@ pub trait BlockParser {
 
 impl BlockParser for AnyRpcBlock {
     fn parse_header(&self, chain: Chain) -> Result<Vec<RpcHeaderData>> {
-        let inner = self.header.inner.clone();
-        let other = self.other.clone();
+        let inner = &self.header.inner;
+        let other = &self.other;
 
         // Get the block timestamp and convert to DateTime
         let original_time =
@@ -50,7 +50,7 @@ impl BlockParser for AnyRpcBlock {
             base_fee_per_gas: inner.base_fee_per_gas,
             blob_gas_used: inner.blob_gas_used,
             excess_blob_gas: inner.excess_blob_gas,
-            extra_data: inner.extra_data,
+            extra_data: inner.extra_data.clone(),
             difficulty: inner.difficulty.to_string(),
             total_difficulty: self.header.total_difficulty.map(|value| value.to_string()),
             size: self.header.size.map(|value| value.to_string()),
@@ -99,8 +99,7 @@ impl BlockParser for AnyRpcBlock {
                 .transactions
                 .txns()
                 .map(|transaction| {
-
-                    let inner = transaction.inner.clone();
+                    let inner = &transaction.inner;
                     let block_hash = transaction.block_hash;
                     let block_number = transaction.block_number;
                     let tx_index = transaction.transaction_index;
@@ -108,6 +107,7 @@ impl BlockParser for AnyRpcBlock {
                     let from = transaction.from;
 
                     // default values of mandatory fields are not too important as they will always get overrriden by the actual values
+                    // TODO: Can this be improved?
                     let common = CommonRpcTransactionData {
                         block_number,
                         block_hash,
@@ -317,7 +317,7 @@ impl BlockParser for AnyRpcBlock {
                             // Non-Ethereum chains will match on AnyTxEnvelope::Ethereum
                             // for legacy transactions. This handles converting back to
                             // proper chain type.
-                            let other = transaction.other.clone();
+                            let other = &transaction.other;
                             match chain {
                                 Chain::Ethereum => common_tx,
                                 Chain::ZKsync => match common_tx {

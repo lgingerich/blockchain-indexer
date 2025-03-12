@@ -2,38 +2,38 @@ use anyhow::Result;
 use chrono::{DateTime, NaiveDate, Utc};
 use std::collections::HashMap;
 
-use crate::models::common::{Chain, ParsedData};
 use crate::models::datasets::traces::{
     CommonTransformedTraceData, EthereumTransformedTraceData, RpcTraceData, TransformedTraceData,
     ZKsyncTransformedTraceData,
 };
+use crate::models::common::Chain;
 
 pub trait TraceTransformer {
     fn transform_traces(
-        self,
+        traces: Vec<RpcTraceData>,
         chain: Chain,
-        block_map: HashMap<u64, (DateTime<Utc>, NaiveDate)>,
+        chain_id: u64,
+        block_map: &HashMap<u64, (DateTime<Utc>, NaiveDate)>,
     ) -> Result<Vec<TransformedTraceData>>;
 }
 
-impl TraceTransformer for ParsedData {
+impl TraceTransformer for RpcTraceData {
     fn transform_traces(
-        self,
+        traces: Vec<RpcTraceData>,
         chain: Chain,
-        block_map: HashMap<u64, (DateTime<Utc>, NaiveDate)>,
+        chain_id: u64,
+        block_map: &HashMap<u64, (DateTime<Utc>, NaiveDate)>,
     ) -> Result<Vec<TransformedTraceData>> {
-        Ok(self
-            .traces
+        Ok(traces
             .into_iter()
             .map(|trace| {
-                // First match on the trace to get the common data
                 let common_data = match &trace {
                     RpcTraceData::Ethereum(t) => &t.common,
                     RpcTraceData::ZKsync(t) => &t.common,
                 };
 
                 let common = CommonTransformedTraceData {
-                    chain_id: self.chain_id,
+                    chain_id,
                     block_time: block_map
                         .get(&common_data.block_number)
                         .map(|(time, _)| *time)
@@ -59,14 +59,11 @@ impl TraceTransformer for ParsedData {
                 };
 
                 match chain {
-                    Chain::Ethereum => {
-                        TransformedTraceData::Ethereum(EthereumTransformedTraceData { common })
-                    }
-                    Chain::ZKsync => {
-                        TransformedTraceData::ZKsync(ZKsyncTransformedTraceData { common })
-                    }
+                    Chain::Ethereum => TransformedTraceData::Ethereum(EthereumTransformedTraceData { common }),
+                    Chain::ZKsync => TransformedTraceData::ZKsync(ZKsyncTransformedTraceData { common }),
                 }
             })
             .collect())
     }
 }
+
