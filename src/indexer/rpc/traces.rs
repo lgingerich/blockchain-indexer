@@ -18,6 +18,7 @@ impl TraceParser for Vec<TraceResult> {
             .flat_map(|trace_result| {
                 match trace_result {
                     TraceResult::Success { result, tx_hash } => {
+                        // TODO: Add support for other trace types
                         match result {
                             GethTrace::Default(_frame) => {
                                 unimplemented!()

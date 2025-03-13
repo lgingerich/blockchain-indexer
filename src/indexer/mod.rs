@@ -1,6 +1,7 @@
 pub mod rpc;
 pub mod transformations;
 
+
 use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_network::{
     primitives::BlockTransactionsKind, AnyRpcBlock, AnyTransactionReceipt, Network,
@@ -16,6 +17,7 @@ use alloy_transport::Transport;
 use anyhow::{anyhow, Result};
 use opentelemetry::KeyValue;
 use std::collections::HashMap;
+use tokio_retry::Retry;
 use tracing::warn;
 
 use crate::indexer::rpc::{blocks::BlockParser, receipts::ReceiptParser, traces::TraceParser};
@@ -26,7 +28,10 @@ use crate::indexer::transformations::{
 use crate::metrics::Metrics;
 use crate::models::common::{Chain, ParsedData, TransformedData};
 use crate::models::datasets::blocks::RpcHeaderData;
-use crate::utils::retry::{retry, RetryConfig};
+use crate::models::datasets::logs::RpcLogReceiptData;
+use crate::models::datasets::traces::RpcTraceData;
+use crate::models::datasets::transactions::RpcTransactionData;
+use crate::utils::retry::RETRY_CONFIG;
 
 use alloy_consensus::TxEnvelope;
 use alloy_network::AnyTxEnvelope;
@@ -58,15 +63,34 @@ where
     T: Transport + Clone,
     N: Network,
 {
-    let retry_config = RetryConfig::default();
+    Retry::spawn(RETRY_CONFIG.clone(), || async {
+        let start = std::time::Instant::now();
 
-    retry(
-        || async {
-            let start = std::time::Instant::now();
+        // Record metrics if enabled
+        if let Some(metrics) = metrics {
+            metrics.rpc_requests.add(
+                1,
+                &[
+                    KeyValue::new("chain", metrics.chain_name.clone()),
+                    KeyValue::new("method", "get_chain_id"),
+                ],
+            );
+        }
 
-            // Record metrics if enabled
-            if let Some(metrics) = metrics {
-                metrics.rpc_requests.add(
+        let result = provider.get_chain_id().await;
+
+        // Record metrics if enabled
+        if let Some(metrics) = metrics {
+            metrics.rpc_latency.record(
+                start.elapsed().as_secs_f64(),
+                &[
+                    KeyValue::new("chain", metrics.chain_name.clone()),
+                    KeyValue::new("method", "get_chain_id"),
+                ],
+            );
+
+            if result.is_err() {
+                metrics.rpc_errors.add(
                     1,
                     &[
                         KeyValue::new("chain", metrics.chain_name.clone()),
@@ -74,35 +98,10 @@ where
                     ],
                 );
             }
+        }
 
-            let result = provider.get_chain_id().await;
-
-            // Record metrics if enabled
-            if let Some(metrics) = metrics {
-                metrics.rpc_latency.record(
-                    start.elapsed().as_secs_f64(),
-                    &[
-                        KeyValue::new("chain", metrics.chain_name.clone()),
-                        KeyValue::new("method", "get_chain_id"),
-                    ],
-                );
-
-                if result.is_err() {
-                    metrics.rpc_errors.add(
-                        1,
-                        &[
-                            KeyValue::new("chain", metrics.chain_name.clone()),
-                            KeyValue::new("method", "get_chain_id"),
-                        ],
-                    );
-                }
-            }
-
-            result.map_err(|e| anyhow!("RPC error: {}", e))
-        },
-        &retry_config,
-        "get_chain_id",
-    )
+        result.map_err(|e| anyhow!("RPC error: {}", e))
+    })
     .await
 }
 
@@ -114,13 +113,32 @@ where
     T: Transport + Clone,
     N: Network,
 {
-    let retry_config = RetryConfig::default();
-    retry(
-        || async {
-            let start = std::time::Instant::now();
+    Retry::spawn(RETRY_CONFIG.clone(), || async {
+        let start = std::time::Instant::now();
 
-            if let Some(metrics) = metrics {
-                metrics.rpc_requests.add(
+        if let Some(metrics) = metrics {
+            metrics.rpc_requests.add(
+                1,
+                &[
+                    KeyValue::new("chain", metrics.chain_name.clone()),
+                    KeyValue::new("method", "get_latest_block_number"),
+                ],
+            );
+        }
+
+        let result = provider.get_block_number().await;
+
+        // Record metrics if enabled
+        if let Some(metrics) = metrics {
+            metrics.rpc_latency.record(
+                start.elapsed().as_secs_f64(),
+                &[
+                    KeyValue::new("chain", metrics.chain_name.clone()),
+                    KeyValue::new("method", "get_latest_block_number"),
+                ],
+            );
+            if result.is_err() {
+                metrics.rpc_errors.add(
                     1,
                     &[
                         KeyValue::new("chain", metrics.chain_name.clone()),
@@ -128,36 +146,12 @@ where
                     ],
                 );
             }
+        }
 
-            let result = provider.get_block_number().await;
-
-            // Record metrics if enabled
-            if let Some(metrics) = metrics {
-                metrics.rpc_latency.record(
-                    start.elapsed().as_secs_f64(),
-                    &[
-                        KeyValue::new("chain", metrics.chain_name.clone()),
-                        KeyValue::new("method", "get_latest_block_number"),
-                    ],
-                );
-                if result.is_err() {
-                    metrics.rpc_errors.add(
-                        1,
-                        &[
-                            KeyValue::new("chain", metrics.chain_name.clone()),
-                            KeyValue::new("method", "get_latest_block_number"),
-                        ],
-                    );
-                }
-            }
-
-            result
-                .map_err(|e| anyhow!("RPC error: {}", e))
-                .map(BlockNumberOrTag::Number)
-        },
-        &retry_config,
-        "get_latest_block_number",
-    )
+        result
+            .map_err(|e| anyhow!("RPC error: {}", e))
+            .map(BlockNumberOrTag::Number)
+    })
     .await
 }
 
@@ -171,13 +165,32 @@ where
     T: Transport + Clone,
     N: Network,
 {
-    let retry_config = RetryConfig::default();
-    retry(
-        || async {
-            let start = std::time::Instant::now();
+    Retry::spawn(RETRY_CONFIG.clone(), || async {
+        let start = std::time::Instant::now();
 
-            if let Some(metrics) = metrics {
-                metrics.rpc_requests.add(
+        if let Some(metrics) = metrics {
+            metrics.rpc_requests.add(
+                1,
+                &[
+                    KeyValue::new("chain", metrics.chain_name.clone()),
+                    KeyValue::new("method", "get_block_by_number"),
+                ],
+            );
+        }
+
+        let result = provider.get_block_by_number(block_number, kind).await;
+
+        // Record metrics if enabled
+        if let Some(metrics) = metrics {
+            metrics.rpc_latency.record(
+                start.elapsed().as_secs_f64(),
+                &[
+                    KeyValue::new("chain", metrics.chain_name.clone()),
+                    KeyValue::new("method", "get_block_by_number"),
+                ],
+            );
+            if result.is_err() {
+                metrics.rpc_errors.add(
                     1,
                     &[
                         KeyValue::new("chain", metrics.chain_name.clone()),
@@ -185,37 +198,10 @@ where
                     ],
                 );
             }
+        }
 
-            let result = provider.get_block_by_number(block_number, kind).await;
-
-            // Record metrics if enabled
-            if let Some(metrics) = metrics {
-                metrics.rpc_latency.record(
-                    start.elapsed().as_secs_f64(),
-                    &[
-                        KeyValue::new("chain", metrics.chain_name.clone()),
-                        KeyValue::new("method", "get_block_by_number"),
-                    ],
-                );
-                if result.is_err() {
-                    metrics.rpc_errors.add(
-                        1,
-                        &[
-                            KeyValue::new("chain", metrics.chain_name.clone()),
-                            KeyValue::new("method", "get_block_by_number"),
-                        ],
-                    );
-                }
-            }
-
-            result.map_err(|e| anyhow!("RPC error: {}", e))
-        },
-        &retry_config,
-        &format!(
-            "get_block_by_number({})",
-            block_number.as_number().unwrap_or_default()
-        ),
-    )
+        result.map_err(|e| anyhow!("RPC error: {}", e))
+    })
     .await
 }
 
@@ -228,13 +214,32 @@ where
     T: Transport + Clone,
     N: Network,
 {
-    let retry_config = RetryConfig::default();
-    retry(
-        || async {
-            let start = std::time::Instant::now();
+    Retry::spawn(RETRY_CONFIG.clone(), || async {
+        let start = std::time::Instant::now();
 
-            if let Some(metrics) = metrics {
-                metrics.rpc_requests.add(
+        if let Some(metrics) = metrics {
+            metrics.rpc_requests.add(
+                1,
+                &[
+                    KeyValue::new("chain", metrics.chain_name.clone()),
+                    KeyValue::new("method", "get_block_receipts"),
+                ],
+            );
+        }
+
+        let result = provider.get_block_receipts(block).await;
+
+        // Record metrics if enabled
+        if let Some(metrics) = metrics {
+            metrics.rpc_latency.record(
+                start.elapsed().as_secs_f64(),
+                &[
+                    KeyValue::new("chain", metrics.chain_name.clone()),
+                    KeyValue::new("method", "get_block_receipts"),
+                ],
+            );
+            if result.is_err() {
+                metrics.rpc_errors.add(
                     1,
                     &[
                         KeyValue::new("chain", metrics.chain_name.clone()),
@@ -242,103 +247,12 @@ where
                     ],
                 );
             }
+        }
 
-            let result = provider.get_block_receipts(block).await;
-
-            // Record metrics if enabled
-            if let Some(metrics) = metrics {
-                metrics.rpc_latency.record(
-                    start.elapsed().as_secs_f64(),
-                    &[
-                        KeyValue::new("chain", metrics.chain_name.clone()),
-                        KeyValue::new("method", "get_block_receipts"),
-                    ],
-                );
-                if result.is_err() {
-                    metrics.rpc_errors.add(
-                        1,
-                        &[
-                            KeyValue::new("chain", metrics.chain_name.clone()),
-                            KeyValue::new("method", "get_block_receipts"),
-                        ],
-                    );
-                }
-            }
-
-            result.map_err(|e| anyhow!("RPC error: {e}"))
-        },
-        &retry_config,
-        &match block {
-            BlockId::Number(num) => format!(
-                "get_block_receipts({})",
-                num.as_number().unwrap_or_default()
-            ),
-            BlockId::Hash(hash) => format!("get_block_receipts({hash})"),
-        },
-    )
+        result.map_err(|e| anyhow!("RPC error: {e}"))
+    })
     .await
 }
-
-// pub async fn debug_trace_block_by_number<T, N>(
-//     provider: &impl DebugApi<N, T>,
-//     block_number: BlockNumberOrTag,
-//     trace_options: GethDebugTracingOptions,
-//     metrics: Option<&Metrics>,
-// ) -> Result<Option<Vec<TraceResult<GethTrace, String>>>>
-// where
-//     T: Transport + Clone,
-//     N: Network,
-// {
-//     let retry_config = RetryConfig::default();
-//     retry(
-//         || async {
-//             let start = std::time::Instant::now();
-
-//             if let Some(metrics) = metrics {
-//                 metrics.rpc_requests.add(
-//                     1,
-//                     &[
-//                         KeyValue::new("chain", metrics.chain_name.clone()),
-//                         KeyValue::new("method", "debug_trace_block_by_number"),
-//                     ],
-//                 );
-//             }
-
-//             let result = provider
-//                 .debug_trace_block_by_number(block_number, trace_options.clone())
-//                 .await;
-
-//             // Record metrics if enabled
-//             if let Some(metrics) = metrics {
-//                 metrics.rpc_latency.record(
-//                     start.elapsed().as_secs_f64(),
-//                     &[
-//                         KeyValue::new("chain", metrics.chain_name.clone()),
-//                         KeyValue::new("method", "debug_trace_block_by_number"),
-//                     ],
-//                 );
-//                 if result.is_err() {
-//                     metrics.rpc_errors.add(
-//                         1,
-//                         &[
-//                             KeyValue::new("chain", metrics.chain_name.clone()),
-//                             KeyValue::new("method", "debug_trace_block_by_number"),
-//                         ],
-//                     );
-//                 }
-//             }
-
-//             result.map_err(|e| anyhow!("RPC error: {}", e))
-//         },
-//         &retry_config,
-//         &format!(
-//             "debug_trace_block_by_number({})",
-//             block_number.as_number().unwrap_or_default()
-//         ),
-//     )
-//     .await
-//     .map(Some)
-// }
 
 pub async fn debug_trace_transaction_by_hash<T, N>(
     provider: &(impl DebugApi<N, T> + ?Sized),
@@ -351,88 +265,83 @@ where
     N: Network,
 {
     const BATCH_SIZE: usize = 10; // Configurable batch size
-    let retry_config = RetryConfig::default();
 
-    retry(
-        || async {
-            let start = std::time::Instant::now();
+    Retry::spawn(RETRY_CONFIG.clone(), || async {
+        let start = std::time::Instant::now();
 
-            if let Some(metrics) = metrics {
-                metrics.rpc_requests.add(
-                    1,
-                    &[
-                        KeyValue::new("chain", metrics.chain_name.clone()),
-                        KeyValue::new("method", "debug_trace_transaction"),
-                    ],
-                );
+        if let Some(metrics) = metrics {
+            metrics.rpc_requests.add(
+                1,
+                &[
+                    KeyValue::new("chain", metrics.chain_name.clone()),
+                    KeyValue::new("method", "debug_trace_transaction"),
+                ],
+            );
+        }
+
+        // Process transactions in batches
+        let mut all_traces = Vec::with_capacity(transaction_hashes.len());
+        for tx_batch in transaction_hashes.chunks(BATCH_SIZE) {
+            let mut futures = Vec::with_capacity(tx_batch.len());
+
+            // Create futures for each transaction in the batch
+            for tx_hash in tx_batch {
+                futures.push(provider.debug_trace_transaction(*tx_hash, trace_options.clone()));
             }
 
-            // Process transactions in batches
-            let mut all_traces = Vec::with_capacity(transaction_hashes.len());
-            for tx_batch in transaction_hashes.chunks(BATCH_SIZE) {
-                let mut futures = Vec::with_capacity(tx_batch.len());
+            // Execute batch of futures concurrently
+            let batch_results = futures::future::join_all(futures).await;
 
-                // Create futures for each transaction in the batch
-                for tx_hash in tx_batch {
-                    futures.push(provider.debug_trace_transaction(*tx_hash, trace_options.clone()));
-                }
-
-                // Execute batch of futures concurrently
-                let batch_results = futures::future::join_all(futures).await;
-
-                // Process results from the batch
-                for (idx, result) in batch_results.into_iter().enumerate() {
-                    match result {
-                        Ok(trace) => {
-                            all_traces.push(TraceResult::Success {
-                                result: trace,
-                                tx_hash: Some(tx_batch[idx]),
-                            });
+            // Process results from the batch
+            for (idx, result) in batch_results.into_iter().enumerate() {
+                match result {
+                    Ok(trace) => {
+                        all_traces.push(TraceResult::Success {
+                            result: trace,
+                            tx_hash: Some(tx_batch[idx]),
+                        });
+                    }
+                    Err(e) => {
+                        if e.to_string().contains("-32008") {
+                            warn!(
+                                "Skipping oversized trace for transaction {}: {}",
+                                tx_batch[idx], e
+                            );
+                            continue;
                         }
-                        Err(e) => {
-                            if e.to_string().contains("-32008") {
-                                warn!(
-                                    "Skipping oversized trace for transaction {}: {}",
-                                    tx_batch[idx], e
-                                );
-                                continue;
-                            }
 
-                            if let Some(metrics) = metrics {
-                                metrics.rpc_errors.add(
-                                    1,
-                                    &[
-                                        KeyValue::new("chain", metrics.chain_name.clone()),
-                                        KeyValue::new("method", "debug_trace_transaction"),
-                                    ],
-                                );
-                            }
-                            return Err(anyhow!(
-                                "RPC error tracing transaction {}: {}",
-                                tx_batch[idx],
-                                e
-                            ));
+                        if let Some(metrics) = metrics {
+                            metrics.rpc_errors.add(
+                                1,
+                                &[
+                                    KeyValue::new("chain", metrics.chain_name.clone()),
+                                    KeyValue::new("method", "debug_trace_transaction"),
+                                ],
+                            );
                         }
+                        return Err(anyhow!(
+                            "RPC error tracing transaction {}: {}",
+                            tx_batch[idx],
+                            e
+                        ));
                     }
                 }
             }
+        }
 
-            // Record metrics if enabled
-            if let Some(metrics) = metrics {
-                metrics.rpc_latency.record(
-                    start.elapsed().as_secs_f64(),
-                    &[
-                        KeyValue::new("chain", metrics.chain_name.clone()),
-                        KeyValue::new("method", "debug_trace_transaction"),
-                    ],
-                );
-            }
+        // Record metrics if enabled
+        if let Some(metrics) = metrics {
+            metrics.rpc_latency.record(
+                start.elapsed().as_secs_f64(),
+                &[
+                    KeyValue::new("chain", metrics.chain_name.clone()),
+                    KeyValue::new("method", "debug_trace_transaction"),
+                ],
+            );
+        }
 
-            Ok(all_traces)
-        },
-        &retry_config,
-        "debug_trace_transactions",
-    )
+        Ok(all_traces)
+    })
     .await
     .map(Some)
 }
@@ -484,12 +393,18 @@ pub async fn transform_data(
     parsed_data: ParsedData,
     active_datasets: &[String],
 ) -> Result<TransformedData> {
-    // Build set of common fields I need to pass across datasets (e.g. block_number -> block_time, block_date)
-    // Hashmap is likely overkill for now with processing only a single block but will be useful for processing multiple blocks
-    let block_map: HashMap<_, _> = parsed_data
-        .header
-        .clone()
-        .into_iter()
+    let ParsedData {
+        chain_id,
+        header,
+        transactions,
+        transaction_receipts,
+        logs,
+        traces,
+    } = parsed_data;
+
+    // Build block_map from header data
+    let block_map: HashMap<_, _> = header
+        .iter()
         .map(|header| match header {
             RpcHeaderData::Ethereum(eth_header) => (
                 eth_header.common.block_number,
@@ -502,35 +417,29 @@ pub async fn transform_data(
         })
         .collect();
 
-    // Only transform data for active datasets, otherwise return empty Vec
     let blocks = if active_datasets.contains(&"blocks".to_string()) {
-        parsed_data.clone().transform_blocks(chain)?
+        <RpcHeaderData as BlockTransformer>::transform_blocks(header, chain, chain_id)?
     } else {
         vec![]
     };
 
-    let transactions = if active_datasets.contains(&"transactions".to_string())
-        && !parsed_data.transactions.is_empty()
-    {
-        parsed_data
-            .clone()
-            .transform_transactions(chain, block_map.clone())?
+    let transactions = if active_datasets.contains(&"transactions".to_string()) && !transactions.is_empty() {
+        <RpcTransactionData as TransactionTransformer>::transform_transactions(transactions, transaction_receipts, chain, chain_id, &block_map)?
     } else {
         vec![]
     };
 
-    let logs = if active_datasets.contains(&"logs".to_string()) && !parsed_data.logs.is_empty() {
-        parsed_data.clone().transform_logs(chain)? // Don't need to pass block_map here as logs already have desired fields
+    let logs = if active_datasets.contains(&"logs".to_string()) && !logs.is_empty() {
+        <RpcLogReceiptData as LogTransformer>::transform_logs(logs, chain, chain_id)?
     } else {
         vec![]
     };
 
-    let traces =
-        if active_datasets.contains(&"traces".to_string()) && !parsed_data.traces.is_empty() {
-            parsed_data.clone().transform_traces(chain, block_map)?
-        } else {
-            vec![]
-        };
+    let traces = if active_datasets.contains(&"traces".to_string()) && !traces.is_empty() {
+        <RpcTraceData as TraceTransformer>::transform_traces(traces, chain, chain_id, &block_map)?
+    } else {
+        vec![]
+    };
 
     Ok(TransformedData {
         blocks,

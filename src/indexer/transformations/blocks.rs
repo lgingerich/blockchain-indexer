@@ -1,29 +1,35 @@
 use anyhow::Result;
 
-use crate::models::common::{Chain, ParsedData};
 use crate::models::datasets::blocks::{
     CommonTransformedBlockData, EthereumTransformedBlockData, RpcHeaderData, TransformedBlockData,
     ZKsyncTransformedBlockData,
 };
+use crate::models::common::Chain;
 
 pub trait BlockTransformer {
-    fn transform_blocks(self, chain: Chain) -> Result<Vec<TransformedBlockData>>;
+    fn transform_blocks(
+        headers: Vec<RpcHeaderData>,
+        chain: Chain,
+        chain_id: u64,
+    ) -> Result<Vec<TransformedBlockData>>;
 }
 
-impl BlockTransformer for ParsedData {
-    fn transform_blocks(self, chain: Chain) -> Result<Vec<TransformedBlockData>> {
-        Ok(self
-            .header
+impl BlockTransformer for RpcHeaderData {
+    fn transform_blocks(
+        headers: Vec<RpcHeaderData>,
+        chain: Chain,
+        chain_id: u64,
+    ) -> Result<Vec<TransformedBlockData>> {
+        Ok(headers
             .into_iter()
             .map(|header| {
-                // First match on the header to get the common data
                 let common_data = match &header {
                     RpcHeaderData::Ethereum(h) => &h.common,
                     RpcHeaderData::ZKsync(h) => &h.common,
                 };
 
                 let common = CommonTransformedBlockData {
-                    chain_id: self.chain_id,
+                    chain_id,
                     block_time: common_data.block_time,
                     block_date: common_data.block_date,
                     block_number: common_data.block_number,
@@ -52,9 +58,7 @@ impl BlockTransformer for ParsedData {
                 };
 
                 match chain {
-                    Chain::Ethereum => {
-                        TransformedBlockData::Ethereum(EthereumTransformedBlockData { common })
-                    }
+                    Chain::Ethereum => TransformedBlockData::Ethereum(EthereumTransformedBlockData { common }),
                     Chain::ZKsync => {
                         let RpcHeaderData::ZKsync(zksync_data) = header else {
                             panic!("Expected ZKsync header for ZKsync chain");

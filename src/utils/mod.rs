@@ -20,7 +20,6 @@ pub fn hex_to_u64(hex: String) -> Option<u64> {
 // if the sanitized date was set to 2015 when Ethereum was launched, that will soon be
 // exceeded and then the indexer will fail for all chains. As this is tailored towards
 // usage with L2s, we will focus on safe usage with L2s.
-
 pub fn sanitize_block_time(block_number: u64, datetime: DateTime<Utc>) -> DateTime<Utc> {
     // If this is block 0 with a Unix epoch date (or very close to it)
     if block_number == 0 && datetime.format("%Y").to_string() == "1970" {
@@ -57,27 +56,4 @@ pub fn load_config<P: AsRef<Path>>(file_name: P) -> Result<Config> {
     config.chain_name = config.chain_name.replace('-', "_");
 
     Ok(config)
-}
-
-fn strip_html(error: &str) -> String {
-    // If the error contains HTML tags, extract just the text content
-    if error.contains("<!doctype html>") || error.contains("<html>") {
-        // Remove all HTML tags and return the first non-empty line of text
-        error
-            .lines()
-            .map(str::trim)
-            .find(|line| {
-                !line.starts_with('<')
-                    && !line.ends_with('>')
-                    && !line.is_empty()
-                    && !line.starts_with("<!")
-                    && *line != "html"
-                    && *line != "body"
-            })
-            .unwrap_or(error)
-            .to_string()
-    } else {
-        // Return original error if no HTML
-        error.to_string()
-    }
 }

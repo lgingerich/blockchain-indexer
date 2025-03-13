@@ -1,29 +1,35 @@
 use anyhow::Result;
 
-use crate::models::common::{Chain, ParsedData};
+use crate::models::common::Chain;
 use crate::models::datasets::logs::{
     CommonTransformedLogData, EthereumTransformedLogData, RpcLogReceiptData, TransformedLogData,
     ZKsyncTransformedLogData,
 };
 
 pub trait LogTransformer {
-    fn transform_logs(self, chain: Chain) -> Result<Vec<TransformedLogData>>;
+    fn transform_logs(
+        logs: Vec<RpcLogReceiptData>,
+        chain: Chain,
+        chain_id: u64,
+    ) -> Result<Vec<TransformedLogData>>;
 }
 
-impl LogTransformer for ParsedData {
-    fn transform_logs(self, chain: Chain) -> Result<Vec<TransformedLogData>> {
-        Ok(self
-            .logs
+impl LogTransformer for RpcLogReceiptData {
+    fn transform_logs(
+        logs: Vec<RpcLogReceiptData>,
+        chain: Chain,
+        chain_id: u64,
+    ) -> Result<Vec<TransformedLogData>> {
+        Ok(logs
             .into_iter()
             .map(|log| {
-                // First match on the log to get the common data
                 let common_data = match &log {
                     RpcLogReceiptData::Ethereum(l) => &l.common,
                     RpcLogReceiptData::ZKsync(l) => &l.common,
                 };
 
                 let common = CommonTransformedLogData {
-                    chain_id: self.chain_id,
+                    chain_id,
                     block_time: common_data.block_time,
                     block_date: common_data.block_date,
                     block_number: common_data.block_number,
@@ -38,12 +44,8 @@ impl LogTransformer for ParsedData {
                 };
 
                 match chain {
-                    Chain::Ethereum => {
-                        TransformedLogData::Ethereum(EthereumTransformedLogData { common })
-                    }
-                    Chain::ZKsync => {
-                        TransformedLogData::ZKsync(ZKsyncTransformedLogData { common })
-                    }
+                    Chain::Ethereum => TransformedLogData::Ethereum(EthereumTransformedLogData { common }),
+                    Chain::ZKsync => TransformedLogData::ZKsync(ZKsyncTransformedLogData { common }),
                 }
             })
             .collect())
