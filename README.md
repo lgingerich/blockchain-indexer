@@ -28,11 +28,6 @@ Features include:
 - [ ] Add support for more storage options (e.g. S3, Postgres)
 - [ ] Add reorg handling
 
-### Performance Improvements
-- [X] Make data storage inserts non-blocking
-- [ ] Add batched RPC calls
-- [ ] Remove clones
-
 ### Misc Improvements
 - [ ] `serde_yaml` is no longer maintained but doesn't have a good replacement yet. Check for other possibly unmaintained crates.
 - [ ] Add benchmarks
@@ -139,15 +134,6 @@ terraform plan
 # Deploy the infrastructure
 terraform apply
 ```
-
-## Performance Benchmarking
-Note: Always run performance tests with `cargo run --release`
-
-|  Date  | GitHub Commit | Chain | Block Range | RPC | Storage | Total Time (sec) | Blocks/sec | Notes |
-|--------|---------------|-------|-------------|-----|---------|------------------|------------|-------|
-| 2025-01-21 | [c105b9d2840ec8f3b35e091deb945fbf5551816d](https://github.com/lgingerich/blockchain-indexer/commit/c105b9d2840ec8f3b35e091deb945fbf5551816d) | Ethereum | 10,000,000 - 10,001,000 | DRPC (Free) | BigQuery, 100 Blocks per Insert | 825.37 | 1.21 | |
-| 2025-01-21 | [4997e835156c96ff533071301c2eefffe9a35906](https://github.com/lgingerich/blockchain-indexer/commit/4997e835156c96ff533071301c2eefffe9a35906) | Ethereum | 10,000,000 - 10,001,000 | DRPC (Free) | BigQuery, 100 Blocks per Insert | 385.50 | 2.59 | |
-| | | | | | |
 
 ## License
 
