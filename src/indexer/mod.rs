@@ -32,7 +32,7 @@ use crate::models::datasets::blocks::RpcHeaderData;
 use crate::models::datasets::logs::RpcLogReceiptData;
 use crate::models::datasets::traces::RpcTraceData;
 use crate::models::datasets::transactions::RpcTransactionData;
-use crate::utils::retry::get_retry_strategy;
+use crate::utils::retry::RETRY_CONFIG;
 
 use alloy_consensus::TxEnvelope;
 use alloy_network::AnyTxEnvelope;
@@ -64,7 +64,7 @@ where
     T: Transport + Clone,
     N: Network,
 {
-    Retry::spawn(get_retry_strategy(), || async {
+    Retry::spawn(RETRY_CONFIG.clone(), || async {
         let start = std::time::Instant::now();
 
         // Record metrics if enabled
@@ -114,7 +114,7 @@ where
     T: Transport + Clone,
     N: Network,
 {
-    Retry::spawn(get_retry_strategy(), || async {
+    Retry::spawn(RETRY_CONFIG.clone(), || async {
         let start = std::time::Instant::now();
 
         if let Some(metrics) = metrics {
@@ -166,7 +166,7 @@ where
     T: Transport + Clone,
     N: Network,
 {
-    Retry::spawn(get_retry_strategy(), || async {
+    Retry::spawn(RETRY_CONFIG.clone(), || async {
         let start = std::time::Instant::now();
 
         if let Some(metrics) = metrics {
@@ -215,7 +215,7 @@ where
     T: Transport + Clone,
     N: Network,
 {
-    Retry::spawn(get_retry_strategy(), || async {
+    Retry::spawn(RETRY_CONFIG.clone(), || async {
         let start = std::time::Instant::now();
 
         if let Some(metrics) = metrics {
@@ -267,7 +267,7 @@ where
 {
     const BATCH_SIZE: usize = 10; // Configurable batch size
 
-    Retry::spawn(get_retry_strategy(), || async {
+    Retry::spawn(RETRY_CONFIG.clone(), || async {
         let start = std::time::Instant::now();
 
         if let Some(metrics) = metrics {

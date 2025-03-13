@@ -22,7 +22,7 @@ use crate::models::common::Chain;
 use crate::storage::bigquery::schema::{
     block_schema, log_schema, trace_schema, transaction_schema,
 };
-use crate::utils::retry::get_retry_strategy;
+use crate::utils::retry::RETRY_CONFIG;
 
 // Define a static OnceCell to hold the shared Client and Project ID
 static BIGQUERY_CLIENT: OnceCell<Arc<(Client, String)>> = OnceCell::new();
@@ -96,7 +96,7 @@ pub async fn create_dataset(chain_name: &str) -> Result<()> {
         ..Default::default()
     };
 
-    Retry::spawn(get_retry_strategy(), || async {
+    Retry::spawn(RETRY_CONFIG.clone(), || async {
         match dataset_client.create(&metadata).await {
             Ok(_) => {
                 info!(chain_name, project_id = ?project_id, "Dataset successfully created");
@@ -155,7 +155,7 @@ pub async fn create_table(chain_name: &str, table_id: &str, chain: Chain) -> Res
         ..Default::default()
     };
 
-    Retry::spawn(get_retry_strategy(), || async {
+    Retry::spawn(RETRY_CONFIG.clone(), || async {
         match table_client.create(&metadata).await {
             Ok(_) => {
                 info!(
@@ -249,7 +249,7 @@ pub async fn insert_data<T: serde::Serialize>(
                 trace_id: None,
             };
 
-            Retry::spawn(get_retry_strategy(), || async {
+            Retry::spawn(RETRY_CONFIG.clone(), || async {
                 match tabledata_client
                     .insert(project_id, chain_name, table_id, &request)
                     .await
@@ -324,7 +324,7 @@ pub async fn insert_data<T: serde::Serialize>(
             trace_id: None,
         };
 
-        Retry::spawn(get_retry_strategy(), || async {
+        Retry::spawn(RETRY_CONFIG.clone(), || async {
             match tabledata_client
                 .insert(project_id, chain_name, table_id, &request)
                 .await
