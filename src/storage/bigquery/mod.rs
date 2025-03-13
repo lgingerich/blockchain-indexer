@@ -15,13 +15,14 @@ use google_cloud_bigquery::http::tabledata::{
 use once_cell::sync::OnceCell;
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
+use tokio_retry::Retry;
 use tracing::{error, info, warn};
 
 use crate::models::common::Chain;
 use crate::storage::bigquery::schema::{
     block_schema, log_schema, trace_schema, transaction_schema,
 };
-use crate::utils::retry::{retry, RetryConfig};
+use crate::utils::retry::get_retry_strategy;
 
 // Define a static OnceCell to hold the shared Client and Project ID
 static BIGQUERY_CLIENT: OnceCell<Arc<(Client, String)>> = OnceCell::new();
@@ -95,26 +96,22 @@ pub async fn create_dataset(chain_name: &str) -> Result<()> {
         ..Default::default()
     };
 
-    retry(
-        || async {
-            match dataset_client.create(&metadata).await {
-                Ok(_) => {
-                    info!(chain_name, project_id = ?project_id, "Dataset successfully created");
-                    Ok(())
-                }
-                Err(BigQueryError::Response(resp)) if resp.message.contains("Already Exists") => {
-                    info!("Dataset '{}' already exists", chain_name);
-                    Ok(())
-                }
-                Err(e) => {
-                    error!("Failed to create dataset: {}", e);
-                    Err(anyhow!("Dataset creation failed: {}", e))
-                }
+    Retry::spawn(get_retry_strategy(), || async {
+        match dataset_client.create(&metadata).await {
+            Ok(_) => {
+                info!(chain_name, project_id = ?project_id, "Dataset successfully created");
+                Ok(())
             }
-        },
-        &RetryConfig::default(),
-        &format!("create_dataset_{chain_name}"),
-    )
+            Err(BigQueryError::Response(resp)) if resp.message.contains("Already Exists") => {
+                info!("Dataset '{}' already exists", chain_name);
+                Ok(())
+            }
+            Err(e) => {
+                error!("Failed to create dataset: {}", e);
+                Err(anyhow!("Dataset creation failed: {}", e))
+            }
+        }
+    })
     .await
     .map_err(|e| anyhow!("Failed to create dataset after retries: {}", e))?;
 
@@ -158,45 +155,41 @@ pub async fn create_table(chain_name: &str, table_id: &str, chain: Chain) -> Res
         ..Default::default()
     };
 
-    retry(
-        || async {
-            match table_client.create(&metadata).await {
-                Ok(_) => {
-                    info!(
-                        "Table '{}' successfully created in dataset '{}'",
-                        table_id, chain_name
-                    );
-                    Ok(())
-                }
-                Err(e) => {
-                    match e {
-                        BigQueryError::Response(resp) => {
-                            if resp.message.contains("Already Exists") {
-                                info!(
-                                    "Table '{}' already exists in dataset '{}'",
-                                    table_id, chain_name
-                                );
-                                return Ok(());
-                            }
-                            error!("BigQuery API Error: {}", resp.message);
-                        }
-                        BigQueryError::HttpClient(e) => {
-                            error!("HTTP Client error: {}", e);
-                        }
-                        BigQueryError::HttpMiddleware(e) => {
-                            error!("HTTP Middleware error: {}", e);
-                        }
-                        BigQueryError::TokenSource(e) => {
-                            error!("Token Source error: {}", e);
-                        }
-                    }
-                    Err(anyhow!("Table creation failed"))
-                }
+    Retry::spawn(get_retry_strategy(), || async {
+        match table_client.create(&metadata).await {
+            Ok(_) => {
+                info!(
+                    "Table '{}' successfully created in dataset '{}'",
+                    table_id, chain_name
+                );
+                Ok(())
             }
-        },
-        &RetryConfig::default(),
-        &format!("create_table_{chain_name}_{table_id}"),
-    )
+            Err(e) => {
+                match e {
+                    BigQueryError::Response(resp) => {
+                        if resp.message.contains("Already Exists") {
+                            info!(
+                                "Table '{}' already exists in dataset '{}'",
+                                table_id, chain_name
+                            );
+                            return Ok(());
+                        }
+                        error!("BigQuery API Error: {}", resp.message);
+                    }
+                    BigQueryError::HttpClient(e) => {
+                        error!("HTTP Client error: {}", e);
+                    }
+                    BigQueryError::HttpMiddleware(e) => {
+                        error!("HTTP Middleware error: {}", e);
+                    }
+                    BigQueryError::TokenSource(e) => {
+                        error!("Token Source error: {}", e);
+                    }
+                }
+                Err(anyhow!("Table creation failed"))
+            }
+        }
+    })
     .await
     .map_err(|e| anyhow!("Failed to create table after retries: {}", e))?;
 
@@ -256,48 +249,44 @@ pub async fn insert_data<T: serde::Serialize>(
                 trace_id: None,
             };
 
-            retry(
-                || async {
-                    match tabledata_client
-                        .insert(project_id, chain_name, table_id, &request)
-                        .await
-                    {
-                        Ok(response) => {
-                            if let Some(errors) = response.insert_errors {
-                                if !errors.is_empty() {
-                                    for error in errors {
-                                        error!("Row {} failed to insert", error.index);
-                                        for err_msg in error.errors {
-                                            error!("Error: {}", err_msg.message);
-                                        }
+            Retry::spawn(get_retry_strategy(), || async {
+                match tabledata_client
+                    .insert(project_id, chain_name, table_id, &request)
+                    .await
+                {
+                    Ok(response) => {
+                        if let Some(errors) = response.insert_errors {
+                            if !errors.is_empty() {
+                                for error in errors {
+                                    error!("Row {} failed to insert", error.index);
+                                    for err_msg in error.errors {
+                                        error!("Error: {}", err_msg.message);
                                     }
-                                    return Err(anyhow!("Some rows failed to insert"));
                                 }
+                                return Err(anyhow!("Some rows failed to insert"));
                             }
-                            Ok(())
                         }
-                        Err(e) => {
-                            match e {
-                                BigQueryError::Response(resp) => {
-                                    error!("BigQuery API Error: {}", resp.message);
-                                }
-                                BigQueryError::HttpClient(e) => {
-                                    error!("HTTP Client error: {}", e);
-                                }
-                                BigQueryError::HttpMiddleware(e) => {
-                                    error!("HTTP Middleware error: {}", e);
-                                }
-                                BigQueryError::TokenSource(e) => {
-                                    error!("Token Source error: {}", e);
-                                }
-                            }
-                            Err(anyhow!("Data insertion failed"))
-                        }
+                        Ok(())
                     }
-                },
-                &RetryConfig::default(),
-                &format!("insert_data_{chain_name}_{table_id}_{block_number}_{batches_sent}"),
-            )
+                    Err(e) => {
+                        match e {
+                            BigQueryError::Response(resp) => {
+                                error!("BigQuery API Error: {}", resp.message);
+                            }
+                            BigQueryError::HttpClient(e) => {
+                                error!("HTTP Client error: {}", e);
+                            }
+                            BigQueryError::HttpMiddleware(e) => {
+                                error!("HTTP Middleware error: {}", e);
+                            }
+                            BigQueryError::TokenSource(e) => {
+                                error!("Token Source error: {}", e);
+                            }
+                        }
+                        Err(anyhow!("Data insertion failed"))
+                    }
+                }
+            })
             .await?;
 
             batches_sent += 1;
@@ -335,48 +324,44 @@ pub async fn insert_data<T: serde::Serialize>(
             trace_id: None,
         };
 
-        retry(
-            || async {
-                match tabledata_client
-                    .insert(project_id, chain_name, table_id, &request)
-                    .await
-                {
-                    Ok(response) => {
-                        if let Some(errors) = response.insert_errors {
-                            if !errors.is_empty() {
-                                for error in errors {
-                                    error!("Row {} failed to insert", error.index);
-                                    for err_msg in error.errors {
-                                        error!("Error: {}", err_msg.message);
-                                    }
+        Retry::spawn(get_retry_strategy(), || async {
+            match tabledata_client
+                .insert(project_id, chain_name, table_id, &request)
+                .await
+            {
+                Ok(response) => {
+                    if let Some(errors) = response.insert_errors {
+                        if !errors.is_empty() {
+                            for error in errors {
+                                error!("Row {} failed to insert", error.index);
+                                for err_msg in error.errors {
+                                    error!("Error: {}", err_msg.message);
                                 }
-                                return Err(anyhow!("Some rows failed to insert"));
                             }
+                            return Err(anyhow!("Some rows failed to insert"));
                         }
-                        Ok(())
                     }
-                    Err(e) => {
-                        match e {
-                            BigQueryError::Response(resp) => {
-                                error!("BigQuery API Error: {}", resp.message);
-                            }
-                            BigQueryError::HttpClient(e) => {
-                                error!("HTTP Client error: {}", e);
-                            }
-                            BigQueryError::HttpMiddleware(e) => {
-                                error!("HTTP Middleware error: {}", e);
-                            }
-                            BigQueryError::TokenSource(e) => {
-                                error!("Token Source error: {}", e);
-                            }
-                        }
-                        Err(anyhow!("Data insertion failed"))
-                    }
+                    Ok(())
                 }
-            },
-            &RetryConfig::default(),
-            &format!("insert_data_{chain_name}_{table_id}_{block_number}_{batches_sent}"),
-        )
+                Err(e) => {
+                    match e {
+                        BigQueryError::Response(resp) => {
+                            error!("BigQuery API Error: {}", resp.message);
+                        }
+                        BigQueryError::HttpClient(e) => {
+                            error!("HTTP Client error: {}", e);
+                        }
+                        BigQueryError::HttpMiddleware(e) => {
+                            error!("HTTP Middleware error: {}", e);
+                        }
+                        BigQueryError::TokenSource(e) => {
+                            error!("Token Source error: {}", e);
+                        }
+                    }
+                    Err(anyhow!("Data insertion failed"))
+                }
+            }
+        })
         .await?;
     }
 
