@@ -29,9 +29,6 @@ pub struct CommonRpcTransactionData {
     pub access_list: AccessList,
     pub authorization_list: Vec<SignedAuthorization>,
     pub blob_versioned_hashes: Vec<FixedBytes<32>>,
-    pub r: Option<String>,
-    pub s: Option<String>,
-    pub v: Option<bool>,
 }
 
 // Ethereum-specific transaction
@@ -133,9 +130,6 @@ pub struct CommonTransformedTransactionData {
     pub authorization_list: Vec<SignedAuthorization>,
     pub blob_versioned_hashes: Vec<FixedBytes<32>>,
     pub logs_bloom: Bloom,
-    pub r: Option<String>,
-    pub s: Option<String>,
-    pub v: Option<bool>,
 }
 
 #[derive(Debug, Serialize)]

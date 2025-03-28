@@ -18,7 +18,7 @@ use crate::models::datasets::transactions::{
     ZKsyncRpcTransactionData,
 };
 use crate::models::errors::BlockError;
-use crate::utils::{hex_to_u8, hex_to_u64, hex_to_u128, sanitize_block_time};
+use crate::utils::{hex_to_u64, hex_to_u128, sanitize_block_time};
 
 pub trait BlockParser {
     fn parse_header(&self, chain: Chain) -> Result<Vec<RpcHeaderData>>;
@@ -129,9 +129,6 @@ impl BlockParser for AnyRpcBlock {
                         access_list: AccessList::default(),
                         authorization_list: Vec::new(),
                         blob_versioned_hashes: Vec::new(),
-                        r: None,
-                        s: None,
-                        v: None,
                     };
 
                     // TODO: Change to match on chains first.
@@ -145,7 +142,6 @@ impl BlockParser for AnyRpcBlock {
                             let common_tx = match inner {
                                 TxEnvelope::Legacy(signed) => {
                                     let tx = signed.tx();
-                                    let signature = signed.signature();
 
                                     RpcTransactionData::Ethereum(EthereumRpcTransactionData {
                                         common: CommonRpcTransactionData {
@@ -157,9 +153,6 @@ impl BlockParser for AnyRpcBlock {
                                             value: Some(tx.value.to_string()),
                                             gas_price: Some(tx.gas_price),
                                             gas_limit: tx.gas_limit,
-                                            r: Some(signature.r().to_string()),
-                                            s: Some(signature.s().to_string()),
-                                            v: Some(signature.v()),
                                             ..common
                                         },
                                         max_fee_per_blob_gas: None,
@@ -170,7 +163,6 @@ impl BlockParser for AnyRpcBlock {
                                 }
                                 TxEnvelope::Eip2930(signed) => {
                                     let tx = signed.tx();
-                                    let signature = signed.signature();
 
                                     RpcTransactionData::Ethereum(EthereumRpcTransactionData {
                                         common: CommonRpcTransactionData {
@@ -183,9 +175,6 @@ impl BlockParser for AnyRpcBlock {
                                             gas_price: Some(tx.gas_price),
                                             gas_limit: tx.gas_limit,
                                             access_list: tx.access_list.clone(),
-                                            r: Some(signature.r().to_string()),
-                                            s: Some(signature.s().to_string()),
-                                            v: Some(signature.v()),
                                             ..common
                                         },
                                         max_fee_per_blob_gas: None,
@@ -196,7 +185,6 @@ impl BlockParser for AnyRpcBlock {
                                 }
                                 TxEnvelope::Eip1559(signed) => {
                                     let tx = signed.tx();
-                                    let signature = signed.signature();
 
                                     RpcTransactionData::Ethereum(EthereumRpcTransactionData {
                                         common: CommonRpcTransactionData {
@@ -211,9 +199,6 @@ impl BlockParser for AnyRpcBlock {
                                             max_fee_per_gas: Some(tx.max_fee_per_gas),
                                             max_priority_fee_per_gas: Some(tx.max_priority_fee_per_gas),
                                             access_list: tx.access_list.clone(),
-                                            r: Some(signature.r().to_string()),
-                                            s: Some(signature.s().to_string()),
-                                            v: Some(signature.v()),
                                             ..common
                                         },
                                         max_fee_per_blob_gas: None,
@@ -223,7 +208,6 @@ impl BlockParser for AnyRpcBlock {
                                     })
                                 }
                                 TxEnvelope::Eip4844(signed) => {
-                                    let signature = signed.signature();
 
                                     match signed.tx() {
                                         TxEip4844Variant::TxEip4844(tx) => RpcTransactionData::Ethereum(EthereumRpcTransactionData {
@@ -239,9 +223,6 @@ impl BlockParser for AnyRpcBlock {
                                                 max_priority_fee_per_gas: Some(tx.max_priority_fee_per_gas),
                                                 access_list: tx.access_list.clone(),
                                                 blob_versioned_hashes: tx.blob_versioned_hashes.clone(),
-                                                r: Some(signature.r().to_string()),
-                                                s: Some(signature.s().to_string()),
-                                                v: Some(signature.v()),
                                                 ..common
                                             },
                                             max_fee_per_blob_gas: Some(tx.max_fee_per_blob_gas),
@@ -265,9 +246,6 @@ impl BlockParser for AnyRpcBlock {
                                                     max_priority_fee_per_gas: Some(tx.max_priority_fee_per_gas),
                                                     access_list: tx.access_list.clone(),
                                                     blob_versioned_hashes: tx.blob_versioned_hashes.clone(),
-                                                    r: Some(signature.r().to_string()),
-                                                    s: Some(signature.s().to_string()),
-                                                    v: Some(signature.v()),
                                                     ..common
                                                 },
                                                 max_fee_per_blob_gas: Some(tx.max_fee_per_blob_gas),
@@ -280,7 +258,6 @@ impl BlockParser for AnyRpcBlock {
                                 }
                                 TxEnvelope::Eip7702(signed) => {
                                     let tx = signed.tx();
-                                    let signature = signed.signature();
 
                                     RpcTransactionData::Ethereum(EthereumRpcTransactionData {
                                         common: CommonRpcTransactionData {
@@ -295,9 +272,6 @@ impl BlockParser for AnyRpcBlock {
                                             max_priority_fee_per_gas: Some(tx.max_priority_fee_per_gas),
                                             access_list: tx.access_list.clone(),
                                             authorization_list: tx.authorization_list.clone(),
-                                            r: Some(signature.r().to_string()),
-                                            s: Some(signature.s().to_string()),
-                                            v: Some(signature.v()),
                                             ..common
                                         },
                                         max_fee_per_blob_gas: None,
@@ -426,18 +400,6 @@ impl BlockParser for AnyRpcBlock {
                                     .get()
                                     .map(|a| a.to_owned())
                                     .unwrap_or_default(),
-                                r: other_fields
-                                    .get_deserialized::<Uint<256, 4>>("r")
-                                    .and_then(|result| result.ok())
-                                    .map(|r| r.to_string()),
-                                s: other_fields
-                                    .get_deserialized::<Uint<256, 4>>("s")
-                                    .and_then(|result| result.ok())
-                                    .map(|s| s.to_string()),
-                                v: other_fields
-                                    .get_deserialized::<String>("v")
-                                    .and_then(|result| result.ok())
-                                    .map(|hex_str| hex_to_u8(hex_str).expect("failed to convert 'v' hex to u8") != 0),
                             };
 
                             match chain {
