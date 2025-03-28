@@ -72,9 +72,10 @@ async fn process_chain_test(
     assert_eq!(chain, Chain::from_chain_id(chain_id)?);
 
     // Process blocks sequentially
-    for (block_number, expected_blocks, expected_txs, expected_logs, expected_traces) in block_cases {
+    for (block_number, expected_blocks, expected_txs, expected_logs, expected_traces) in block_cases
+    {
         println!("\nProcessing {} block {}", chain_name, block_number);
-        
+
         let datasets = vec![
             "blocks".to_string(),
             "transactions".to_string(),
@@ -89,7 +90,8 @@ async fn process_chain_test(
             chain_id,
             &datasets,
             None,
-        ).await?;
+        )
+        .await?;
 
         // Verify the transformed data matches expected counts
         assert_eq!(
@@ -134,8 +136,7 @@ async fn process_chain_test(
 
         println!(
             "{} Block {} processed successfully:",
-            chain_name,
-            block_number
+            chain_name, block_number
         );
         println!("- {} blocks", transformed_data.blocks.len());
         println!("- {} transactions", transformed_data.transactions.len());

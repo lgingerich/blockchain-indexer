@@ -44,8 +44,12 @@ impl LogTransformer for RpcLogReceiptData {
                 };
 
                 match chain {
-                    Chain::Ethereum => TransformedLogData::Ethereum(EthereumTransformedLogData { common }),
-                    Chain::ZKsync => TransformedLogData::ZKsync(ZKsyncTransformedLogData { common }),
+                    Chain::Ethereum => {
+                        TransformedLogData::Ethereum(EthereumTransformedLogData { common })
+                    }
+                    Chain::ZKsync => {
+                        TransformedLogData::ZKsync(ZKsyncTransformedLogData { common })
+                    }
                 }
             })
             .collect())

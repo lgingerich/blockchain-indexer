@@ -1,7 +1,6 @@
 pub mod rpc;
 pub mod transformations;
 
-
 use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_network::{
     primitives::BlockTransactionsKind, AnyRpcBlock, AnyTransactionReceipt, Network,
@@ -423,11 +422,18 @@ pub async fn transform_data(
         vec![]
     };
 
-    let transactions = if active_datasets.contains(&"transactions".to_string()) && !transactions.is_empty() {
-        <RpcTransactionData as TransactionTransformer>::transform_transactions(transactions, transaction_receipts, chain, chain_id, &block_map)?
-    } else {
-        vec![]
-    };
+    let transactions =
+        if active_datasets.contains(&"transactions".to_string()) && !transactions.is_empty() {
+            <RpcTransactionData as TransactionTransformer>::transform_transactions(
+                transactions,
+                transaction_receipts,
+                chain,
+                chain_id,
+                &block_map,
+            )?
+        } else {
+            vec![]
+        };
 
     let logs = if active_datasets.contains(&"logs".to_string()) && !logs.is_empty() {
         <RpcLogReceiptData as LogTransformer>::transform_logs(logs, chain, chain_id)?

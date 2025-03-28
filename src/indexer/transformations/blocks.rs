@@ -1,10 +1,10 @@
 use anyhow::Result;
 
+use crate::models::common::Chain;
 use crate::models::datasets::blocks::{
     CommonTransformedBlockData, EthereumTransformedBlockData, RpcHeaderData, TransformedBlockData,
     ZKsyncTransformedBlockData,
 };
-use crate::models::common::Chain;
 
 pub trait BlockTransformer {
     fn transform_blocks(
@@ -58,7 +58,9 @@ impl BlockTransformer for RpcHeaderData {
                 };
 
                 match chain {
-                    Chain::Ethereum => TransformedBlockData::Ethereum(EthereumTransformedBlockData { common }),
+                    Chain::Ethereum => {
+                        TransformedBlockData::Ethereum(EthereumTransformedBlockData { common })
+                    }
                     Chain::ZKsync => {
                         let RpcHeaderData::ZKsync(zksync_data) = header else {
                             panic!("Expected ZKsync header for ZKsync chain");
