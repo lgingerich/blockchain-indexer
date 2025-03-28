@@ -5,7 +5,7 @@ use alloy_consensus::constants::{
 use alloy_consensus::{TxEip4844Variant, TxEnvelope};
 use alloy_eips::eip2930::AccessList;
 use alloy_network::{primitives::BlockTransactions, AnyRpcBlock, AnyTxEnvelope};
-use alloy_primitives::{Address, Bytes, FixedBytes, Uint};
+use alloy_primitives::{Address, Bytes, FixedBytes, TxKind, Uint};
 use anyhow::Result;
 use chrono::DateTime;
 
@@ -18,7 +18,7 @@ use crate::models::datasets::transactions::{
     ZKsyncRpcTransactionData,
 };
 use crate::models::errors::BlockError;
-use crate::utils::{hex_to_u64, sanitize_block_time};
+use crate::utils::{hex_to_u8, hex_to_u64, hex_to_u128, sanitize_block_time};
 
 pub trait BlockParser {
     fn parse_header(&self, chain: Chain) -> Result<Vec<RpcHeaderData>>;
@@ -74,17 +74,19 @@ impl BlockParser for AnyRpcBlock {
                     target_blobs_per_block: other
                         .get_deserialized::<String>("targetBlobsPerBlock")
                         .and_then(|result| result.ok())
-                        .and_then(hex_to_u64),
+                        .map(|hex_str| hex_to_u64(hex_str).expect("failed to convert 'targetBlobsPerBlock' hex to u64")),
                     l1_batch_number: other
                         .get_deserialized::<String>("l1BatchNumber")
                         .and_then(|result| result.ok())
-                        .and_then(hex_to_u64),
+                        .map(|hex_str| hex_to_u64(hex_str).expect("failed to convert 'l1BatchNumber' hex to u64")),
                     l1_batch_timestamp: other
                         .get_deserialized::<String>("l1BatchTimestamp")
                         .and_then(|result| result.ok())
-                        .and_then(hex_to_u64)
-                        .and_then(|timestamp| DateTime::from_timestamp(timestamp as i64, 0)),
-                    // seal_fields: other.get_deserialized::<Vec<String>>("sealFields").and_then(|result| result.ok()), // TODO: Add this back in
+                        .map(|hex_str| {
+                            let timestamp = hex_to_u64(hex_str).expect("failed to convert 'l1BatchTimestamp' hex to u64");
+                            DateTime::from_timestamp(timestamp as i64, 0)
+                                .expect("invalid timestamp for 'l1BatchTimestamp'")
+                        }),
                 })
             }
         };
@@ -323,16 +325,32 @@ impl BlockParser for AnyRpcBlock {
                                 Chain::ZKsync => match common_tx {
                                     RpcTransactionData::Ethereum(t) => {
                                         RpcTransactionData::ZKsync(ZKsyncRpcTransactionData {
-                                            common: t.common,
-                                            l1_batch_number: other.get_deserialized::<String>("l1BatchNumber")
-                                                .and_then(std::result::Result::ok)
-                                                .and_then(hex_to_u64),
-                                            l1_batch_tx_index: other.get_deserialized::<String>("l1BatchTxIndex")
-                                                .and_then(std::result::Result::ok)
-                                                .and_then(hex_to_u64),
+                                            common: CommonRpcTransactionData {
+                                                max_fee_per_gas: other
+                                                    .get_deserialized::<String>("maxFeePerGas")
+                                                    .and_then(|result| result.ok())
+                                                    .map(|hex_str| hex_to_u128(hex_str)
+                                                        .expect("failed to convert 'maxFeePerGas' hex to u128")),
+                                                max_priority_fee_per_gas: other
+                                                    .get_deserialized::<String>("maxPriorityFeePerGas")
+                                                    .and_then(|result| result.ok())
+                                                    .map(|hex_str| hex_to_u128(hex_str)
+                                                        .expect("failed to convert 'maxPriorityFeePerGas' hex to u128")),                                                        
+                                                ..t.common
+                                            },
+                                            l1_batch_number: other
+                                                .get_deserialized::<String>("l1BatchNumber")
+                                                .and_then(|result| result.ok())
+                                                .map(|hex_str| hex_to_u64(hex_str)
+                                                    .expect("failed to convert 'l1BatchNumber' hex to u64")),
+                                            l1_batch_tx_index: other
+                                                .get_deserialized::<String>("l1BatchTxIndex")
+                                                .and_then(|result| result.ok())
+                                                .map(|hex_str| hex_to_u64(hex_str)
+                                                    .expect("failed to convert 'l1BatchTxIndex' hex to u64")),
                                         })
                                     },
-                                    _ => unreachable!("Expected Ethereum transaction format for legacy transaction") // TODO: Is this ok?
+                                    _ => unreachable!("Expected Ethereum transaction format for legacy transaction")
                                 }
                             }
                         }
@@ -340,7 +358,6 @@ impl BlockParser for AnyRpcBlock {
                         // Other chains will enter this match arm for tx_type != Legacy
                         // TODO: Handle better
                         AnyTxEnvelope::Unknown(unknown) => {
-
                             let other_fields = &unknown.inner.fields;
                             let memo = &unknown.inner.memo;
                             let inner = &unknown.inner;
@@ -352,77 +369,92 @@ impl BlockParser for AnyRpcBlock {
                                 tx_hash: unknown.hash,
                                 tx_index,
                                 tx_type: ty.0, // Gets the first element of the tuple as u8
-                                nonce: other_fields
-                                    .get_deserialized::<u64>("nonce")
-                                    .and_then(std::result::Result::ok)
-                                    .unwrap_or_default(),
+                                nonce: hex_to_u64(
+                                other_fields
+                                        .get_deserialized::<String>("nonce")
+                                        .expect("'nonce' field missing")
+                                        .expect("failed to deserialize 'nonce'")
+                                    ).expect("failed to convert 'nonce' hex to u64"),
                                 from,
                                 to: other_fields
-                                    .get_deserialized::<TransactionTo>("to")
-                                    .and_then(std::result::Result::ok)
-                                    .unwrap_or(TransactionTo::Address(Address::ZERO)),
+                                    .get_deserialized::<TxKind>("to")
+                                    .and_then(|result| result.ok())
+                                    .map(TransactionTo::TxKind)
+                                    .or_else(|| {
+                                        // If TxKind parsing fails, try parsing as Address
+                                        other_fields
+                                            .get_deserialized::<Address>("to")
+                                            .and_then(|result| result.ok())
+                                            .map(TransactionTo::Address)
+                                    })
+                                    .expect("failed to deserialize 'to' as either TxKind or Address"),
                                 input: other_fields
                                     .get_deserialized::<Bytes>("input")
-                                    .and_then(std::result::Result::ok),
+                                    .and_then(|result| result.ok()),
                                 value: other_fields
                                     .get_deserialized::<Uint<256, 4>>("value")
-                                    .and_then(std::result::Result::ok)
+                                    .and_then(|result| result.ok())
                                     .map(|value| value.to_string()),
-                                gas_price: Some(other_fields
-                                    .get_deserialized::<u128>("gasPrice")
-                                    .and_then(std::result::Result::ok)
-                                    .unwrap_or_default()),
-                                gas_limit: other_fields
-                                    .get_deserialized::<u64>("gas")
-                                    .and_then(std::result::Result::ok)
-                                    .unwrap_or_default(),
+                                gas_price: other_fields
+                                    .get_deserialized::<String>("gasPrice")
+                                    .and_then(|result| result.ok())
+                                    .map(|hex_str| hex_to_u128(hex_str).expect("failed to convert 'gasPrice' hex to u128")),
+                                gas_limit: hex_to_u64(
+                                other_fields
+                                        .get_deserialized::<String>("gas")
+                                        .expect("'gas' field missing")
+                                        .expect("failed to deserialize 'gas'")
+                                    ).expect("failed to convert 'gas' hex to u64"),
                                 max_fee_per_gas: other_fields
-                                    .get_deserialized::<u128>("maxFeePerGas")
-                                    .and_then(std::result::Result::ok),
+                                    .get_deserialized::<String>("maxFeePerGas")
+                                    .and_then(|result| result.ok())
+                                    .map(|hex_str| hex_to_u128(hex_str).expect("failed to convert 'maxFeePerGas' hex to u128")),
                                 max_priority_fee_per_gas: other_fields
-                                    .get_deserialized::<u128>("maxPriorityFeePerGas")
-                                    .and_then(std::result::Result::ok),
+                                    .get_deserialized::<String>("maxPriorityFeePerGas")
+                                    .and_then(|result| result.ok())
+                                    .map(|hex_str| hex_to_u128(hex_str).expect("failed to convert 'maxPriorityFeePerGas' hex to u128")),
                                 effective_gas_price,
                                 access_list: memo.access_list
                                     .get()
-                                    .cloned()
+                                    .map(|a| a.to_owned())
                                     .unwrap_or_default(),
                                 authorization_list: memo.authorization_list
                                     .get()
-                                    .cloned()
+                                    .map(|a| a.to_owned())
                                     .unwrap_or_default(),
                                 blob_versioned_hashes: memo.blob_versioned_hashes
                                     .get()
-                                    .cloned()
+                                    .map(|a| a.to_owned())
                                     .unwrap_or_default(),
                                 r: other_fields
                                     .get_deserialized::<Uint<256, 4>>("r")
-                                    .and_then(std::result::Result::ok)
+                                    .and_then(|result| result.ok())
                                     .map(|r| r.to_string()),
                                 s: other_fields
                                     .get_deserialized::<Uint<256, 4>>("s")
-                                    .and_then(std::result::Result::ok)
+                                    .and_then(|result| result.ok())
                                     .map(|s| s.to_string()),
                                 v: other_fields
-                                    .get_deserialized::<bool>("v")
-                                    .and_then(std::result::Result::ok), // Deserialized as bool
+                                    .get_deserialized::<String>("v")
+                                    .and_then(|result| result.ok())
+                                    .map(|hex_str| hex_to_u8(hex_str).expect("failed to convert 'v' hex to u8") != 0),
                             };
 
                             match chain {
                                 Chain::Ethereum => {
-                                    unreachable!("Ethereum transactions should be handled by AnyTxEnvelope::Ethereum variant") // TODO: Is this ok?
+                                    unreachable!("Ethereum transactions should be handled by AnyTxEnvelope::Ethereum variant") // TODO: Should be able to get rid of this after refactor
                                 }
                                 Chain::ZKsync => {
                                     RpcTransactionData::ZKsync(ZKsyncRpcTransactionData {
                                         common: common_fields,
                                         l1_batch_number: other_fields
                                             .get_deserialized::<String>("l1BatchNumber")
-                                            .and_then(std::result::Result::ok)
-                                            .and_then(hex_to_u64),
+                                            .and_then(|result| result.ok())
+                                            .map(|hex_str| hex_to_u64(hex_str).expect("failed to convert 'l1BatchNumber' hex to u64")),
                                         l1_batch_tx_index: other_fields
                                             .get_deserialized::<String>("l1BatchTxIndex")
-                                            .and_then(std::result::Result::ok)
-                                            .and_then(hex_to_u64),
+                                            .and_then(|result| result.ok())
+                                            .map(|hex_str| hex_to_u64(hex_str).expect("failed to convert 'l1BatchTxIndex' hex to u64")),
                                     })
                                 }
                             }
