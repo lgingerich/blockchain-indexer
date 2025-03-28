@@ -556,27 +556,6 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
             description: Some("Bloom filter containing all transaction logs".to_string()),
             ..Default::default()
         },
-        TableFieldSchema {
-            name: "r".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Nullable),
-            description: Some("ECDSA signature r value".to_string()),
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "s".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Nullable),
-            description: Some("ECDSA signature s value".to_string()),
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "v".to_string(),
-            data_type: TableFieldType::Boolean,
-            mode: Some(TableFieldMode::Nullable),
-            description: Some("ECDSA recovery ID".to_string()),
-            ..Default::default()
-        },
     ];
 
     // Add chain-specific fields

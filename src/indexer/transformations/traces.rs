@@ -2,11 +2,11 @@ use anyhow::Result;
 use chrono::{DateTime, NaiveDate, Utc};
 use std::collections::HashMap;
 
+use crate::models::common::Chain;
 use crate::models::datasets::traces::{
     CommonTransformedTraceData, EthereumTransformedTraceData, RpcTraceData, TransformedTraceData,
     ZKsyncTransformedTraceData,
 };
-use crate::models::common::Chain;
 
 pub trait TraceTransformer {
     fn transform_traces(
@@ -59,11 +59,14 @@ impl TraceTransformer for RpcTraceData {
                 };
 
                 match chain {
-                    Chain::Ethereum => TransformedTraceData::Ethereum(EthereumTransformedTraceData { common }),
-                    Chain::ZKsync => TransformedTraceData::ZKsync(ZKsyncTransformedTraceData { common }),
+                    Chain::Ethereum => {
+                        TransformedTraceData::Ethereum(EthereumTransformedTraceData { common })
+                    }
+                    Chain::ZKsync => {
+                        TransformedTraceData::ZKsync(ZKsyncTransformedTraceData { common })
+                    }
                 }
             })
             .collect())
     }
 }
-

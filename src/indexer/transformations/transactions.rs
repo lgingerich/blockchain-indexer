@@ -80,9 +80,6 @@ impl TransactionTransformer for RpcTransactionData {
                     authorization_list: common_receipt.authorization_list.clone(),
                     blob_versioned_hashes: common_tx.blob_versioned_hashes.clone(),
                     logs_bloom: common_receipt.logs_bloom,
-                    r: common_tx.r.clone(),
-                    s: common_tx.s.clone(),
-                    v: common_tx.v,
                 };
 
                 match chain {
