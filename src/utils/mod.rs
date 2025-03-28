@@ -8,10 +8,6 @@ use tracing::{info, warn};
 use crate::models::common::Config;
 
 // TODO: Refactor so I don't need multiple conversion functions
-pub fn hex_to_u8(hex: String) -> Option<u8> {
-    u8::from_str_radix(hex.trim_start_matches("0x"), 16).ok()
-}
-
 pub fn hex_to_u64(hex: String) -> Option<u64> {
     u64::from_str_radix(hex.trim_start_matches("0x"), 16).ok()
 }

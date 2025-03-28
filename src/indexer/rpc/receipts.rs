@@ -63,14 +63,20 @@ impl ReceiptParser for Vec<AnyTransactionReceipt> {
                         let l1_batch_number = receipt
                             .other
                             .get_deserialized::<String>("l1BatchNumber")
-                            .and_then(|result| result.ok())
-                            .map(|hex_str| hex_to_u64(hex_str).expect("failed to convert 'l1BatchNumber' hex to u64"));
+                            .and_then(std::result::Result::ok)
+                            .map(|hex_str| {
+                                hex_to_u64(hex_str)
+                                    .expect("failed to convert 'l1BatchNumber' hex to u64")
+                            });
 
                         let l1_batch_tx_index = receipt
                             .other
                             .get_deserialized::<String>("l1BatchTxIndex")
-                            .and_then(|result| result.ok())
-                            .map(|hex_str| hex_to_u64(hex_str).expect("failed to convert 'l1BatchTxIndex' hex to u64"));
+                            .and_then(std::result::Result::ok)
+                            .map(|hex_str| {
+                                hex_to_u64(hex_str)
+                                    .expect("failed to convert 'l1BatchTxIndex' hex to u64")
+                            });
 
                         RpcTransactionReceiptData::ZKsync(ZKsyncRpcTransactionReceiptData {
                             common,

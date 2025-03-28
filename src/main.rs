@@ -286,16 +286,17 @@ async fn main() -> Result<()> {
                     let block_start_time = Instant::now();
 
                     // Process the block
-                    let result = tokio::runtime::Runtime::new()
-                        .unwrap()
-                        .block_on(indexer::process_block(
-                            &provider,
-                            BlockNumberOrTag::Number(block_num),
-                            chain,
-                            chain_id,
-                            &datasets,
-                            metrics.as_ref(),
-                        ));
+                    let result =
+                        tokio::runtime::Runtime::new()
+                            .unwrap()
+                            .block_on(indexer::process_block(
+                                &provider,
+                                BlockNumberOrTag::Number(block_num),
+                                chain,
+                                chain_id,
+                                &datasets,
+                                metrics.as_ref(),
+                            ));
 
                     // Update metrics for this block
                     if let Some(metrics_instance) = &metrics {
@@ -365,7 +366,10 @@ async fn main() -> Result<()> {
                         }
                     }
 
-                    info!("Successfully processed and queued block {} for storage", block_num);
+                    info!(
+                        "Successfully processed and queued block {} for storage",
+                        block_num
+                    );
                     successful_blocks += 1;
                 }
                 Err(e) => {
@@ -397,7 +401,7 @@ async fn main() -> Result<()> {
         if let Some(metrics_instance) = &metrics {
             // Update blocks processed count
             blocks_since_last_metric += successful_blocks;
-            
+
             // Update blocks per second every second
             let elapsed = last_metric_update.elapsed();
             if elapsed.as_secs() >= 1 {
@@ -406,7 +410,7 @@ async fn main() -> Result<()> {
                     blocks_per_second,
                     &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
                 );
-                
+
                 // Reset counters
                 blocks_since_last_metric = 0;
                 last_metric_update = Instant::now();
