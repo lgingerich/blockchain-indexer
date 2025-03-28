@@ -238,15 +238,55 @@ async fn main() -> Result<()> {
             .map(|i| block_number + i as u64)
             .collect();
 
-        // Process blocks in parallel using Rayon
-        let results: Vec<Result<TransformedData>> = block_batch
-            .par_iter()
-            .map(|&block_num| {
-                let block_start_time = Instant::now();
+        // TODO: Implement better fix for handling single and multiple block parallelization
+        // Process blocks based on batch size
+        let results: Vec<Result<TransformedData>> = if blocks_to_process == 1 {
+            // Single block case - process directly without parallelization
+            let block_start_time = Instant::now();
+            let result = indexer::process_block(
+                &provider,
+                BlockNumberOrTag::Number(block_batch[0]),
+                chain,
+                chain_id,
+                &datasets,
+                metrics.as_ref(),
+            )
+            .await;
 
-                // Process the block
-                let result =
-                    tokio::runtime::Runtime::new()
+            // Update metrics for this block
+            if let Some(metrics_instance) = &metrics {
+                metrics_instance.blocks_processed.add(
+                    1,
+                    &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
+                );
+                metrics_instance.latest_processed_block.record(
+                    block_batch[0],
+                    &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
+                );
+                metrics_instance.latest_block_processing_time.record(
+                    block_start_time.elapsed().as_secs_f64(),
+                    &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
+                );
+                metrics_instance.chain_tip_block.record(
+                    last_known_latest_block,
+                    &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
+                );
+                metrics_instance.chain_tip_lag.record(
+                    last_known_latest_block - block_batch[0],
+                    &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
+                );
+            }
+
+            vec![result]
+        } else {
+            // Multiple blocks case - process in parallel using Rayon
+            block_batch
+                .par_iter()
+                .map(|&block_num| {
+                    let block_start_time = Instant::now();
+
+                    // Process the block
+                    let result = tokio::runtime::Runtime::new()
                         .unwrap()
                         .block_on(indexer::process_block(
                             &provider,
@@ -257,33 +297,34 @@ async fn main() -> Result<()> {
                             metrics.as_ref(),
                         ));
 
-                // Update metrics for this block
-                if let Some(metrics_instance) = &metrics {
-                    metrics_instance.blocks_processed.add(
-                        1,
-                        &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
-                    );
-                    metrics_instance.latest_processed_block.record(
-                        block_num,
-                        &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
-                    );
-                    metrics_instance.latest_block_processing_time.record(
-                        block_start_time.elapsed().as_secs_f64(),
-                        &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
-                    );
-                    metrics_instance.chain_tip_block.record(
-                        last_known_latest_block,
-                        &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
-                    );
-                    metrics_instance.chain_tip_lag.record(
-                        last_known_latest_block - block_num,
-                        &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
-                    );
-                }
+                    // Update metrics for this block
+                    if let Some(metrics_instance) = &metrics {
+                        metrics_instance.blocks_processed.add(
+                            1,
+                            &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
+                        );
+                        metrics_instance.latest_processed_block.record(
+                            block_num,
+                            &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
+                        );
+                        metrics_instance.latest_block_processing_time.record(
+                            block_start_time.elapsed().as_secs_f64(),
+                            &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
+                        );
+                        metrics_instance.chain_tip_block.record(
+                            last_known_latest_block,
+                            &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
+                        );
+                        metrics_instance.chain_tip_lag.record(
+                            last_known_latest_block - block_num,
+                            &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
+                        );
+                    }
 
-                result
-            })
-            .collect();
+                    result
+                })
+                .collect()
+        };
 
         // Process and save results
         // Check if any L1 batch data is missing and retry if so
