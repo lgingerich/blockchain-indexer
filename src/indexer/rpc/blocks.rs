@@ -110,7 +110,7 @@ impl BlockParser for AnyRpcBlock {
                     let block_number = transaction.block_number;
                     let tx_index = transaction.transaction_index;
                     let effective_gas_price = transaction.effective_gas_price;
-                    let from = transaction.from;
+                    let from_address = transaction.from;
 
                     // default values of mandatory fields are not too important as they will always get overrriden by the actual values
                     // TODO: Can this be improved?
@@ -121,8 +121,8 @@ impl BlockParser for AnyRpcBlock {
                         tx_index,
                         tx_type: 0, // Required field. Always overridden by actual value
                         nonce: 0, // Required field. Always overridden by actual value
-                        from,
-                        to: TransactionTo::Address(Address::ZERO), // Required field. Always overridden by actual value
+                        from_address,
+                        to_address: TransactionTo::Address(Address::ZERO), // Required field. Always overridden by actual value
                         input: None, // Required field. Always overridden by actual value
                         value: None, // Required field. Always overridden by actual value
                         gas_price: None,
@@ -152,7 +152,7 @@ impl BlockParser for AnyRpcBlock {
                                             tx_hash: *signed.hash(),
                                             tx_type: LEGACY_TX_TYPE_ID,
                                             nonce: tx.nonce,
-                                            to: TransactionTo::TxKind(tx.to),
+                                            to_address: TransactionTo::TxKind(tx.to),
                                             input: Some(tx.input.clone()),
                                             value: Some(tx.value.to_string()),
                                             gas_price: Some(tx.gas_price),
@@ -173,7 +173,7 @@ impl BlockParser for AnyRpcBlock {
                                             tx_hash: *signed.hash(),
                                             tx_type: EIP2930_TX_TYPE_ID,
                                             nonce: tx.nonce,
-                                            to: TransactionTo::TxKind(tx.to),
+                                            to_address: TransactionTo::TxKind(tx.to),
                                             input: Some(tx.input.clone()),
                                             value: Some(tx.value.to_string()),
                                             gas_price: Some(tx.gas_price),
@@ -196,7 +196,7 @@ impl BlockParser for AnyRpcBlock {
                                             // tx_type: tx.tx_type(), // TODO: Not publicly accessible. Fix
                                             tx_type: EIP1559_TX_TYPE_ID,
                                             nonce: tx.nonce,
-                                            to: TransactionTo::TxKind(tx.to),
+                                            to_address: TransactionTo::TxKind(tx.to),
                                             input: Some(tx.input.clone()),
                                             value: Some(tx.value.to_string()),
                                             gas_limit: tx.gas_limit,
@@ -219,7 +219,7 @@ impl BlockParser for AnyRpcBlock {
                                                 tx_hash: *signed.hash(),
                                                 tx_type: EIP4844_TX_TYPE_ID,
                                                 nonce: tx.nonce,
-                                                to: TransactionTo::Address(tx.to),
+                                                to_address: TransactionTo::Address(tx.to),
                                                 input: Some(tx.input.clone()),
                                                 value: Some(tx.value.to_string()),
                                                 gas_limit: tx.gas_limit,
@@ -242,7 +242,7 @@ impl BlockParser for AnyRpcBlock {
                                                     tx_hash: *signed.hash(),
                                                     tx_type: EIP4844_TX_TYPE_ID,
                                                     nonce: tx.nonce,
-                                                    to: TransactionTo::Address(tx.to),
+                                                    to_address: TransactionTo::Address(tx.to),
                                                     input: Some(tx.input.clone()),
                                                     value: Some(tx.value.to_string()),
                                                     gas_limit: tx.gas_limit,
@@ -268,7 +268,7 @@ impl BlockParser for AnyRpcBlock {
                                             tx_hash: *signed.hash(),
                                             tx_type: EIP7702_TX_TYPE_ID,
                                             nonce: tx.nonce,
-                                            to: TransactionTo::Address(tx.to),
+                                            to_address: TransactionTo::Address(tx.to),
                                             input: Some(tx.input.clone()),
                                             value: Some(tx.value.to_string()),
                                             gas_limit: tx.gas_limit,
@@ -353,8 +353,8 @@ impl BlockParser for AnyRpcBlock {
                                         .expect("'nonce' field missing")
                                         .expect("failed to deserialize 'nonce'")
                                     ).expect("failed to convert 'nonce' hex to u64"),
-                                from,
-                                to: other_fields
+                                from_address: transaction.from,
+                                to_address: other_fields
                                     .get_deserialized::<TxKind>("to")
                                     .and_then(std::result::Result::ok)
                                     .map(TransactionTo::TxKind)

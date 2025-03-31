@@ -409,14 +409,14 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
             ..Default::default()
         },
         TableFieldSchema {
-            name: "from".to_string(),
+            name: "from_address".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Required),
             description: Some("Transaction sender".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
-            name: "to".to_string(),
+            name: "to_address".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Nullable),
             description: Some("Transaction receiver".to_string()),
@@ -647,6 +647,13 @@ pub fn trace_schema(chain: Chain) -> TableSchema {
             ..Default::default()
         },
         TableFieldSchema {
+            name: "block_hash".to_string(),
+            data_type: TableFieldType::String,
+            mode: Some(TableFieldMode::Nullable),
+            description: Some("Hash of the current block".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
             name: "tx_hash".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Nullable),
@@ -654,10 +661,24 @@ pub fn trace_schema(chain: Chain) -> TableSchema {
             ..Default::default()
         },
         TableFieldSchema {
-            name: "type".to_string(),
+            name: "tx_index".to_string(),
+            data_type: TableFieldType::Integer,
+            mode: Some(TableFieldMode::Nullable),
+            description: Some("Index of the transaction containing this trace".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "trace_type".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Required),
             description: Some("Trace operation type".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
+            name: "subtraces".to_string(),
+            data_type: TableFieldType::Integer,
+            mode: Some(TableFieldMode::Required),
+            description: Some("Number of subtraces in the trace".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
@@ -670,14 +691,14 @@ pub fn trace_schema(chain: Chain) -> TableSchema {
             ..Default::default()
         },
         TableFieldSchema {
-            name: "from".to_string(),
+            name: "from_address".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Required),
             description: Some("Address initiating the trace call".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
-            name: "to".to_string(),
+            name: "to_address".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Nullable),
             description: Some("Address receiving the trace call".to_string()),
@@ -723,50 +744,6 @@ pub fn trace_schema(chain: Chain) -> TableSchema {
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Nullable),
             description: Some("Error message if the trace execution failed".to_string()),
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "revert_reason".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Nullable),
-            description: Some("Reason for trace execution revert if applicable".to_string()),
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "logs".to_string(),
-            data_type: TableFieldType::Record,
-            mode: Some(TableFieldMode::Repeated),
-            fields: Some(vec![
-                TableFieldSchema {
-                    name: "address".to_string(),
-                    data_type: TableFieldType::String,
-                    mode: Some(TableFieldMode::Nullable),
-                    description: Some("Contract address that generated the log".to_string()),
-                    ..Default::default()
-                },
-                TableFieldSchema {
-                    name: "topics".to_string(),
-                    data_type: TableFieldType::String,
-                    mode: Some(TableFieldMode::Repeated),
-                    description: Some("Indexed log parameters".to_string()),
-                    ..Default::default()
-                },
-                TableFieldSchema {
-                    name: "data".to_string(),
-                    data_type: TableFieldType::String,
-                    mode: Some(TableFieldMode::Nullable),
-                    description: Some("Non-indexed log parameters".to_string()),
-                    ..Default::default()
-                },
-                TableFieldSchema {
-                    name: "position".to_string(),
-                    data_type: TableFieldType::Integer,
-                    mode: Some(TableFieldMode::Nullable),
-                    description: Some("Position of the log within the trace".to_string()),
-                    ..Default::default()
-                },
-            ]),
-            description: Some("Logs generated during trace execution".to_string()),
             ..Default::default()
         },
     ];

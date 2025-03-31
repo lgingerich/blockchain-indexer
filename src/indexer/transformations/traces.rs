@@ -1,3 +1,4 @@
+use alloy_primitives::FixedBytes;
 use anyhow::Result;
 use chrono::{DateTime, NaiveDate, Utc};
 use std::collections::HashMap;
@@ -13,7 +14,8 @@ pub trait TraceTransformer {
         traces: Vec<RpcTraceData>,
         chain: Chain,
         chain_id: u64,
-        block_map: &HashMap<u64, (DateTime<Utc>, NaiveDate)>,
+        block_map: &HashMap<u64, (DateTime<Utc>, NaiveDate, FixedBytes<32>)>,
+        tx_index_map: &HashMap<FixedBytes<32>, Option<u64>>,
     ) -> Result<Vec<TransformedTraceData>>;
 }
 
@@ -22,7 +24,8 @@ impl TraceTransformer for RpcTraceData {
         traces: Vec<RpcTraceData>,
         chain: Chain,
         chain_id: u64,
-        block_map: &HashMap<u64, (DateTime<Utc>, NaiveDate)>,
+        block_map: &HashMap<u64, (DateTime<Utc>, NaiveDate, FixedBytes<32>)>,
+        tx_index_map: &HashMap<FixedBytes<32>, Option<u64>>,
     ) -> Result<Vec<TransformedTraceData>> {
         Ok(traces
             .into_iter()
@@ -36,26 +39,32 @@ impl TraceTransformer for RpcTraceData {
                     chain_id,
                     block_time: block_map
                         .get(&common_data.block_number)
-                        .map(|(time, _)| *time)
+                        .map(|(time, _, _)| *time)
                         .unwrap_or_default(),
                     block_date: block_map
                         .get(&common_data.block_number)
-                        .map(|(_, date)| *date)
+                        .map(|(_, date, _)| *date)
                         .unwrap_or_default(),
                     block_number: common_data.block_number,
+                    block_hash: block_map
+                        .get(&common_data.block_number)
+                        .map(|(_, _, hash)| *hash)
+                        .unwrap_or_default(),
                     tx_hash: common_data.tx_hash,
-                    r#type: common_data.r#type.clone(),
+                    tx_index: common_data
+                        .tx_hash
+                        .and_then(|hash| tx_index_map.get(&hash).copied().flatten()),
+                    trace_type: common_data.trace_type.clone(),
+                    subtraces: common_data.subtraces,
                     trace_address: common_data.trace_address.clone(),
-                    from: common_data.from,
-                    to: common_data.to,
+                    from_address: common_data.from_address,
+                    to_address: common_data.to_address,
                     value: common_data.value.clone(),
                     gas: common_data.gas.clone(),
                     gas_used: common_data.gas_used.clone(),
                     input: common_data.input.clone(),
                     output: common_data.output.clone(),
                     error: common_data.error.clone(),
-                    revert_reason: common_data.revert_reason.clone(),
-                    logs: common_data.logs.clone(),
                 };
 
                 match chain {

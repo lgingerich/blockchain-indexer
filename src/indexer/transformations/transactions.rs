@@ -1,3 +1,4 @@
+use alloy_primitives::FixedBytes;
 use anyhow::Result;
 use chrono::{DateTime, NaiveDate, Utc};
 use std::collections::HashMap;
@@ -14,7 +15,7 @@ pub trait TransactionTransformer {
         receipts: Vec<RpcTransactionReceiptData>,
         chain: Chain,
         chain_id: u64,
-        block_map: &HashMap<u64, (DateTime<Utc>, NaiveDate)>,
+        block_map: &HashMap<u64, (DateTime<Utc>, NaiveDate, FixedBytes<32>)>,
     ) -> Result<Vec<TransformedTransactionData>>;
 }
 
@@ -24,7 +25,7 @@ impl TransactionTransformer for RpcTransactionData {
         receipts: Vec<RpcTransactionReceiptData>,
         chain: Chain,
         chain_id: u64,
-        block_map: &HashMap<u64, (DateTime<Utc>, NaiveDate)>,
+        block_map: &HashMap<u64, (DateTime<Utc>, NaiveDate, FixedBytes<32>)>,
     ) -> Result<Vec<TransformedTransactionData>> {
         Ok(transactions
             .into_iter()
@@ -41,15 +42,15 @@ impl TransactionTransformer for RpcTransactionData {
 
                 let common = CommonTransformedTransactionData {
                     chain_id,
-                    block_time: common_tx
+                    block_time: common_tx // Have to get block time data from the block header
                         .block_number
                         .and_then(|num| block_map.get(&num))
-                        .map(|(time, _)| *time)
+                        .map(|(time, _, _)| *time)
                         .unwrap_or_default(),
                     block_date: common_tx
                         .block_number
                         .and_then(|num| block_map.get(&num))
-                        .map(|(_, date)| *date)
+                        .map(|(_, date, _)| *date)
                         .unwrap_or_default(),
                     block_number: common_receipt.block_number,
                     block_hash: common_receipt.block_hash,
@@ -62,8 +63,8 @@ impl TransactionTransformer for RpcTransactionData {
                     },
                     status: common_receipt.status,
                     nonce: common_tx.nonce,
-                    from: common_receipt.from,
-                    to: common_receipt.to,
+                    from_address: common_receipt.from_address,
+                    to_address: common_receipt.to_address,
                     contract_address: common_receipt.contract_address,
                     input: common_tx.input.clone(),
                     value: common_tx.value.clone(),

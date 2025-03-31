@@ -402,17 +402,34 @@ pub async fn transform_data(
     } = parsed_data;
 
     // Build block_map from header data
-    let block_map: HashMap<_, _> = header
+    let block_map: HashMap<_, _, _> = header
         .iter()
         .map(|header| match header {
             RpcHeaderData::Ethereum(eth_header) => (
                 eth_header.common.block_number,
-                (eth_header.common.block_time, eth_header.common.block_date),
+                (
+                    eth_header.common.block_time,
+                    eth_header.common.block_date,
+                    eth_header.common.block_hash,
+                ),
             ),
             RpcHeaderData::ZKsync(zk_header) => (
                 zk_header.common.block_number,
-                (zk_header.common.block_time, zk_header.common.block_date),
+                (
+                    zk_header.common.block_time,
+                    zk_header.common.block_date,
+                    zk_header.common.block_hash,
+                ),
             ),
+        })
+        .collect();
+
+    // Build transaction index map
+    let tx_index_map: HashMap<_, _> = transactions
+        .iter()
+        .map(|tx| match tx {
+            RpcTransactionData::Ethereum(t) => (t.common.tx_hash, t.common.tx_index),
+            RpcTransactionData::ZKsync(t) => (t.common.tx_hash, t.common.tx_index),
         })
         .collect();
 
@@ -442,7 +459,13 @@ pub async fn transform_data(
     };
 
     let traces = if active_datasets.contains(&"traces".to_string()) && !traces.is_empty() {
-        <RpcTraceData as TraceTransformer>::transform_traces(traces, chain, chain_id, &block_map)?
+        <RpcTraceData as TraceTransformer>::transform_traces(
+            traces,
+            chain,
+            chain_id,
+            &block_map,
+            &tx_index_map,
+        )?
     } else {
         vec![]
     };
@@ -506,14 +529,26 @@ where
                 .txns()
                 .map(|transaction| match &transaction.inner.inner {
                     AnyTxEnvelope::Ethereum(inner) => match inner {
-                        TxEnvelope::Legacy(signed) => *signed.hash(),
-                        TxEnvelope::Eip2930(signed) => *signed.hash(),
-                        TxEnvelope::Eip1559(signed) => *signed.hash(),
-                        TxEnvelope::Eip4844(signed) => *signed.hash(),
-                        TxEnvelope::Eip7702(signed) => *signed.hash(),
-                        _ => FixedBytes::<32>::ZERO,
+                        TxEnvelope::Legacy(signed) => {
+                            (*signed.hash(), transaction.transaction_index)
+                        }
+                        TxEnvelope::Eip2930(signed) => {
+                            (*signed.hash(), transaction.transaction_index)
+                        }
+                        TxEnvelope::Eip1559(signed) => {
+                            (*signed.hash(), transaction.transaction_index)
+                        }
+                        TxEnvelope::Eip4844(signed) => {
+                            (*signed.hash(), transaction.transaction_index)
+                        }
+                        TxEnvelope::Eip7702(signed) => {
+                            (*signed.hash(), transaction.transaction_index)
+                        }
+                        _ => (FixedBytes::<32>::ZERO, None),
                     },
-                    AnyTxEnvelope::Unknown(unknown) => unknown.hash,
+                    AnyTxEnvelope::Unknown(unknown) => {
+                        (unknown.hash, transaction.transaction_index)
+                    }
                 })
                 .collect()
         } else {
@@ -529,7 +564,10 @@ where
             timeout: Some("10s".to_string()),
         };
 
-        debug_trace_transaction_by_hash(provider, tx_hashes, trace_options, metrics).await?
+        // Get just the hashes for the trace API
+        let hashes: Vec<_> = tx_hashes.into_iter().map(|(hash, _)| hash).collect();
+
+        debug_trace_transaction_by_hash(provider, hashes, trace_options, metrics).await?
     } else {
         None
     };
