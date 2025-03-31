@@ -42,7 +42,7 @@ impl TransactionTransformer for RpcTransactionData {
 
                 let common = CommonTransformedTransactionData {
                     chain_id,
-                    block_time: common_tx// Have to get block time data from the block header
+                    block_time: common_tx // Have to get block time data from the block header
                         .block_number
                         .and_then(|num| block_map.get(&num))
                         .map(|(time, _, _)| *time)

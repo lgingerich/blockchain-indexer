@@ -1,7 +1,7 @@
+use alloy_primitives::FixedBytes;
 use anyhow::Result;
 use chrono::{DateTime, NaiveDate, Utc};
 use std::collections::HashMap;
-use alloy_primitives::FixedBytes;
 
 use crate::models::common::Chain;
 use crate::models::datasets::traces::{
@@ -51,7 +51,9 @@ impl TraceTransformer for RpcTraceData {
                         .map(|(_, _, hash)| *hash)
                         .unwrap_or_default(),
                     tx_hash: common_data.tx_hash,
-                    tx_index: common_data.tx_hash.and_then(|hash| tx_index_map.get(&hash).copied().flatten()),
+                    tx_index: common_data
+                        .tx_hash
+                        .and_then(|hash| tx_index_map.get(&hash).copied().flatten()),
                     trace_type: common_data.trace_type.clone(),
                     subtraces: common_data.subtraces,
                     trace_address: common_data.trace_address.clone(),

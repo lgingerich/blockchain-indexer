@@ -407,11 +407,19 @@ pub async fn transform_data(
         .map(|header| match header {
             RpcHeaderData::Ethereum(eth_header) => (
                 eth_header.common.block_number,
-                (eth_header.common.block_time, eth_header.common.block_date, eth_header.common.block_hash),
+                (
+                    eth_header.common.block_time,
+                    eth_header.common.block_date,
+                    eth_header.common.block_hash,
+                ),
             ),
             RpcHeaderData::ZKsync(zk_header) => (
                 zk_header.common.block_number,
-                (zk_header.common.block_time, zk_header.common.block_date, zk_header.common.block_hash),
+                (
+                    zk_header.common.block_time,
+                    zk_header.common.block_date,
+                    zk_header.common.block_hash,
+                ),
             ),
         })
         .collect();
@@ -451,7 +459,13 @@ pub async fn transform_data(
     };
 
     let traces = if active_datasets.contains(&"traces".to_string()) && !traces.is_empty() {
-        <RpcTraceData as TraceTransformer>::transform_traces(traces, chain, chain_id, &block_map, &tx_index_map)?
+        <RpcTraceData as TraceTransformer>::transform_traces(
+            traces,
+            chain,
+            chain_id,
+            &block_map,
+            &tx_index_map,
+        )?
     } else {
         vec![]
     };
@@ -515,14 +529,26 @@ where
                 .txns()
                 .map(|transaction| match &transaction.inner.inner {
                     AnyTxEnvelope::Ethereum(inner) => match inner {
-                        TxEnvelope::Legacy(signed) => (*signed.hash(), transaction.transaction_index),
-                        TxEnvelope::Eip2930(signed) => (*signed.hash(), transaction.transaction_index),
-                        TxEnvelope::Eip1559(signed) => (*signed.hash(), transaction.transaction_index),
-                        TxEnvelope::Eip4844(signed) => (*signed.hash(), transaction.transaction_index),
-                        TxEnvelope::Eip7702(signed) => (*signed.hash(), transaction.transaction_index),
+                        TxEnvelope::Legacy(signed) => {
+                            (*signed.hash(), transaction.transaction_index)
+                        }
+                        TxEnvelope::Eip2930(signed) => {
+                            (*signed.hash(), transaction.transaction_index)
+                        }
+                        TxEnvelope::Eip1559(signed) => {
+                            (*signed.hash(), transaction.transaction_index)
+                        }
+                        TxEnvelope::Eip4844(signed) => {
+                            (*signed.hash(), transaction.transaction_index)
+                        }
+                        TxEnvelope::Eip7702(signed) => {
+                            (*signed.hash(), transaction.transaction_index)
+                        }
                         _ => (FixedBytes::<32>::ZERO, None),
                     },
-                    AnyTxEnvelope::Unknown(unknown) => (unknown.hash, transaction.transaction_index),
+                    AnyTxEnvelope::Unknown(unknown) => {
+                        (unknown.hash, transaction.transaction_index)
+                    }
                 })
                 .collect()
         } else {
