@@ -108,18 +108,17 @@ fn flatten_call_frames(
         let common_data = CommonRpcTraceData {
             block_number,
             tx_hash,
-            r#type: frame.typ.to_lowercase(),
+            trace_type: frame.typ.to_lowercase(),
+            subtraces: frame.calls.len(),
             trace_address: trace_address.to_owned(),
-            from: frame.from,
-            to: frame.to,
+            from_address: frame.from,
+            to_address: frame.to,
             value: frame.value.map(|v| v.to_string()), // Convert from Uint<256, 4> to String for proper serialization
             gas: frame.gas.to_string(), // Convert from Uint<256, 4> to String for proper serialization
             gas_used: frame.gas_used.to_string(), // Convert from Uint<256, 4> to String for proper serialization
             input: frame.input,
             output: frame.output,
             error: frame.error,
-            revert_reason: frame.revert_reason,
-            logs: frame.logs,
         };
 
         let trace_data = match chain {
