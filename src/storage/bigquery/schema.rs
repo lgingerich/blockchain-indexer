@@ -409,14 +409,14 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
             ..Default::default()
         },
         TableFieldSchema {
-            name: "from".to_string(),
+            name: "from_address".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Required),
             description: Some("Transaction sender".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
-            name: "to".to_string(),
+            name: "to_address".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Nullable),
             description: Some("Transaction receiver".to_string()),
@@ -691,14 +691,14 @@ pub fn trace_schema(chain: Chain) -> TableSchema {
             ..Default::default()
         },
         TableFieldSchema {
-            name: "from".to_string(),
+            name: "from_address".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Required),
             description: Some("Address initiating the trace call".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
-            name: "to".to_string(),
+            name: "to_address".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Nullable),
             description: Some("Address receiving the trace call".to_string()),
