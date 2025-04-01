@@ -38,7 +38,9 @@ impl Chain {
     pub fn from_chain_id(chain_id: u64) -> Result<Self, ChainError> {
         match chain_id {
             1 => Ok(Self::Ethereum),
-            324 | 325 | 388 | 2741 | 50104 | 61166 | 543210 => Ok(Self::ZKsync), // ZKsync Era | GRVT | Cronos zkEVM | Abstract | Sophon | Treasure Chain | Zero Network
+            232 | 320 | 324 | 325 | 388 | 1345 | 2741 | 2904 | 9637 | 50104 | 61166 | 543210 => {
+                Ok(Self::ZKsync)
+            } // Lens | ZKcandy | ZKsync Era | GRVT | OpenZK | Cronos zkEVM | Abstract | Ripio LaChain | WonderFi |Sophon | Treasure Chain | Zero Network
             _ => Err(ChainError::UnsupportedChainId { chain_id }),
         }
     }
