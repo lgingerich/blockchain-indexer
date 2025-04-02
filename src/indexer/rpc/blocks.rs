@@ -55,11 +55,8 @@ impl BlockParser for AnyRpcBlock {
             total_difficulty: self.header.total_difficulty.map(|value| value.to_string()),
             size: self.header.size.map(|value| value.to_string()),
             miner: inner.beneficiary,
-            mix_hash: inner.mix_hash,
-            requests_hash: inner.requests_hash,
             logs_bloom: inner.logs_bloom,
             sha3_uncles: inner.ommers_hash,
-            parent_beacon_block_root: inner.parent_beacon_block_root,
             receipts_root: inner.receipts_root,
             state_root: inner.state_root,
             transactions_root: inner.transactions_root,
@@ -70,13 +67,6 @@ impl BlockParser for AnyRpcBlock {
             Chain::Ethereum => RpcHeaderData::Ethereum(EthereumRpcHeaderData { common }),
             Chain::ZKsync => RpcHeaderData::ZKsync(ZKsyncRpcHeaderData {
                 common,
-                target_blobs_per_block: other
-                    .get_deserialized::<String>("targetBlobsPerBlock")
-                    .and_then(std::result::Result::ok)
-                    .map(|hex_str| {
-                        hex_to_u64(hex_str)
-                            .expect("failed to convert 'targetBlobsPerBlock' hex to u64")
-                    }),
                 l1_batch_number: other
                     .get_deserialized::<String>("l1BatchNumber")
                     .and_then(std::result::Result::ok)

@@ -22,11 +22,8 @@ pub struct CommonRpcHeaderData {
     pub total_difficulty: Option<String>,
     pub size: Option<String>,
     pub miner: Address,
-    pub mix_hash: Option<FixedBytes<32>>,
-    pub requests_hash: Option<FixedBytes<32>>,
     pub logs_bloom: Bloom,
     pub sha3_uncles: FixedBytes<32>,
-    pub parent_beacon_block_root: Option<FixedBytes<32>>,
     pub receipts_root: FixedBytes<32>,
     pub state_root: FixedBytes<32>,
     pub transactions_root: FixedBytes<32>,
@@ -43,10 +40,8 @@ pub struct EthereumRpcHeaderData {
 #[derive(Debug, Clone)]
 pub struct ZKsyncRpcHeaderData {
     pub common: CommonRpcHeaderData,
-    pub target_blobs_per_block: Option<u64>,
     pub l1_batch_number: Option<u64>,
     pub l1_batch_timestamp: Option<DateTime<Utc>>,
-    // pub seal_fields: Option<Vec<String>>, // TODO: Add this back in
 }
 
 #[derive(Debug, Clone)]
@@ -77,11 +72,8 @@ pub struct CommonTransformedBlockData {
     pub total_difficulty: Option<String>,
     pub size: Option<String>,
     pub miner: Address,
-    pub mix_hash: Option<FixedBytes<32>>,
-    pub requests_hash: Option<FixedBytes<32>>,
     pub logs_bloom: Bloom,
     pub sha3_uncles: FixedBytes<32>,
-    pub parent_beacon_block_root: Option<FixedBytes<32>>,
     pub receipts_root: FixedBytes<32>,
     pub state_root: FixedBytes<32>,
     pub transactions_root: FixedBytes<32>,
@@ -100,10 +92,8 @@ pub struct EthereumTransformedBlockData {
 pub struct ZKsyncTransformedBlockData {
     #[serde(flatten)] // Flatten nested structs
     pub common: CommonTransformedBlockData,
-    pub target_blobs_per_block: Option<u64>,
     pub l1_batch_number: Option<u64>,
     pub l1_batch_timestamp: Option<DateTime<Utc>>,
-    // pub seal_fields: Option<Vec<String>>, // TODO: Add this back in
 }
 
 #[derive(Debug, Clone, Serialize)]

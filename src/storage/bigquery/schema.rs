@@ -128,20 +128,6 @@ pub fn block_schema(chain: Chain) -> TableSchema {
             ..Default::default()
         },
         TableFieldSchema {
-            name: "mix_hash".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Nullable),
-            description: Some("Hash combined with nonce to prove block computation".to_string()),
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "requests_hash".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Nullable),
-            description: Some("Hash of the block requests".to_string()),
-            ..Default::default()
-        },
-        TableFieldSchema {
             name: "logs_bloom".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Required),
@@ -155,13 +141,6 @@ pub fn block_schema(chain: Chain) -> TableSchema {
             description: Some("Hash of the uncles list for the block".to_string()),
             ..Default::default()
         },        
-        TableFieldSchema {
-            name: "parent_beacon_block_root".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Nullable),
-            description: Some("Root hash of the parent beacon block".to_string()),
-            ..Default::default()
-        },
         TableFieldSchema {
             name: "receipts_root".to_string(),
             data_type: TableFieldType::String,
@@ -201,13 +180,6 @@ pub fn block_schema(chain: Chain) -> TableSchema {
             // ZkSync-specific fields
             fields.extend(vec![
                 TableFieldSchema {
-                    name: "target_blobs_per_block".to_string(),
-                    data_type: TableFieldType::Integer,
-                    mode: Some(TableFieldMode::Nullable),
-                    description: Some("Target number of blobs per block".to_string()),
-                    ..Default::default()
-                },
-                TableFieldSchema {
                     name: "l1_batch_number".to_string(),
                     data_type: TableFieldType::Integer,
                     mode: Some(TableFieldMode::Nullable),
@@ -221,13 +193,6 @@ pub fn block_schema(chain: Chain) -> TableSchema {
                     description: Some("Timestamp of the Layer 1 batch".to_string()),
                     ..Default::default()
                 },
-                // TableFieldSchema { // TODO: Add this back in
-                //     name: "seal_fields".to_string(),
-                //     data_type: TableFieldType::String,
-                //     mode: Some(TableFieldMode::Repeated),
-                //     description: None,
-                //     ..Default::default()
-                // },
             ]);
         }
     }
