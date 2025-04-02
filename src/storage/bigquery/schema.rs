@@ -135,13 +135,6 @@ pub fn block_schema(chain: Chain) -> TableSchema {
             ..Default::default()
         },
         TableFieldSchema {
-            name: "ommers_hash".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Required),
-            description: Some("Hash of the uncles list for the block".to_string()),
-            ..Default::default()
-        },
-        TableFieldSchema {
             name: "requests_hash".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Nullable),
@@ -155,6 +148,13 @@ pub fn block_schema(chain: Chain) -> TableSchema {
             description: Some("Bloom filter for the logs of the current block".to_string()),
             ..Default::default()
         },
+        TableFieldSchema {
+            name: "sha3_uncles".to_string(),
+            data_type: TableFieldType::String,
+            mode: Some(TableFieldMode::Required),
+            description: Some("Hash of the uncles list for the block".to_string()),
+            ..Default::default()
+        },        
         TableFieldSchema {
             name: "parent_beacon_block_root".to_string(),
             data_type: TableFieldType::String,
