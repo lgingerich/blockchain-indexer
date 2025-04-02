@@ -453,65 +453,12 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
             ..Default::default()
         },
         TableFieldSchema {
-            name: "blob_gas_price".to_string(),
-            data_type: TableFieldType::Integer,
-            mode: Some(TableFieldMode::Nullable),
-            description: Some("Price per unit of blob gas for the transaction".to_string()),
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "blob_gas_used".to_string(),
-            data_type: TableFieldType::Integer,
-            mode: Some(TableFieldMode::Nullable),
-            description: Some("Amount of blob gas used by the transaction".to_string()),
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "access_list".to_string(),
-            data_type: TableFieldType::Record,
-            mode: Some(TableFieldMode::Repeated),
-            fields: Some(vec![
-                TableFieldSchema {
-                    name: "address".to_string(),
-                    data_type: TableFieldType::String,
-                    mode: Some(TableFieldMode::Required),
-                    description: Some("Address being accessed".to_string()),
-                    ..Default::default()
-                },
-                TableFieldSchema {
-                    name: "storage_keys".to_string(),
-                    data_type: TableFieldType::String,
-                    mode: Some(TableFieldMode::Repeated),
-                    description: Some("Storage slots being accessed".to_string()),
-                    ..Default::default()
-                },
-            ]),
-            description: Some(
-                "List of addresses and storage keys accessed by the transaction".to_string(),
-            ),
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "authorization_list".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Repeated),
-            description: Some("List of authorized addresses for the transaction".to_string()),
-            ..Default::default()
-        },
-        TableFieldSchema {
             name: "blob_versioned_hashes".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Repeated),
             description: Some(
                 "Version hashes of the blobs included in the transaction".to_string(),
             ),
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "logs_bloom".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Required),
-            description: Some("Bloom filter containing all transaction logs".to_string()),
             ..Default::default()
         },
     ];

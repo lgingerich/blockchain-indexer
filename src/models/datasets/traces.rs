@@ -8,7 +8,7 @@ use serde::Serialize;
 pub struct CommonRpcTraceData {
     pub block_number: u64,
     pub tx_hash: Option<FixedBytes<32>>,
-    pub trace_type: String, // renamed from r#type
+    pub trace_type: String,
     pub subtraces: usize,
     pub trace_address: Vec<usize>,
     pub from_address: Address,

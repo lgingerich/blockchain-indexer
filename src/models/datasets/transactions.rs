@@ -1,6 +1,6 @@
 #![allow(dead_code)] // Allow unused fields in RPC data for completeness
 
-use alloy_eips::{eip2930::AccessList, eip4844::BYTES_PER_BLOB, eip7702::SignedAuthorization};
+use alloy_eips::eip4844::BYTES_PER_BLOB;
 use alloy_primitives::{Address, Bloom, Bytes, FixedBytes};
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::Serialize;
@@ -26,8 +26,6 @@ pub struct CommonRpcTransactionData {
     pub max_fee_per_gas: Option<u128>,
     pub max_priority_fee_per_gas: Option<u128>,
     pub effective_gas_price: Option<u128>,
-    pub access_list: AccessList,
-    pub authorization_list: Vec<SignedAuthorization>,
     pub blob_versioned_hashes: Vec<FixedBytes<32>>,
 }
 
@@ -71,10 +69,6 @@ pub struct CommonRpcTransactionReceiptData {
     pub gas_used: u128,
     pub effective_gas_price: u128,
     pub cumulative_gas_used: u128,
-    pub blob_gas_price: Option<u128>,
-    pub blob_gas_used: Option<u128>,
-    pub authorization_list: Vec<SignedAuthorization>,
-    pub logs_bloom: Bloom,
 }
 
 // Ethereum-specific receipt
@@ -89,7 +83,6 @@ pub struct ZKsyncRpcTransactionReceiptData {
     pub common: CommonRpcTransactionReceiptData,
     pub l1_batch_number: Option<u64>,
     pub l1_batch_tx_index: Option<u64>,
-    // pub l2_to_l1_logs: Option<Vec<L2ToL1Log>>, // TODO: Add back in
 }
 
 #[derive(Debug, Clone)]
@@ -124,12 +117,7 @@ pub struct CommonTransformedTransactionData {
     pub max_priority_fee_per_gas: Option<u128>,
     pub effective_gas_price: u128,
     pub cumulative_gas_used: u128,
-    pub blob_gas_price: Option<u128>,
-    pub blob_gas_used: Option<u128>,
-    pub access_list: AccessList,
-    pub authorization_list: Vec<SignedAuthorization>,
     pub blob_versioned_hashes: Vec<FixedBytes<32>>,
-    pub logs_bloom: Bloom,
 }
 
 #[derive(Debug, Serialize)]
@@ -148,7 +136,6 @@ pub struct ZKsyncTransformedTransactionData {
     pub common: CommonTransformedTransactionData,
     pub l1_batch_number: Option<u64>,
     pub l1_batch_tx_index: Option<u64>,
-    // pub l2_to_l1_logs: Option<Vec<L2ToL1Log>>, // TODO: Add back in
 }
 
 #[derive(Debug, Serialize)]
