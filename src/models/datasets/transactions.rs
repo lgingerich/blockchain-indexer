@@ -1,7 +1,7 @@
 #![allow(dead_code)] // Allow unused fields in RPC data for completeness
 
 use alloy_eips::eip4844::BYTES_PER_BLOB;
-use alloy_primitives::{Address, Bloom, Bytes, FixedBytes};
+use alloy_primitives::{Address, Bytes, FixedBytes};
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::Serialize;
 

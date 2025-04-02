@@ -3,7 +3,6 @@ use alloy_consensus::constants::{
     LEGACY_TX_TYPE_ID,
 };
 use alloy_consensus::{TxEip4844Variant, TxEnvelope};
-use alloy_eips::eip2930::AccessList;
 use alloy_network::{primitives::BlockTransactions, AnyRpcBlock, AnyTxEnvelope};
 use alloy_primitives::{Address, Bytes, FixedBytes, TxKind, Uint};
 use anyhow::Result;

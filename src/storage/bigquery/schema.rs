@@ -140,7 +140,7 @@ pub fn block_schema(chain: Chain) -> TableSchema {
             mode: Some(TableFieldMode::Required),
             description: Some("Hash of the uncles list for the block".to_string()),
             ..Default::default()
-        },        
+        },
         TableFieldSchema {
             name: "receipts_root".to_string(),
             data_type: TableFieldType::String,
