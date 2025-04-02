@@ -40,7 +40,6 @@ impl LogTransformer for RpcLogReceiptData {
                     address: common_data.address,
                     topics: common_data.topics.clone(),
                     data: common_data.data.clone(),
-                    removed: common_data.removed,
                 };
 
                 match chain {

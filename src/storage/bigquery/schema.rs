@@ -279,13 +279,6 @@ pub fn log_schema(chain: Chain) -> TableSchema {
             description: Some("Data of the current log".to_string()),
             ..Default::default()
         },
-        TableFieldSchema {
-            name: "removed".to_string(),
-            data_type: TableFieldType::Boolean,
-            mode: Some(TableFieldMode::Required),
-            description: Some("Whether the log was removed".to_string()),
-            ..Default::default()
-        },
     ];
 
     // Fields are the same for all chain

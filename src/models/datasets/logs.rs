@@ -16,7 +16,6 @@ pub struct CommonRpcLogReceiptData {
     pub address: Address,
     pub topics: Vec<FixedBytes<32>>,
     pub data: Bytes,
-    pub removed: bool,
 }
 
 // Ethereum-specific log receipt
@@ -52,7 +51,6 @@ pub struct CommonTransformedLogData {
     pub address: Address,
     pub topics: Vec<FixedBytes<32>>,
     pub data: Bytes,
-    pub removed: bool,
 }
 
 // Ethereum-specific log receipt

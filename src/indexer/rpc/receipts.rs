@@ -124,7 +124,6 @@ impl ReceiptParser for Vec<AnyTransactionReceipt> {
                             address: log.inner.address,
                             topics: log.inner.data.topics().to_vec(),
                             data: log.inner.data.data.clone(),
-                            removed: log.removed,
                         };
 
                         let log = match chain {
