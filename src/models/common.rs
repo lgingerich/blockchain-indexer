@@ -25,7 +25,6 @@ pub struct Config {
     pub rpc_url: String,
     pub datasets: Vec<String>,
     pub metrics: MetricsConfig,
-    pub max_concurrent_blocks: Option<u64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
