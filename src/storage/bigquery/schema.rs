@@ -121,10 +121,10 @@ pub fn block_schema(chain: Chain) -> TableSchema {
             ..Default::default()
         },
         TableFieldSchema {
-            name: "beneficiary".to_string(),
+            name: "miner".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Required),
-            description: Some("Address of the block rewards beneficiary".to_string()),
+            description: Some("Address of the block rewards beneficiary (miner)".to_string()),
             ..Default::default()
         },
         TableFieldSchema {

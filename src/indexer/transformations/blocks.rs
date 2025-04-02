@@ -45,7 +45,7 @@ impl BlockTransformer for RpcHeaderData {
                     difficulty: common_data.difficulty.clone(),
                     total_difficulty: common_data.total_difficulty.clone(),
                     size: common_data.size.clone(),
-                    beneficiary: common_data.beneficiary,
+                    miner: common_data.miner,
                     mix_hash: common_data.mix_hash,
                     ommers_hash: common_data.ommers_hash,
                     requests_hash: common_data.requests_hash,

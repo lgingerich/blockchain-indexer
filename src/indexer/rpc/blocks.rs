@@ -54,7 +54,7 @@ impl BlockParser for AnyRpcBlock {
             difficulty: inner.difficulty.to_string(),
             total_difficulty: self.header.total_difficulty.map(|value| value.to_string()),
             size: self.header.size.map(|value| value.to_string()),
-            beneficiary: inner.beneficiary,
+            miner: inner.beneficiary,
             mix_hash: inner.mix_hash,
             ommers_hash: inner.ommers_hash,
             requests_hash: inner.requests_hash,
