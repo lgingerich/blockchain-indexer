@@ -75,12 +75,7 @@ impl TransactionTransformer for RpcTransactionData {
                     max_priority_fee_per_gas: common_tx.max_priority_fee_per_gas,
                     effective_gas_price: common_receipt.effective_gas_price,
                     cumulative_gas_used: common_receipt.cumulative_gas_used,
-                    blob_gas_price: common_receipt.blob_gas_price,
-                    blob_gas_used: common_receipt.blob_gas_used,
-                    access_list: common_tx.access_list.clone(),
-                    authorization_list: common_receipt.authorization_list.clone(),
                     blob_versioned_hashes: common_tx.blob_versioned_hashes.clone(),
-                    logs_bloom: common_receipt.logs_bloom,
                 };
 
                 match chain {

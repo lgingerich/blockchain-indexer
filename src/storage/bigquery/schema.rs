@@ -121,31 +121,10 @@ pub fn block_schema(chain: Chain) -> TableSchema {
             ..Default::default()
         },
         TableFieldSchema {
-            name: "beneficiary".to_string(),
+            name: "miner".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Required),
-            description: Some("Address of the block rewards beneficiary".to_string()),
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "mix_hash".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Nullable),
-            description: Some("Hash combined with nonce to prove block computation".to_string()),
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "ommers_hash".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Required),
-            description: Some("Hash of the uncles list for the block".to_string()),
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "requests_hash".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Nullable),
-            description: Some("Hash of the block requests".to_string()),
+            description: Some("Address of the block rewards beneficiary (miner)".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
@@ -156,10 +135,10 @@ pub fn block_schema(chain: Chain) -> TableSchema {
             ..Default::default()
         },
         TableFieldSchema {
-            name: "parent_beacon_block_root".to_string(),
+            name: "sha3_uncles".to_string(),
             data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Nullable),
-            description: Some("Root hash of the parent beacon block".to_string()),
+            mode: Some(TableFieldMode::Required),
+            description: Some("Hash of the uncles list for the block".to_string()),
             ..Default::default()
         },
         TableFieldSchema {
@@ -201,13 +180,6 @@ pub fn block_schema(chain: Chain) -> TableSchema {
             // ZkSync-specific fields
             fields.extend(vec![
                 TableFieldSchema {
-                    name: "target_blobs_per_block".to_string(),
-                    data_type: TableFieldType::Integer,
-                    mode: Some(TableFieldMode::Nullable),
-                    description: Some("Target number of blobs per block".to_string()),
-                    ..Default::default()
-                },
-                TableFieldSchema {
                     name: "l1_batch_number".to_string(),
                     data_type: TableFieldType::Integer,
                     mode: Some(TableFieldMode::Nullable),
@@ -221,13 +193,6 @@ pub fn block_schema(chain: Chain) -> TableSchema {
                     description: Some("Timestamp of the Layer 1 batch".to_string()),
                     ..Default::default()
                 },
-                // TableFieldSchema { // TODO: Add this back in
-                //     name: "seal_fields".to_string(),
-                //     data_type: TableFieldType::String,
-                //     mode: Some(TableFieldMode::Repeated),
-                //     description: None,
-                //     ..Default::default()
-                // },
             ]);
         }
     }
@@ -312,13 +277,6 @@ pub fn log_schema(chain: Chain) -> TableSchema {
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Required),
             description: Some("Data of the current log".to_string()),
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "removed".to_string(),
-            data_type: TableFieldType::Boolean,
-            mode: Some(TableFieldMode::Required),
-            description: Some("Whether the log was removed".to_string()),
             ..Default::default()
         },
     ];
@@ -495,65 +453,12 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
             ..Default::default()
         },
         TableFieldSchema {
-            name: "blob_gas_price".to_string(),
-            data_type: TableFieldType::Integer,
-            mode: Some(TableFieldMode::Nullable),
-            description: Some("Price per unit of blob gas for the transaction".to_string()),
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "blob_gas_used".to_string(),
-            data_type: TableFieldType::Integer,
-            mode: Some(TableFieldMode::Nullable),
-            description: Some("Amount of blob gas used by the transaction".to_string()),
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "access_list".to_string(),
-            data_type: TableFieldType::Record,
-            mode: Some(TableFieldMode::Repeated),
-            fields: Some(vec![
-                TableFieldSchema {
-                    name: "address".to_string(),
-                    data_type: TableFieldType::String,
-                    mode: Some(TableFieldMode::Required),
-                    description: Some("Address being accessed".to_string()),
-                    ..Default::default()
-                },
-                TableFieldSchema {
-                    name: "storage_keys".to_string(),
-                    data_type: TableFieldType::String,
-                    mode: Some(TableFieldMode::Repeated),
-                    description: Some("Storage slots being accessed".to_string()),
-                    ..Default::default()
-                },
-            ]),
-            description: Some(
-                "List of addresses and storage keys accessed by the transaction".to_string(),
-            ),
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "authorization_list".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Repeated),
-            description: Some("List of authorized addresses for the transaction".to_string()),
-            ..Default::default()
-        },
-        TableFieldSchema {
             name: "blob_versioned_hashes".to_string(),
             data_type: TableFieldType::String,
             mode: Some(TableFieldMode::Repeated),
             description: Some(
                 "Version hashes of the blobs included in the transaction".to_string(),
             ),
-            ..Default::default()
-        },
-        TableFieldSchema {
-            name: "logs_bloom".to_string(),
-            data_type: TableFieldType::String,
-            mode: Some(TableFieldMode::Required),
-            description: Some("Bloom filter containing all transaction logs".to_string()),
             ..Default::default()
         },
     ];

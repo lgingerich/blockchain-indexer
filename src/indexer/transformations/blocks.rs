@@ -45,12 +45,9 @@ impl BlockTransformer for RpcHeaderData {
                     difficulty: common_data.difficulty.clone(),
                     total_difficulty: common_data.total_difficulty.clone(),
                     size: common_data.size.clone(),
-                    beneficiary: common_data.beneficiary,
-                    mix_hash: common_data.mix_hash,
-                    ommers_hash: common_data.ommers_hash,
-                    requests_hash: common_data.requests_hash,
+                    miner: common_data.miner,
                     logs_bloom: common_data.logs_bloom,
-                    parent_beacon_block_root: common_data.parent_beacon_block_root,
+                    sha3_uncles: common_data.sha3_uncles,
                     receipts_root: common_data.receipts_root,
                     state_root: common_data.state_root,
                     transactions_root: common_data.transactions_root,
@@ -68,7 +65,6 @@ impl BlockTransformer for RpcHeaderData {
 
                         TransformedBlockData::ZKsync(ZKsyncTransformedBlockData {
                             common,
-                            target_blobs_per_block: zksync_data.target_blobs_per_block,
                             l1_batch_number: zksync_data.l1_batch_number,
                             l1_batch_timestamp: zksync_data.l1_batch_timestamp,
                         })

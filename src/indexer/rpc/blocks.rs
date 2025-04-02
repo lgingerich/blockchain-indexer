@@ -3,7 +3,6 @@ use alloy_consensus::constants::{
     LEGACY_TX_TYPE_ID,
 };
 use alloy_consensus::{TxEip4844Variant, TxEnvelope};
-use alloy_eips::eip2930::AccessList;
 use alloy_network::{primitives::BlockTransactions, AnyRpcBlock, AnyTxEnvelope};
 use alloy_primitives::{Address, Bytes, FixedBytes, TxKind, Uint};
 use anyhow::Result;
@@ -54,12 +53,9 @@ impl BlockParser for AnyRpcBlock {
             difficulty: inner.difficulty.to_string(),
             total_difficulty: self.header.total_difficulty.map(|value| value.to_string()),
             size: self.header.size.map(|value| value.to_string()),
-            beneficiary: inner.beneficiary,
-            mix_hash: inner.mix_hash,
-            ommers_hash: inner.ommers_hash,
-            requests_hash: inner.requests_hash,
+            miner: inner.beneficiary,
             logs_bloom: inner.logs_bloom,
-            parent_beacon_block_root: inner.parent_beacon_block_root,
+            sha3_uncles: inner.ommers_hash,
             receipts_root: inner.receipts_root,
             state_root: inner.state_root,
             transactions_root: inner.transactions_root,
@@ -70,13 +66,6 @@ impl BlockParser for AnyRpcBlock {
             Chain::Ethereum => RpcHeaderData::Ethereum(EthereumRpcHeaderData { common }),
             Chain::ZKsync => RpcHeaderData::ZKsync(ZKsyncRpcHeaderData {
                 common,
-                target_blobs_per_block: other
-                    .get_deserialized::<String>("targetBlobsPerBlock")
-                    .and_then(std::result::Result::ok)
-                    .map(|hex_str| {
-                        hex_to_u64(hex_str)
-                            .expect("failed to convert 'targetBlobsPerBlock' hex to u64")
-                    }),
                 l1_batch_number: other
                     .get_deserialized::<String>("l1BatchNumber")
                     .and_then(std::result::Result::ok)
@@ -130,8 +119,6 @@ impl BlockParser for AnyRpcBlock {
                         max_fee_per_gas: None,
                         max_priority_fee_per_gas: None,
                         effective_gas_price,
-                        access_list: AccessList::default(),
-                        authorization_list: Vec::new(),
                         blob_versioned_hashes: Vec::new(),
                     };
 
@@ -178,7 +165,6 @@ impl BlockParser for AnyRpcBlock {
                                             value: Some(tx.value.to_string()),
                                             gas_price: Some(tx.gas_price),
                                             gas_limit: tx.gas_limit,
-                                            access_list: tx.access_list.clone(),
                                             ..common
                                         },
                                         max_fee_per_blob_gas: None,
@@ -202,7 +188,6 @@ impl BlockParser for AnyRpcBlock {
                                             gas_limit: tx.gas_limit,
                                             max_fee_per_gas: Some(tx.max_fee_per_gas),
                                             max_priority_fee_per_gas: Some(tx.max_priority_fee_per_gas),
-                                            access_list: tx.access_list.clone(),
                                             ..common
                                         },
                                         max_fee_per_blob_gas: None,
@@ -225,7 +210,6 @@ impl BlockParser for AnyRpcBlock {
                                                 gas_limit: tx.gas_limit,
                                                 max_fee_per_gas: Some(tx.max_fee_per_gas),
                                                 max_priority_fee_per_gas: Some(tx.max_priority_fee_per_gas),
-                                                access_list: tx.access_list.clone(),
                                                 blob_versioned_hashes: tx.blob_versioned_hashes.clone(),
                                                 ..common
                                             },
@@ -248,7 +232,6 @@ impl BlockParser for AnyRpcBlock {
                                                     gas_limit: tx.gas_limit,
                                                     max_fee_per_gas: Some(tx.max_fee_per_gas),
                                                     max_priority_fee_per_gas: Some(tx.max_priority_fee_per_gas),
-                                                    access_list: tx.access_list.clone(),
                                                     blob_versioned_hashes: tx.blob_versioned_hashes.clone(),
                                                     ..common
                                                 },
@@ -274,8 +257,6 @@ impl BlockParser for AnyRpcBlock {
                                             gas_limit: tx.gas_limit,
                                             max_fee_per_gas: Some(tx.max_fee_per_gas),
                                             max_priority_fee_per_gas: Some(tx.max_priority_fee_per_gas),
-                                            access_list: tx.access_list.clone(),
-                                            authorization_list: tx.authorization_list.clone(),
                                             ..common
                                         },
                                         max_fee_per_blob_gas: None,
@@ -392,14 +373,6 @@ impl BlockParser for AnyRpcBlock {
                                     .and_then(std::result::Result::ok)
                                     .map(|hex_str| hex_to_u128(hex_str).expect("failed to convert 'maxPriorityFeePerGas' hex to u128")),
                                 effective_gas_price,
-                                access_list: memo.access_list
-                                    .get()
-                                    .map(|a| a.to_owned())
-                                    .unwrap_or_default(),
-                                authorization_list: memo.authorization_list
-                                    .get()
-                                    .map(|a| a.to_owned())
-                                    .unwrap_or_default(),
                                 blob_versioned_hashes: memo.blob_versioned_hashes
                                     .get()
                                     .map(|a| a.to_owned())

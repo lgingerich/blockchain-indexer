@@ -43,14 +43,6 @@ impl ReceiptParser for Vec<AnyTransactionReceipt> {
                     gas_used: receipt.inner.gas_used,
                     effective_gas_price: receipt.inner.effective_gas_price,
                     cumulative_gas_used: receipt_with_bloom.receipt.cumulative_gas_used,
-                    blob_gas_price: receipt.inner.blob_gas_price,
-                    blob_gas_used: receipt.inner.blob_gas_used,
-                    authorization_list: receipt
-                        .inner
-                        .authorization_list
-                        .clone()
-                        .unwrap_or_default(),
-                    logs_bloom: receipt_with_bloom.logs_bloom,
                 };
 
                 let receipt = match chain {
@@ -124,7 +116,6 @@ impl ReceiptParser for Vec<AnyTransactionReceipt> {
                             address: log.inner.address,
                             topics: log.inner.data.topics().to_vec(),
                             data: log.inner.data.data.clone(),
-                            removed: log.removed,
                         };
 
                         let log = match chain {
