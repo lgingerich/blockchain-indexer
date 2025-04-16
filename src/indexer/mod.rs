@@ -16,7 +16,6 @@ use alloy_transport::Transport;
 use anyhow::{anyhow, Result};
 use opentelemetry::KeyValue;
 use std::collections::HashMap;
-use tokio_retry::Retry;
 use tracing::warn;
 
 use crate::indexer::rpc::{blocks::BlockParser, receipts::ReceiptParser, traces::TraceParser};
@@ -30,7 +29,8 @@ use crate::models::datasets::blocks::RpcHeaderData;
 use crate::models::datasets::logs::RpcLogReceiptData;
 use crate::models::datasets::traces::RpcTraceData;
 use crate::models::datasets::transactions::RpcTransactionData;
-use crate::utils::retry::RETRY_CONFIG;
+// use crate::utils::retry::get_retry_config;
+use crate::utils::retry::{RetryConfig, retry};
 
 use alloy_consensus::TxEnvelope;
 use alloy_network::AnyTxEnvelope;
@@ -62,7 +62,8 @@ where
     T: Transport + Clone,
     N: Network,
 {
-    Retry::spawn(RETRY_CONFIG.clone(), || async {
+    let retry_config = RetryConfig::default();
+    retry(|| async {
         let start = std::time::Instant::now();
 
         // Record metrics if enabled
@@ -99,8 +100,14 @@ where
             }
         }
 
-        result.map_err(|e| anyhow!("RPC error: {}", e))
-    })
+        result.map_err(|e| {
+            warn!("Failed to get chain ID. Error details:\n{:#?}", e);
+            anyhow!("RPC error: {}", e)
+        })
+    }, 
+    &retry_config,
+    "get_chain_id"
+    )
     .await
 }
 
@@ -112,7 +119,8 @@ where
     T: Transport + Clone,
     N: Network,
 {
-    Retry::spawn(RETRY_CONFIG.clone(), || async {
+    let retry_config = RetryConfig::default();
+    retry(|| async {
         let start = std::time::Instant::now();
 
         if let Some(metrics) = metrics {
@@ -148,9 +156,15 @@ where
         }
 
         result
-            .map_err(|e| anyhow!("RPC error: {}", e))
+            .map_err(|e| {
+                warn!("Failed to get latest block number. Error details:\n{:#?}", e);
+                anyhow!("RPC error: {}", e)
+            })
             .map(BlockNumberOrTag::Number)
-    })
+    }, 
+    &retry_config,
+    "get_latest_block_number"
+    )
     .await
 }
 
@@ -164,7 +178,8 @@ where
     T: Transport + Clone,
     N: Network,
 {
-    Retry::spawn(RETRY_CONFIG.clone(), || async {
+    let retry_config = RetryConfig::default();
+    retry(|| async {
         let start = std::time::Instant::now();
 
         if let Some(metrics) = metrics {
@@ -199,8 +214,14 @@ where
             }
         }
 
-        result.map_err(|e| anyhow!("RPC error: {}", e))
-    })
+        result.map_err(|e| {
+            warn!("Failed to get block by number {}. Error details:\n{:#?}", block_number, e);
+            anyhow!("RPC error: {}", e)
+        })
+    }, 
+    &retry_config,
+    "get_block_by_number"
+    )
     .await
 }
 
@@ -213,7 +234,8 @@ where
     T: Transport + Clone,
     N: Network,
 {
-    Retry::spawn(RETRY_CONFIG.clone(), || async {
+    let retry_config = RetryConfig::default();
+    retry(|| async {
         let start = std::time::Instant::now();
 
         if let Some(metrics) = metrics {
@@ -248,8 +270,14 @@ where
             }
         }
 
-        result.map_err(|e| anyhow!("RPC error: {e}"))
-    })
+        result.map_err(|e| {
+            warn!("Failed to get block receipts for block {}. Error details:\n{:#?}", block, e);
+            anyhow!("RPC error: {}", e)
+        })
+    }, 
+    &retry_config,
+    "get_block_receipts"
+    )
     .await
 }
 
@@ -265,7 +293,9 @@ where
 {
     const BATCH_SIZE: usize = 10; // Configurable batch size
 
-    Retry::spawn(RETRY_CONFIG.clone(), || async {
+    // Retry::spawn(get_retry_config("debug_trace_transaction"), || async {
+    let retry_config = RetryConfig::default();
+    retry(|| async {
         let start = std::time::Instant::now();
 
         if let Some(metrics) = metrics {
@@ -318,6 +348,11 @@ where
                                 ],
                             );
                         }
+                        warn!(
+                            "Failed to trace transaction {} with error: {}",
+                            tx_batch[idx],
+                            format!("{:?}", e)
+                        );
                         return Err(anyhow!(
                             "RPC error tracing transaction {}: {}",
                             tx_batch[idx],
@@ -340,7 +375,10 @@ where
         }
 
         Ok(all_traces)
-    })
+    }, 
+    &retry_config,
+    "debug_trace_transaction"
+    )
     .await
     .map(Some)
 }
