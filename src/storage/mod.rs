@@ -55,7 +55,7 @@ impl DataChannels {
             error!("Failed to send shutdown signal to workers: {}", e);
         }
 
-        let timeout = StdDuration::from_secs(30);
+        let timeout = StdDuration::from_secs(60 * 5);
         let start = Instant::now();
 
         while start.elapsed() < timeout {
