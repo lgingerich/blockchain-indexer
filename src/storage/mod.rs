@@ -1,7 +1,6 @@
 pub mod bigquery;
 
 use anyhow::{anyhow, Result};
-use opentelemetry::KeyValue;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration as StdDuration;
@@ -17,9 +16,11 @@ use crate::models::datasets::logs::TransformedLogData;
 use crate::models::datasets::traces::TransformedTraceData;
 use crate::models::datasets::transactions::TransformedTransactionData;
 use crate::storage::bigquery::insert_data;
+use crate::utils::strip_html;
 
-const MAX_CHANNEL_CAPACITY: usize = 64;
-const CAPACITY_THRESHOLD: f32 = 0.2; // Apply backpressure when current capacity is 20% of max
+const MAX_CHANNEL_CAPACITY: usize = 1024;
+const BATCH_SIZE: usize = 10; // Number of blocks to batch together
+const MAX_BATCH_WAIT: Duration = Duration::from_secs(5); // Maximum time to wait for a batch
 
 #[derive(Debug)]
 pub enum DatasetType {
@@ -58,7 +59,7 @@ impl DataChannels {
             error!("Failed to send shutdown signal to workers: {}", e);
         }
 
-        let timeout = StdDuration::from_secs(30);
+        let timeout = StdDuration::from_secs(60 * 5);
         let start = Instant::now();
 
         while start.elapsed() < timeout {
@@ -136,49 +137,6 @@ impl DataChannels {
             && self.traces_tx.capacity() == MAX_CHANNEL_CAPACITY
     }
 
-    pub async fn check_capacity(&self, metrics: Option<&Metrics>) -> Result<bool> {
-        // Get current capacities (number of available slots, NOT how many slots are used)
-        let blocks_capacity = self.blocks_tx.capacity();
-        let transactions_capacity = self.transactions_tx.capacity();
-        let logs_capacity = self.logs_tx.capacity();
-        let traces_capacity = self.traces_tx.capacity();
-
-        // Record current capacities
-        if let Some(metrics) = metrics {
-            metrics.channel_capacity.record(
-                blocks_capacity as u64,
-                &[KeyValue::new("channel", "blocks")],
-            );
-            metrics.channel_capacity.record(
-                transactions_capacity as u64,
-                &[KeyValue::new("channel", "transactions")],
-            );
-            metrics
-                .channel_capacity
-                .record(logs_capacity as u64, &[KeyValue::new("channel", "logs")]);
-            metrics.channel_capacity.record(
-                traces_capacity as u64,
-                &[KeyValue::new("channel", "traces")],
-            );
-        }
-
-        // Apply backpressure when available capacity is low (meaning channel is getting full)
-        // If available capacity is <= 20% of max, then the channel is >= 80% full
-        if (blocks_capacity as f32 / MAX_CHANNEL_CAPACITY as f32) <= CAPACITY_THRESHOLD
-            || (transactions_capacity as f32 / MAX_CHANNEL_CAPACITY as f32) <= CAPACITY_THRESHOLD
-            || (logs_capacity as f32 / MAX_CHANNEL_CAPACITY as f32) <= CAPACITY_THRESHOLD
-            || (traces_capacity as f32 / MAX_CHANNEL_CAPACITY as f32) <= CAPACITY_THRESHOLD
-        {
-            info!(
-                "Channel within {}% of max capacity",
-                (1.0 - CAPACITY_THRESHOLD) * 100.0
-            );
-            return Ok(false);
-        }
-
-        Ok(true)
-    }
-
     pub async fn send_dataset(&self, dataset_type: DatasetType, block_number: u64) {
         match dataset_type {
             DatasetType::Blocks(data) => {
@@ -205,7 +163,7 @@ impl DataChannels {
     }
 }
 
-pub async fn setup_channels(chain_name: &str) -> Result<DataChannels> {
+pub async fn setup_channels(chain_name: &str, metrics: Option<&Metrics>) -> Result<DataChannels> {
     let (blocks_tx, mut blocks_rx) = mpsc::channel(MAX_CHANNEL_CAPACITY);
     let (transactions_tx, mut transactions_rx) = mpsc::channel(MAX_CHANNEL_CAPACITY);
     let (logs_tx, mut logs_rx) = mpsc::channel(MAX_CHANNEL_CAPACITY);
@@ -228,25 +186,64 @@ pub async fn setup_channels(chain_name: &str) -> Result<DataChannels> {
         last_block_processed: progress.clone(),
     };
 
+    // Clone metrics once at the beginning if it exists
+    let metrics = metrics.map(|m| m.clone());
+
     // Spawn worker for blocks
     let blocks_dataset = chain_name.to_owned();
     let mut shutdown_rx = shutdown_tx.subscribe();
     let channels_clone = channels.clone();
+    let metrics_clone = metrics.clone();
     tokio::spawn(async move {
         let result = async {
+            let mut batch = Vec::new();
+            let mut min_block = u64::MAX;
+            let mut max_block = 0;
+            let mut block_count = 0;
+            let mut block_numbers = std::collections::HashSet::new();
+            let mut last_batch_time = Instant::now();
+
             loop {
                 tokio::select! {
                     Some((blocks, block_number)) = blocks_rx.recv() => {
-                        if let Err(e) = insert_data(&blocks_dataset, "blocks", blocks, block_number).await {
-                            error!("Failed to insert block data: {}", e);
+                        batch.extend(blocks);
+                        min_block = min_block.min(block_number);
+                        max_block = max_block.max(block_number);
+
+                        // Only count each block number once
+                        if block_numbers.insert(block_number) {
+                            block_count += 1;
                         }
-                        channels_clone.update_blocks_progress(block_number);
+
+                        // Insert batch if we've collected BATCH_SIZE different blocks or if we've waited too long
+                        if block_count >= BATCH_SIZE || last_batch_time.elapsed() >= MAX_BATCH_WAIT {
+                            if !batch.is_empty() {
+                                if let Err(e) = insert_data(&blocks_dataset, "blocks", batch, (min_block, max_block), metrics_clone.as_ref()).await {
+                                    error!("Failed to insert block data: {}", strip_html(&e.to_string()));
+                                }
+                                channels_clone.update_blocks_progress(max_block);
+                                batch = Vec::new();
+                                min_block = u64::MAX;
+                                max_block = 0;
+                                block_count = 0;
+                                block_numbers.clear();
+                                last_batch_time = Instant::now();
+                            }
+                        }
                     }
                     _ = shutdown_rx.recv() => {
                         debug!("Blocks worker processing remaining items...");
+                        // Process any remaining items in the batch
+                        if !batch.is_empty() {
+                            if let Err(e) = insert_data(&blocks_dataset, "blocks", batch, (min_block, max_block), metrics_clone.as_ref()).await {
+                                error!("Failed to insert final block data: {}", strip_html(&e.to_string()));
+                            }
+                            channels_clone.update_blocks_progress(max_block);
+                        }
+                        // Process any remaining items in the channel
                         while let Some((blocks, block_number)) = blocks_rx.recv().await {
-                            if let Err(e) = insert_data(&blocks_dataset, "blocks", blocks, block_number).await {
-                                error!("Failed to insert final block data: {}", e);
+                            if let Err(e) = insert_data(&blocks_dataset, "blocks", blocks, (block_number, block_number), metrics_clone.as_ref()).await {
+                                error!("Failed to insert final block data: {}", strip_html(&e.to_string()));
                             }
                             channels_clone.update_blocks_progress(block_number);
                         }
@@ -259,7 +256,7 @@ pub async fn setup_channels(chain_name: &str) -> Result<DataChannels> {
         }.await;
 
         if let Err(e) = result {
-            error!("Blocks worker error: {}", e);
+            error!("Blocks worker error: {}", strip_html(&e.to_string()));
         }
         info!("Blocks worker shut down");
     });
@@ -268,21 +265,57 @@ pub async fn setup_channels(chain_name: &str) -> Result<DataChannels> {
     let transactions_dataset = chain_name.to_owned();
     let mut shutdown_rx = shutdown_tx.subscribe();
     let channels_clone = channels.clone();
+    let metrics_clone = metrics.clone();
     tokio::spawn(async move {
         let result = async {
+            let mut batch = Vec::new();
+            let mut min_block = u64::MAX;
+            let mut max_block = 0;
+            let mut block_count = 0;
+            let mut block_numbers = std::collections::HashSet::new();
+            let mut last_batch_time = Instant::now();
+
             loop {
                 tokio::select! {
                     Some((transactions, block_number)) = transactions_rx.recv() => {
-                        if let Err(e) = insert_data(&transactions_dataset, "transactions", transactions, block_number).await {
-                            error!("Failed to insert transaction data: {}", e);
+                        batch.extend(transactions);
+                        min_block = min_block.min(block_number);
+                        max_block = max_block.max(block_number);
+
+                        // Only count each block number once
+                        if block_numbers.insert(block_number) {
+                            block_count += 1;
                         }
-                        channels_clone.update_transactions_progress(block_number);
+
+                        // Insert batch if we've collected BATCH_SIZE different blocks or if we've waited too long
+                        if block_count >= BATCH_SIZE || last_batch_time.elapsed() >= MAX_BATCH_WAIT {
+                            if !batch.is_empty() {
+                                if let Err(e) = insert_data(&transactions_dataset, "transactions", batch, (min_block, max_block), metrics_clone.as_ref()).await {
+                                    error!("Failed to insert transaction data: {}", strip_html(&e.to_string()));
+                                }
+                                channels_clone.update_transactions_progress(max_block);
+                                batch = Vec::new();
+                                min_block = u64::MAX;
+                                max_block = 0;
+                                block_count = 0;
+                                block_numbers.clear();
+                                last_batch_time = Instant::now();
+                            }
+                        }
                     }
                     _ = shutdown_rx.recv() => {
                         debug!("Transactions worker processing remaining items...");
+                        // Process any remaining items in the batch
+                        if !batch.is_empty() {
+                            if let Err(e) = insert_data(&transactions_dataset, "transactions", batch, (min_block, max_block), metrics_clone.as_ref()).await {
+                                error!("Failed to insert final transaction data: {}", strip_html(&e.to_string()));
+                            }
+                            channels_clone.update_transactions_progress(max_block);
+                        }
+                        // Process any remaining items in the channel
                         while let Some((transactions, block_number)) = transactions_rx.recv().await {
-                            if let Err(e) = insert_data(&transactions_dataset, "transactions", transactions, block_number).await {
-                                error!("Failed to insert final transaction data: {}", e);
+                            if let Err(e) = insert_data(&transactions_dataset, "transactions", transactions, (block_number, block_number), metrics_clone.as_ref()).await {
+                                error!("Failed to insert final transaction data: {}", strip_html(&e.to_string()));
                             }
                             channels_clone.update_transactions_progress(block_number);
                         }
@@ -295,7 +328,7 @@ pub async fn setup_channels(chain_name: &str) -> Result<DataChannels> {
         }.await;
 
         if let Err(e) = result {
-            error!("Transactions worker error: {}", e);
+            error!("Transactions worker error: {}", strip_html(&e.to_string()));
         }
         info!("Transactions worker shut down");
     });
@@ -304,21 +337,57 @@ pub async fn setup_channels(chain_name: &str) -> Result<DataChannels> {
     let logs_dataset = chain_name.to_owned();
     let mut shutdown_rx = shutdown_tx.subscribe();
     let channels_clone = channels.clone();
+    let metrics_clone = metrics.clone();
     tokio::spawn(async move {
         let result = async {
+            let mut batch = Vec::new();
+            let mut min_block = u64::MAX;
+            let mut max_block = 0;
+            let mut block_count = 0;
+            let mut block_numbers = std::collections::HashSet::new();
+            let mut last_batch_time = Instant::now();
+
             loop {
                 tokio::select! {
                     Some((logs, block_number)) = logs_rx.recv() => {
-                        if let Err(e) = insert_data(&logs_dataset, "logs", logs, block_number).await {
-                            error!("Failed to insert log data: {}", e);
+                        batch.extend(logs);
+                        min_block = min_block.min(block_number);
+                        max_block = max_block.max(block_number);
+
+                        // Only count each block number once
+                        if block_numbers.insert(block_number) {
+                            block_count += 1;
                         }
-                        channels_clone.update_logs_progress(block_number);
+
+                        // Insert batch if we've collected BATCH_SIZE different blocks or if we've waited too long
+                        if block_count >= BATCH_SIZE || last_batch_time.elapsed() >= MAX_BATCH_WAIT {
+                            if !batch.is_empty() {
+                                if let Err(e) = insert_data(&logs_dataset, "logs", batch, (min_block, max_block), metrics_clone.as_ref()).await {
+                                    error!("Failed to insert log data: {}", strip_html(&e.to_string()));
+                                }
+                                channels_clone.update_logs_progress(max_block);
+                                batch = Vec::new();
+                                min_block = u64::MAX;
+                                max_block = 0;
+                                block_count = 0;
+                                block_numbers.clear();
+                                last_batch_time = Instant::now();
+                            }
+                        }
                     }
                     _ = shutdown_rx.recv() => {
                         debug!("Logs worker processing remaining items...");
+                        // Process any remaining items in the batch
+                        if !batch.is_empty() {
+                            if let Err(e) = insert_data(&logs_dataset, "logs", batch, (min_block, max_block), metrics_clone.as_ref()).await {
+                                error!("Failed to insert final log data: {}", strip_html(&e.to_string()));
+                            }
+                            channels_clone.update_logs_progress(max_block);
+                        }
+                        // Process any remaining items in the channel
                         while let Some((logs, block_number)) = logs_rx.recv().await {
-                            if let Err(e) = insert_data(&logs_dataset, "logs", logs, block_number).await {
-                                error!("Failed to insert final log data: {}", e);
+                            if let Err(e) = insert_data(&logs_dataset, "logs", logs, (block_number, block_number), metrics_clone.as_ref()).await {
+                                error!("Failed to insert final log data: {}", strip_html(&e.to_string()));
                             }
                             channels_clone.update_logs_progress(block_number);
                         }
@@ -331,7 +400,7 @@ pub async fn setup_channels(chain_name: &str) -> Result<DataChannels> {
         }.await;
 
         if let Err(e) = result {
-            error!("Logs worker error: {}", e);
+            error!("Logs worker error: {}", strip_html(&e.to_string()));
         }
         info!("Logs worker shut down");
     });
@@ -340,21 +409,57 @@ pub async fn setup_channels(chain_name: &str) -> Result<DataChannels> {
     let traces_dataset = chain_name.to_owned();
     let mut shutdown_rx = shutdown_tx.subscribe();
     let channels_clone = channels.clone();
+    let metrics_clone = metrics.clone();
     tokio::spawn(async move {
         let result = async {
+            let mut batch = Vec::new();
+            let mut min_block = u64::MAX;
+            let mut max_block = 0;
+            let mut block_count = 0;
+            let mut block_numbers = std::collections::HashSet::new();
+            let mut last_batch_time = Instant::now();
+
             loop {
                 tokio::select! {
                     Some((traces, block_number)) = traces_rx.recv() => {
-                        if let Err(e) = insert_data(&traces_dataset, "traces", traces, block_number).await {
-                            error!("Failed to insert trace data: {}", e);
+                        batch.extend(traces);
+                        min_block = min_block.min(block_number);
+                        max_block = max_block.max(block_number);
+
+                        // Only count each block number once
+                        if block_numbers.insert(block_number) {
+                            block_count += 1;
                         }
-                        channels_clone.update_traces_progress(block_number);
+
+                        // Insert batch if we've collected BATCH_SIZE different blocks or if we've waited too long
+                        if block_count >= BATCH_SIZE || last_batch_time.elapsed() >= MAX_BATCH_WAIT {
+                            if !batch.is_empty() {
+                                if let Err(e) = insert_data(&traces_dataset, "traces", batch, (min_block, max_block), metrics_clone.as_ref()).await {
+                                    error!("Failed to insert trace data: {}", strip_html(&e.to_string()));
+                                }
+                                channels_clone.update_traces_progress(max_block);
+                                batch = Vec::new();
+                                min_block = u64::MAX;
+                                max_block = 0;
+                                block_count = 0;
+                                block_numbers.clear();
+                                last_batch_time = Instant::now();
+                            }
+                        }
                     }
                     _ = shutdown_rx.recv() => {
                         debug!("Traces worker processing remaining items...");
+                        // Process any remaining items in the batch
+                        if !batch.is_empty() {
+                            if let Err(e) = insert_data(&traces_dataset, "traces", batch, (min_block, max_block), metrics_clone.as_ref()).await {
+                                error!("Failed to insert final trace data: {}", strip_html(&e.to_string()));
+                            }
+                            channels_clone.update_traces_progress(max_block);
+                        }
+                        // Process any remaining items in the channel
                         while let Some((traces, block_number)) = traces_rx.recv().await {
-                            if let Err(e) = insert_data(&traces_dataset, "traces", traces, block_number).await {
-                                error!("Failed to insert final trace data: {}", e);
+                            if let Err(e) = insert_data(&traces_dataset, "traces", traces, (block_number, block_number), metrics_clone.as_ref()).await {
+                                error!("Failed to insert final trace data: {}", strip_html(&e.to_string()));
                             }
                             channels_clone.update_traces_progress(block_number);
                         }
@@ -367,7 +472,7 @@ pub async fn setup_channels(chain_name: &str) -> Result<DataChannels> {
         }.await;
 
         if let Err(e) = result {
-            error!("Traces worker error: {}", e);
+            error!("Traces worker error: {}", strip_html(&e.to_string()));
         }
         info!("Traces worker shut down");
     });

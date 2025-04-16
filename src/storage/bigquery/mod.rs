@@ -1,5 +1,11 @@
 mod schema;
 
+use crate::metrics::Metrics;
+use crate::models::common::Chain;
+use crate::storage::bigquery::schema::{
+    block_schema, log_schema, trace_schema, transaction_schema,
+};
+use crate::utils::retry::{retry, RetryConfig};
 use anyhow::{anyhow, Result};
 use google_cloud_bigquery::client::{Client, ClientConfig};
 use google_cloud_bigquery::http::dataset::{Dataset, DatasetReference};
@@ -13,16 +19,10 @@ use google_cloud_bigquery::http::tabledata::{
     list::Value,
 };
 use once_cell::sync::OnceCell;
+use opentelemetry::KeyValue;
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
-use tokio_retry::Retry;
 use tracing::{error, info, warn};
-
-use crate::models::common::Chain;
-use crate::storage::bigquery::schema::{
-    block_schema, log_schema, trace_schema, transaction_schema,
-};
-use crate::utils::retry::RETRY_CONFIG;
 
 // Define a static OnceCell to hold the shared Client and Project ID
 static BIGQUERY_CLIENT: OnceCell<Arc<(Client, String)>> = OnceCell::new();
@@ -96,22 +96,28 @@ pub async fn create_dataset(chain_name: &str) -> Result<()> {
         ..Default::default()
     };
 
-    Retry::spawn(RETRY_CONFIG.clone(), || async {
-        match dataset_client.create(&metadata).await {
-            Ok(_) => {
-                info!(chain_name, project_id = ?project_id, "Dataset successfully created");
-                Ok(())
+    // Retry::spawn(get_retry_config("create_dataset"), || async {
+    let retry_config = RetryConfig::default();
+    retry(
+        || async {
+            match dataset_client.create(&metadata).await {
+                Ok(_) => {
+                    info!(chain_name, project_id = ?project_id, "Dataset successfully created");
+                    Ok(())
+                }
+                Err(BigQueryError::Response(resp)) if resp.message.contains("Already Exists") => {
+                    info!("Dataset '{}' already exists", chain_name);
+                    Ok(())
+                }
+                Err(e) => {
+                    error!("Failed to create dataset: {}", e);
+                    Err(anyhow!("Dataset creation failed: {}", e))
+                }
             }
-            Err(BigQueryError::Response(resp)) if resp.message.contains("Already Exists") => {
-                info!("Dataset '{}' already exists", chain_name);
-                Ok(())
-            }
-            Err(e) => {
-                error!("Failed to create dataset: {}", e);
-                Err(anyhow!("Dataset creation failed: {}", e))
-            }
-        }
-    })
+        },
+        &retry_config,
+        "create_dataset",
+    )
     .await
     .map_err(|e| anyhow!("Failed to create dataset after retries: {}", e))?;
 
@@ -155,41 +161,47 @@ pub async fn create_table(chain_name: &str, table_id: &str, chain: Chain) -> Res
         ..Default::default()
     };
 
-    Retry::spawn(RETRY_CONFIG.clone(), || async {
-        match table_client.create(&metadata).await {
-            Ok(_) => {
-                info!(
-                    "Table '{}' successfully created in dataset '{}'",
-                    table_id, chain_name
-                );
-                Ok(())
-            }
-            Err(e) => {
-                match e {
-                    BigQueryError::Response(resp) => {
-                        if resp.message.contains("Already Exists") {
-                            info!(
-                                "Table '{}' already exists in dataset '{}'",
-                                table_id, chain_name
-                            );
-                            return Ok(());
-                        }
-                        error!("BigQuery API Error: {}", resp.message);
-                    }
-                    BigQueryError::HttpClient(e) => {
-                        error!("HTTP Client error: {}", e);
-                    }
-                    BigQueryError::HttpMiddleware(e) => {
-                        error!("HTTP Middleware error: {}", e);
-                    }
-                    BigQueryError::TokenSource(e) => {
-                        error!("Token Source error: {}", e);
-                    }
+    // Retry::spawn(get_retry_config("create_table"), || async {
+    let retry_config = RetryConfig::default();
+    retry(
+        || async {
+            match table_client.create(&metadata).await {
+                Ok(_) => {
+                    info!(
+                        "Table '{}' successfully created in dataset '{}'",
+                        table_id, chain_name
+                    );
+                    Ok(())
                 }
-                Err(anyhow!("Table creation failed"))
+                Err(e) => {
+                    match e {
+                        BigQueryError::Response(resp) => {
+                            if resp.message.contains("Already Exists") {
+                                info!(
+                                    "Table '{}' already exists in dataset '{}'",
+                                    table_id, chain_name
+                                );
+                                return Ok(());
+                            }
+                            error!("BigQuery API Error: {}", resp.message);
+                        }
+                        BigQueryError::HttpClient(e) => {
+                            error!("HTTP Client error: {}", e);
+                        }
+                        BigQueryError::HttpMiddleware(e) => {
+                            error!("HTTP Middleware error: {}", e);
+                        }
+                        BigQueryError::TokenSource(e) => {
+                            error!("Token Source error: {}", e);
+                        }
+                    }
+                    Err(anyhow!("Table creation failed"))
+                }
             }
-        }
-    })
+        },
+        &retry_config,
+        "create_table",
+    )
     .await
     .map_err(|e| anyhow!("Failed to create table after retries: {}", e))?;
 
@@ -201,20 +213,33 @@ pub async fn insert_data<T: serde::Serialize>(
     chain_name: &str,
     table_id: &str,
     data: Vec<T>,
-    block_number: u64,
+    block_range: (u64, u64), // Changed from single block_number to block_range
+    metrics: Option<&Metrics>,
 ) -> Result<()> {
     let (client, project_id) = &*get_client().await?;
     let tabledata_client = client.tabledata();
 
     if data.is_empty() {
         info!(
-            "No data to insert into {}.{}.{} for block {}",
-            project_id, chain_name, table_id, block_number
+            "No data to insert into {}.{}.{} for blocks {} to {}",
+            project_id, chain_name, table_id, block_range.0, block_range.1
         );
         return Ok(());
     }
 
     let total_rows = data.len();
+    let batch_start = std::time::Instant::now();
+
+    // Record batch size if metrics enabled
+    if let Some(metrics) = metrics {
+        metrics.bigquery_batch_size.record(
+            total_rows as f64,
+            &[
+                KeyValue::new("chain", metrics.chain_name.clone()),
+                KeyValue::new("table", table_id.to_string()),
+            ],
+        );
+    }
 
     let mut current_batch = Vec::new();
     let mut current_size = 0;
@@ -232,7 +257,7 @@ pub async fn insert_data<T: serde::Serialize>(
                 .iter()
                 .map(|item| {
                     // Generate an appropriate insertId based on the table type and data content
-                    let insert_id = generate_insert_id(table_id, item, block_number);
+                    let insert_id = generate_insert_id(table_id, item, block_range.0);
 
                     TableRow {
                         insert_id: Some(insert_id),
@@ -249,7 +274,89 @@ pub async fn insert_data<T: serde::Serialize>(
                 trace_id: None,
             };
 
-            Retry::spawn(RETRY_CONFIG.clone(), || async {
+            let retry_config = RetryConfig::default();
+            retry(
+                || async {
+                    match tabledata_client
+                        .insert(project_id, chain_name, table_id, &request)
+                        .await
+                    {
+                        Ok(response) => {
+                            if let Some(errors) = response.insert_errors {
+                                if !errors.is_empty() {
+                                    for error in errors {
+                                        error!("Row {} failed to insert", error.index);
+                                        for err_msg in error.errors {
+                                            error!("Error: {}", err_msg.message);
+                                        }
+                                    }
+                                    return Err(anyhow!("Some rows failed to insert"));
+                                }
+                            }
+                            Ok(())
+                        }
+                        Err(e) => {
+                            match e {
+                                BigQueryError::Response(resp) => {
+                                    error!("BigQuery API Error: {}", resp.message);
+                                }
+                                BigQueryError::HttpClient(e) => {
+                                    error!("HTTP Client error: {}", e);
+                                }
+                                BigQueryError::HttpMiddleware(e) => {
+                                    error!("HTTP Middleware error: {}", e);
+                                }
+                                BigQueryError::TokenSource(e) => {
+                                    error!("Token Source error: {}", e);
+                                }
+                            }
+                            Err(anyhow!("Data insertion failed"))
+                        }
+                    }
+                },
+                &retry_config,
+                "insert_data",
+            )
+            .await?;
+
+            batches_sent += 1;
+
+            // Reset for next batch
+            current_batch = Vec::new();
+            current_size = 0;
+        }
+
+        // Add item to the current batch
+        current_batch.push(item);
+        current_size += item_size;
+    }
+
+    // Send any remaining items
+    if !current_batch.is_empty() {
+        let rows = current_batch
+            .iter()
+            .map(|item| {
+                // Generate an appropriate insertId based on the table type and data content
+                let insert_id = generate_insert_id(table_id, item, block_range.0);
+
+                TableRow {
+                    insert_id: Some(insert_id),
+                    json: item,
+                }
+            })
+            .collect();
+
+        let request = InsertAllRequest {
+            skip_invalid_rows: Some(true),
+            ignore_unknown_values: Some(true),
+            template_suffix: None,
+            rows,
+            trace_id: None,
+        };
+
+        let retry_config = RetryConfig::default();
+        retry(
+            || async {
                 match tabledata_client
                     .insert(project_id, chain_name, table_id, &request)
                     .await
@@ -286,93 +393,34 @@ pub async fn insert_data<T: serde::Serialize>(
                         Err(anyhow!("Data insertion failed"))
                     }
                 }
-            })
-            .await?;
-
-            batches_sent += 1;
-
-            // Reset for next batch
-            current_batch = Vec::new();
-            current_size = 0;
-        }
-
-        // Add item to the current batch
-        current_batch.push(item);
-        current_size += item_size;
-    }
-
-    // Send any remaining items
-    if !current_batch.is_empty() {
-        let rows = current_batch
-            .iter()
-            .map(|item| {
-                // Generate an appropriate insertId based on the table type and data content
-                let insert_id = generate_insert_id(table_id, item, block_number);
-
-                TableRow {
-                    insert_id: Some(insert_id),
-                    json: item,
-                }
-            })
-            .collect();
-
-        let request = InsertAllRequest {
-            skip_invalid_rows: Some(true),
-            ignore_unknown_values: Some(true),
-            template_suffix: None,
-            rows,
-            trace_id: None,
-        };
-
-        Retry::spawn(RETRY_CONFIG.clone(), || async {
-            match tabledata_client
-                .insert(project_id, chain_name, table_id, &request)
-                .await
-            {
-                Ok(response) => {
-                    if let Some(errors) = response.insert_errors {
-                        if !errors.is_empty() {
-                            for error in errors {
-                                error!("Row {} failed to insert", error.index);
-                                for err_msg in error.errors {
-                                    error!("Error: {}", err_msg.message);
-                                }
-                            }
-                            return Err(anyhow!("Some rows failed to insert"));
-                        }
-                    }
-                    Ok(())
-                }
-                Err(e) => {
-                    match e {
-                        BigQueryError::Response(resp) => {
-                            error!("BigQuery API Error: {}", resp.message);
-                        }
-                        BigQueryError::HttpClient(e) => {
-                            error!("HTTP Client error: {}", e);
-                        }
-                        BigQueryError::HttpMiddleware(e) => {
-                            error!("HTTP Middleware error: {}", e);
-                        }
-                        BigQueryError::TokenSource(e) => {
-                            error!("Token Source error: {}", e);
-                        }
-                    }
-                    Err(anyhow!("Data insertion failed"))
-                }
-            }
-        })
+            },
+            &retry_config,
+            "insert_data",
+        )
         .await?;
     }
 
+    // After each batch is sent, record metrics
+    if let Some(metrics) = metrics {
+        metrics.bigquery_insert_latency.record(
+            batch_start.elapsed().as_secs_f64(),
+            &[
+                KeyValue::new("chain", metrics.chain_name.clone()),
+                KeyValue::new("table", table_id.to_string()),
+            ],
+        );
+    }
+
     info!(
-        "Successfully inserted {} rows into {}.{}.{} for block {} in {} batches",
+        "Successfully inserted {} rows into {}.{}.{} for blocks {} to {} in {} batches (took {:.2?})",
         total_rows,
         project_id,
         chain_name,
         table_id,
-        block_number,
-        batches_sent + 1
+        block_range.0,
+        block_range.1,
+        batches_sent + 1,
+        batch_start.elapsed()
     );
 
     Ok(())
