@@ -45,12 +45,11 @@ where
                 }
 
                 warn!(
-                    "Attempt {}/{} for '{}' failed: {}. Retrying in {}ms...",
+                    "Attempt {}/{} for '{}' failed. Retrying in {}s...",
                     attempt,
                     config.max_attempts,
                     context,
-                    &e.to_string(),
-                    delay
+                    delay as f64 / 1000.00
                 );
 
                 sleep(Duration::from_millis(delay)).await;
@@ -59,8 +58,8 @@ where
                 // https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
                 let next_delay = (delay as f64 * config.exponential) as u64;
                 let next_delay = std::cmp::min(config.max_delay_ms, next_delay);
-                let half_delay = next_delay as f64 / 2.0;
-                delay = half_delay as u64 + (fastrand::f64() * half_delay) as u64;
+                let full_delay = next_delay as f64 / 1.0;
+                delay = full_delay as u64 + (fastrand::f64() * full_delay) as u64;
                 attempt += 1;
             }
         }

@@ -91,7 +91,7 @@ async fn main() -> Result<()> {
     storage::initialize_storage(chain_name.as_str(), &datasets, chain).await?;
 
     // Set up channels
-    let channels = setup_channels(chain_name.as_str()).await?;
+    let channels = setup_channels(chain_name.as_str(), metrics.as_ref()).await?;
 
     // Create a shutdown signal handler. Flush channels before shutting down.
     let mut shutdown_signal = channels.shutdown_signal();

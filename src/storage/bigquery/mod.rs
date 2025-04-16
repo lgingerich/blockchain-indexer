@@ -1,5 +1,11 @@
 mod schema;
 
+use crate::metrics::Metrics;
+use crate::models::common::Chain;
+use crate::storage::bigquery::schema::{
+    block_schema, log_schema, trace_schema, transaction_schema,
+};
+use crate::utils::retry::{retry, RetryConfig};
 use anyhow::{anyhow, Result};
 use google_cloud_bigquery::client::{Client, ClientConfig};
 use google_cloud_bigquery::http::dataset::{Dataset, DatasetReference};
@@ -13,16 +19,10 @@ use google_cloud_bigquery::http::tabledata::{
     list::Value,
 };
 use once_cell::sync::OnceCell;
+use opentelemetry::KeyValue;
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
 use tracing::{error, info, warn};
-
-use crate::models::common::Chain;
-use crate::storage::bigquery::schema::{
-    block_schema, log_schema, trace_schema, transaction_schema,
-};
-// use crate::utils::retry::get_retry_config;
-use crate::utils::retry::{retry, RetryConfig};
 
 // Define a static OnceCell to hold the shared Client and Project ID
 static BIGQUERY_CLIENT: OnceCell<Arc<(Client, String)>> = OnceCell::new();
@@ -214,6 +214,7 @@ pub async fn insert_data<T: serde::Serialize>(
     table_id: &str,
     data: Vec<T>,
     block_number: u64,
+    metrics: Option<&Metrics>,
 ) -> Result<()> {
     let (client, project_id) = &*get_client().await?;
     let tabledata_client = client.tabledata();
@@ -227,6 +228,18 @@ pub async fn insert_data<T: serde::Serialize>(
     }
 
     let total_rows = data.len();
+    let batch_start = std::time::Instant::now();
+
+    // Record batch size if metrics enabled
+    if let Some(metrics) = metrics {
+        metrics.bigquery_batch_size.record(
+            total_rows as f64,
+            &[
+                KeyValue::new("chain", metrics.chain_name.clone()),
+                KeyValue::new("table", table_id.to_string()),
+            ],
+        );
+    }
 
     let mut current_batch = Vec::new();
     let mut current_size = 0;
@@ -388,14 +401,26 @@ pub async fn insert_data<T: serde::Serialize>(
         .await?;
     }
 
+    // After each batch is sent, record metrics
+    if let Some(metrics) = metrics {
+        metrics.bigquery_insert_latency.record(
+            batch_start.elapsed().as_secs_f64(),
+            &[
+                KeyValue::new("chain", metrics.chain_name.clone()),
+                KeyValue::new("table", table_id.to_string()),
+            ],
+        );
+    }
+
     info!(
-        "Successfully inserted {} rows into {}.{}.{} for block {} in {} batches",
+        "Successfully inserted {} rows into {}.{}.{} for block {} in {} batches (took {:.2?})",
         total_rows,
         project_id,
         chain_name,
         table_id,
         block_number,
-        batches_sent + 1
+        batches_sent + 1,
+        batch_start.elapsed()
     );
 
     Ok(())

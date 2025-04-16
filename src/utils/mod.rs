@@ -64,10 +64,10 @@ pub fn load_config<P: AsRef<Path>>(file_name: P) -> Result<Config> {
 }
 
 /// Strips HTML content from API error responses, with special handling for HTTP status codes
-/// 
+///
 /// # Arguments
 /// * `response` - The API response string that may contain HTML
-/// 
+///
 /// # Returns
 /// * `String` - The cleaned string with HTML removed and status codes preserved
 pub fn strip_html(response: &str) -> String {
@@ -78,10 +78,10 @@ pub fn strip_html(response: &str) -> String {
         InScript,
         InStyle,
     }
-    
+
     let mut result = String::with_capacity(response.len());
     let mut state = State::Normal;
-    
+
     // Process each character in the response
     let mut chars = response.chars().peekable();
     while let Some(c) = chars.next() {
@@ -93,7 +93,7 @@ pub fn strip_html(response: &str) -> String {
                         .clone()
                         .take_while(|&c| c != '>' && c != ' ')
                         .collect();
-                    
+
                     if tag.eq_ignore_ascii_case("script") {
                         state = State::InScript;
                     } else if tag.eq_ignore_ascii_case("style") {
@@ -105,14 +105,14 @@ pub fn strip_html(response: &str) -> String {
                     // Preserve non-HTML content
                     result.push(c);
                 }
-            },
+            }
             State::InTag => {
                 if c == '>' {
                     // Add a space to preserve text formatting
                     result.push(' ');
                     state = State::Normal;
                 }
-            },
+            }
             State::InScript => {
                 // Look for </script> to exit script state
                 if c == '<' && chars.peek() == Some(&'/') {
@@ -122,7 +122,7 @@ pub fn strip_html(response: &str) -> String {
                         .skip(1) // Skip the '/'
                         .take_while(|&c| c != '>')
                         .collect();
-                    
+
                     if script_close.eq_ignore_ascii_case("script") {
                         // Skip past the "</script>"
                         for _ in 0.."script>".len() {
@@ -131,7 +131,7 @@ pub fn strip_html(response: &str) -> String {
                         state = State::Normal;
                     }
                 }
-            },
+            }
             State::InStyle => {
                 // Look for </style> to exit style state
                 if c == '<' && chars.peek() == Some(&'/') {
@@ -141,7 +141,7 @@ pub fn strip_html(response: &str) -> String {
                         .skip(1) // Skip the '/'
                         .take_while(|&c| c != '>')
                         .collect();
-                    
+
                     if style_close.eq_ignore_ascii_case("style") {
                         // Skip past the "</style>"
                         for _ in 0.."style>".len() {
@@ -153,15 +153,15 @@ pub fn strip_html(response: &str) -> String {
             }
         }
     }
-    
+
     // Normalize and clean up the response
     let result = result.trim().to_string();
-    
+
     // Special handling for HTTP status codes in the format you're seeing
     if let Some(status_code) = extract_http_status(&result) {
         return format!("HTTP {}: {}", status_code, result.trim());
     }
-    
+
     result
 }
 
@@ -169,17 +169,18 @@ pub fn strip_html(response: &str) -> String {
 fn extract_http_status(s: &str) -> Option<u16> {
     // Common pattern in HTTP error responses: number followed by text
     let s = s.trim();
-    
+
     // Look for patterns like "429 Too Many Requests" or "429 429 Too Many Requests"
     let mut words = s.split_whitespace();
     if let Some(first_word) = words.next() {
         if let Ok(status) = first_word.parse::<u16>() {
-            if status >= 100 && status < 600 {  // Valid HTTP status range
+            if status >= 100 && status < 600 {
+                // Valid HTTP status range
                 return Some(status);
             }
         }
     }
-    
+
     None
 }
 
@@ -187,17 +188,17 @@ fn extract_http_status(s: &str) -> Option<u16> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_strip_html() {
         // Basic HTML
         let html = "<html><body>Hello world</body></html>";
         assert_eq!(strip_html(html), "Hello world");
-        
+
         // With HTTP status code
         let html = "<html><body>429 429 Too Many Requests</body></html>";
         assert_eq!(strip_html(html), "HTTP 429: 429 Too Many Requests");
-        
+
         // Real-world example from logs
         let html = "    429 429 Too Many Requests";
         assert_eq!(strip_html(html), "HTTP 429: 429 429 Too Many Requests");

@@ -7,6 +7,7 @@ use opentelemetry_sdk::metrics::{MetricError, SdkMeterProvider};
 use prometheus::{Encoder, TextEncoder};
 use std::net::SocketAddr;
 
+#[derive(Clone)]
 pub struct Metrics {
     registry: Arc<prometheus::Registry>,
     _provider: SdkMeterProvider,
@@ -26,6 +27,10 @@ pub struct Metrics {
     pub rpc_requests: Counter<u64>,
     pub rpc_errors: Counter<u64>,
     pub rpc_latency: Histogram<f64>,
+
+    // BigQuery metrics
+    pub bigquery_insert_latency: Histogram<f64>,
+    pub bigquery_batch_size: Histogram<f64>,
 }
 
 impl Metrics {
@@ -91,6 +96,20 @@ impl Metrics {
             .with_unit("s")
             .build();
 
+        let bigquery_insert_latency = meter
+            .f64_histogram("indexer_bigquery_insert_latency")
+            .with_description("BigQuery insert operation latency")
+            .with_boundaries(vec![0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 30.0, 60.0])
+            .with_unit("s")
+            .build();
+
+        let bigquery_batch_size = meter
+            .f64_histogram("indexer_bigquery_batch_size")
+            .with_description("Size of BigQuery insert batches")
+            .with_boundaries(vec![10.0, 50.0, 100.0, 500.0, 1000.0, 5000.0, 10000.0])
+            .with_unit("rows")
+            .build();
+
         Ok(Self {
             registry: Arc::new(registry),
             _provider: provider,
@@ -104,6 +123,8 @@ impl Metrics {
             rpc_requests,
             rpc_errors,
             rpc_latency,
+            bigquery_insert_latency,
+            bigquery_batch_size,
         })
     }
 

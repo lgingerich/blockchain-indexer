@@ -29,7 +29,10 @@ use crate::models::datasets::blocks::RpcHeaderData;
 use crate::models::datasets::logs::RpcLogReceiptData;
 use crate::models::datasets::traces::RpcTraceData;
 use crate::models::datasets::transactions::RpcTransactionData;
-use crate::utils::retry::{retry, RetryConfig};
+use crate::utils::{
+    retry::{retry, RetryConfig},
+    strip_html,
+};
 
 use alloy_consensus::TxEnvelope;
 use alloy_network::AnyTxEnvelope;
@@ -101,8 +104,11 @@ where
             }
 
             result.map_err(|e| {
-                warn!("Failed to get chain ID with error: {}", format!("{:?}", e));
-                anyhow!("RPC error: {}", e)
+                warn!(
+                    "Failed to get chain ID with error: {}",
+                    strip_html(&format!("{:?}", e))
+                );
+                anyhow!("RPC error: {}", strip_html(&e.to_string()))
             })
         },
         &retry_config,
@@ -160,9 +166,9 @@ where
                 .map_err(|e| {
                     warn!(
                         "Failed to get latest block number with error: {}",
-                        format!("{:?}", e)
+                        strip_html(&format!("{:?}", e))
                     );
-                    anyhow!("RPC error: {}", e)
+                    anyhow!("RPC error: {}", strip_html(&e.to_string()))
                 })
                 .map(BlockNumberOrTag::Number)
         },
@@ -223,9 +229,9 @@ where
                 warn!(
                     "Failed to get block by number {} with error: {}",
                     block_number,
-                    format!("{:?}", e)
+                    strip_html(&format!("{:?}", e))
                 );
-                anyhow!("RPC error: {}", e)
+                anyhow!("RPC error: {}", strip_html(&e.to_string()))
             })
         },
         &retry_config,
@@ -284,9 +290,9 @@ where
                 warn!(
                     "Failed to get block receipts for block {} with error: {}",
                     block,
-                    format!("{:?}", e)
+                    strip_html(&format!("{:?}", e))
                 );
-                anyhow!("RPC error: {}", e)
+                anyhow!("RPC error: {}", strip_html(&e.to_string()))
             })
         },
         &retry_config,
@@ -349,7 +355,8 @@ where
                             if e.to_string().contains("-32008") {
                                 warn!(
                                     "Skipping oversized trace for transaction {}: {}",
-                                    tx_batch[idx], e
+                                    tx_batch[idx],
+                                    strip_html(&e.to_string())
                                 );
                                 continue;
                             }
@@ -366,12 +373,12 @@ where
                             warn!(
                                 "Failed to trace transaction {} with error: {}",
                                 tx_batch[idx],
-                                format!("{:?}", e)
+                                strip_html(&format!("{:?}", e))
                             );
                             return Err(anyhow!(
                                 "RPC error tracing transaction {}: {}",
                                 tx_batch[idx],
-                                e
+                                strip_html(&e.to_string())
                             ));
                         }
                     }
