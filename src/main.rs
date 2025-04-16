@@ -216,15 +216,6 @@ async fn main() -> Result<()> {
             continue;
         }
 
-        // Check channel capacity and apply backpressure if needed
-        while !channels.check_capacity(metrics.as_ref()).await? {
-            info!(
-                "Applying backpressure - sleeping for {} seconds...",
-                SLEEP_DURATION / 1000
-            );
-            tokio::time::sleep(tokio::time::Duration::from_millis(SLEEP_DURATION)).await;
-        }
-
         // Calculate how many blocks we can process in this batch
         let blocks_to_process = if let Some(end) = end_block {
             let remaining = end - block_number + 1;

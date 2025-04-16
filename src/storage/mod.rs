@@ -1,7 +1,6 @@
 pub mod bigquery;
 
 use anyhow::{anyhow, Result};
-use opentelemetry::KeyValue;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration as StdDuration;
@@ -10,7 +9,6 @@ use tokio::sync::mpsc::{self, Sender};
 use tokio::time::{Duration, Instant};
 use tracing::{debug, error, info};
 
-use crate::metrics::Metrics;
 use crate::models::common::Chain;
 use crate::models::datasets::blocks::TransformedBlockData;
 use crate::models::datasets::logs::TransformedLogData;
@@ -18,8 +16,7 @@ use crate::models::datasets::traces::TransformedTraceData;
 use crate::models::datasets::transactions::TransformedTransactionData;
 use crate::storage::bigquery::insert_data;
 
-const MAX_CHANNEL_CAPACITY: usize = 64;
-const CAPACITY_THRESHOLD: f32 = 0.2; // Apply backpressure when current capacity is 20% of max
+const MAX_CHANNEL_CAPACITY: usize = 1024;
 
 #[derive(Debug)]
 pub enum DatasetType {
@@ -134,49 +131,6 @@ impl DataChannels {
             && self.transactions_tx.capacity() == MAX_CHANNEL_CAPACITY
             && self.logs_tx.capacity() == MAX_CHANNEL_CAPACITY
             && self.traces_tx.capacity() == MAX_CHANNEL_CAPACITY
-    }
-
-    pub async fn check_capacity(&self, metrics: Option<&Metrics>) -> Result<bool> {
-        // Get current capacities (number of available slots, NOT how many slots are used)
-        let blocks_capacity = self.blocks_tx.capacity();
-        let transactions_capacity = self.transactions_tx.capacity();
-        let logs_capacity = self.logs_tx.capacity();
-        let traces_capacity = self.traces_tx.capacity();
-
-        // Record current capacities
-        if let Some(metrics) = metrics {
-            metrics.channel_capacity.record(
-                blocks_capacity as u64,
-                &[KeyValue::new("channel", "blocks")],
-            );
-            metrics.channel_capacity.record(
-                transactions_capacity as u64,
-                &[KeyValue::new("channel", "transactions")],
-            );
-            metrics
-                .channel_capacity
-                .record(logs_capacity as u64, &[KeyValue::new("channel", "logs")]);
-            metrics.channel_capacity.record(
-                traces_capacity as u64,
-                &[KeyValue::new("channel", "traces")],
-            );
-        }
-
-        // Apply backpressure when available capacity is low (meaning channel is getting full)
-        // If available capacity is <= 20% of max, then the channel is >= 80% full
-        if (blocks_capacity as f32 / MAX_CHANNEL_CAPACITY as f32) <= CAPACITY_THRESHOLD
-            || (transactions_capacity as f32 / MAX_CHANNEL_CAPACITY as f32) <= CAPACITY_THRESHOLD
-            || (logs_capacity as f32 / MAX_CHANNEL_CAPACITY as f32) <= CAPACITY_THRESHOLD
-            || (traces_capacity as f32 / MAX_CHANNEL_CAPACITY as f32) <= CAPACITY_THRESHOLD
-        {
-            info!(
-                "Channel within {}% of max capacity",
-                (1.0 - CAPACITY_THRESHOLD) * 100.0
-            );
-            return Ok(false);
-        }
-
-        Ok(true)
     }
 
     pub async fn send_dataset(&self, dataset_type: DatasetType, block_number: u64) {
