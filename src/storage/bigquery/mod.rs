@@ -213,7 +213,7 @@ pub async fn insert_data<T: serde::Serialize>(
     chain_name: &str,
     table_id: &str,
     data: Vec<T>,
-    block_number: u64,
+    block_range: (u64, u64), // Changed from single block_number to block_range
     metrics: Option<&Metrics>,
 ) -> Result<()> {
     let (client, project_id) = &*get_client().await?;
@@ -221,8 +221,8 @@ pub async fn insert_data<T: serde::Serialize>(
 
     if data.is_empty() {
         info!(
-            "No data to insert into {}.{}.{} for block {}",
-            project_id, chain_name, table_id, block_number
+            "No data to insert into {}.{}.{} for blocks {} to {}",
+            project_id, chain_name, table_id, block_range.0, block_range.1
         );
         return Ok(());
     }
@@ -257,7 +257,7 @@ pub async fn insert_data<T: serde::Serialize>(
                 .iter()
                 .map(|item| {
                     // Generate an appropriate insertId based on the table type and data content
-                    let insert_id = generate_insert_id(table_id, item, block_number);
+                    let insert_id = generate_insert_id(table_id, item, block_range.0);
 
                     TableRow {
                         insert_id: Some(insert_id),
@@ -274,7 +274,6 @@ pub async fn insert_data<T: serde::Serialize>(
                 trace_id: None,
             };
 
-            // Retry::spawn(get_retry_config("insert_data"), || async {
             let retry_config = RetryConfig::default();
             retry(
                 || async {
@@ -338,7 +337,7 @@ pub async fn insert_data<T: serde::Serialize>(
             .iter()
             .map(|item| {
                 // Generate an appropriate insertId based on the table type and data content
-                let insert_id = generate_insert_id(table_id, item, block_number);
+                let insert_id = generate_insert_id(table_id, item, block_range.0);
 
                 TableRow {
                     insert_id: Some(insert_id),
@@ -413,12 +412,13 @@ pub async fn insert_data<T: serde::Serialize>(
     }
 
     info!(
-        "Successfully inserted {} rows into {}.{}.{} for block {} in {} batches (took {:.2?})",
+        "Successfully inserted {} rows into {}.{}.{} for blocks {} to {} in {} batches (took {:.2?})",
         total_rows,
         project_id,
         chain_name,
         table_id,
-        block_number,
+        block_range.0,
+        block_range.1,
         batches_sent + 1,
         batch_start.elapsed()
     );
