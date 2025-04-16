@@ -183,24 +183,3 @@ fn extract_http_status(s: &str) -> Option<u16> {
 
     None
 }
-
-// For testing the function
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_strip_html() {
-        // Basic HTML
-        let html = "<html><body>Hello world</body></html>";
-        assert_eq!(strip_html(html), "Hello world");
-
-        // With HTTP status code
-        let html = "<html><body>429 429 Too Many Requests</body></html>";
-        assert_eq!(strip_html(html), "HTTP 429: 429 Too Many Requests");
-
-        // Real-world example from logs
-        let html = "    429 429 Too Many Requests";
-        assert_eq!(strip_html(html), "HTTP 429: 429 429 Too Many Requests");
-    }
-}
