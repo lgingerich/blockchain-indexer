@@ -242,10 +242,10 @@ pub async fn insert_data<T: serde::Serialize>(
     let mut batches_sent = 0;
 
     // BigQuery hard limit & safety margins
-    const BQ_MAX_BYTES: usize = 10_000_000;      // 10 MiB
-    const SAFETY_MARGIN: usize = 512_000;        // 0.5 MiB head room
+    const BQ_MAX_BYTES: usize = 10_000_000; // 10 MiB
+    const SAFETY_MARGIN: usize = 512_000; // 0.5 MiB head room
     const MAX_BATCH_BYTES: usize = BQ_MAX_BYTES - SAFETY_MARGIN; // 9.5 MiB effective
-    const ROW_OVERHEAD: usize = 200;             // rough JSON envelope per row
+    const ROW_OVERHEAD: usize = 200; // rough JSON envelope per row
 
     // Async helper that sends the accumulated batch and resets the counters.
     async fn flush_batch<T: serde::Serialize>(
@@ -300,9 +300,13 @@ pub async fn insert_data<T: serde::Serialize>(
                     }
                     Err(e) => {
                         match e {
-                            BigQueryError::Response(resp) => error!("BigQuery API Error: {}", resp.message),
+                            BigQueryError::Response(resp) => {
+                                error!("BigQuery API Error: {}", resp.message)
+                            }
                             BigQueryError::HttpClient(e) => error!("HTTP Client error: {}", e),
-                            BigQueryError::HttpMiddleware(e) => error!("HTTP Middleware error: {}", e),
+                            BigQueryError::HttpMiddleware(e) => {
+                                error!("HTTP Middleware error: {}", e)
+                            }
                             BigQueryError::TokenSource(e) => error!("Token Source error: {}", e),
                         }
                         Err(anyhow!("Data insertion failed"))
@@ -325,7 +329,16 @@ pub async fn insert_data<T: serde::Serialize>(
 
         // If adding this row would exceed limit, flush first
         if current_size + estimated_size > MAX_BATCH_BYTES {
-            if flush_batch(client, project_id, chain_name, table_id, &mut current_batch, block_range).await? {
+            if flush_batch(
+                client,
+                project_id,
+                chain_name,
+                table_id,
+                &mut current_batch,
+                block_range,
+            )
+            .await?
+            {
                 batches_sent += 1;
             }
             current_size = 0;
@@ -335,7 +348,15 @@ pub async fn insert_data<T: serde::Serialize>(
         if estimated_size > MAX_BATCH_BYTES {
             // Send it as a single row batch
             let mut single = vec![item];
-            flush_batch(client, project_id, chain_name, table_id, &mut single, block_range).await?;
+            flush_batch(
+                client,
+                project_id,
+                chain_name,
+                table_id,
+                &mut single,
+                block_range,
+            )
+            .await?;
             batches_sent += 1;
             continue;
         }
@@ -345,7 +366,16 @@ pub async fn insert_data<T: serde::Serialize>(
     }
 
     // Flush remaining rows
-    if flush_batch(client, project_id, chain_name, table_id, &mut current_batch, block_range).await? {
+    if flush_batch(
+        client,
+        project_id,
+        chain_name,
+        table_id,
+        &mut current_batch,
+        block_range,
+    )
+    .await?
+    {
         batches_sent += 1;
     }
 
