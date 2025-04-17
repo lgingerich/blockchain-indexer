@@ -27,9 +27,6 @@ use tracing::{error, info, warn};
 // Define a static OnceCell to hold the shared Client and Project ID
 static BIGQUERY_CLIENT: OnceCell<Arc<(Client, String)>> = OnceCell::new();
 
-// BigQuery has a 10MB payload size limit
-const MAX_PAYLOAD_SIZE: usize = 9_000_000; // 9MB to be safe (under 10MB limit)
-
 // Initializes and returns the shared BigQuery Client and Project ID.
 // This function ensures that the Client is initialized only once.
 pub async fn get_client() -> Result<Arc<(Client, String)>> {
@@ -213,11 +210,10 @@ pub async fn insert_data<T: serde::Serialize>(
     chain_name: &str,
     table_id: &str,
     data: Vec<T>,
-    block_range: (u64, u64), // Changed from single block_number to block_range
+    block_range: (u64, u64),
     metrics: Option<&Metrics>,
 ) -> Result<()> {
     let (client, project_id) = &*get_client().await?;
-    let tabledata_client = client.tabledata();
 
     if data.is_empty() {
         info!(
@@ -242,107 +238,33 @@ pub async fn insert_data<T: serde::Serialize>(
     }
 
     let mut current_batch = Vec::new();
-    let mut current_size = 0;
+    let mut current_size: usize = 0;
     let mut batches_sent = 0;
 
-    for item in data {
-        // Estimate the size of this item
-        let item_json = serde_json::to_string(&item)?;
-        let item_size = item_json.len();
+    // BigQuery hard limit & safety margins
+    const BQ_MAX_BYTES: usize = 10_000_000; // 10 MiB
+    const SAFETY_MARGIN: usize = 512_000; // 0.5 MiB head room
+    const MAX_BATCH_BYTES: usize = BQ_MAX_BYTES - SAFETY_MARGIN; // 9.5 MiB effective
+    const ROW_OVERHEAD: usize = 200; // rough JSON envelope per row
 
-        // If adding this item would exceed our size limit, send the current batch
-        if current_size + item_size > MAX_PAYLOAD_SIZE && !current_batch.is_empty() {
-            // Send the current batch
-            let rows = current_batch
-                .iter()
-                .map(|item| {
-                    // Generate an appropriate insertId based on the table type and data content
-                    let insert_id = generate_insert_id(table_id, item, block_range.0);
-
-                    TableRow {
-                        insert_id: Some(insert_id),
-                        json: item,
-                    }
-                })
-                .collect();
-
-            let request = InsertAllRequest {
-                skip_invalid_rows: Some(true),
-                ignore_unknown_values: Some(true),
-                template_suffix: None,
-                rows,
-                trace_id: None,
-            };
-
-            let retry_config = RetryConfig::default();
-            retry(
-                || async {
-                    match tabledata_client
-                        .insert(project_id, chain_name, table_id, &request)
-                        .await
-                    {
-                        Ok(response) => {
-                            if let Some(errors) = response.insert_errors {
-                                if !errors.is_empty() {
-                                    for error in errors {
-                                        error!("Row {} failed to insert", error.index);
-                                        for err_msg in error.errors {
-                                            error!("Error: {}", err_msg.message);
-                                        }
-                                    }
-                                    return Err(anyhow!("Some rows failed to insert"));
-                                }
-                            }
-                            Ok(())
-                        }
-                        Err(e) => {
-                            match e {
-                                BigQueryError::Response(resp) => {
-                                    error!("BigQuery API Error: {}", resp.message);
-                                }
-                                BigQueryError::HttpClient(e) => {
-                                    error!("HTTP Client error: {}", e);
-                                }
-                                BigQueryError::HttpMiddleware(e) => {
-                                    error!("HTTP Middleware error: {}", e);
-                                }
-                                BigQueryError::TokenSource(e) => {
-                                    error!("Token Source error: {}", e);
-                                }
-                            }
-                            Err(anyhow!("Data insertion failed"))
-                        }
-                    }
-                },
-                &retry_config,
-                "insert_data",
-            )
-            .await?;
-
-            batches_sent += 1;
-
-            // Reset for next batch
-            current_batch = Vec::new();
-            current_size = 0;
+    // Async helper that sends the accumulated batch and resets the counters.
+    async fn flush_batch<T: serde::Serialize>(
+        client: &Client,
+        project_id: &str,
+        chain_name: &str,
+        table_id: &str,
+        batch: &mut Vec<T>,
+        block_range: (u64, u64),
+    ) -> Result<bool> {
+        if batch.is_empty() {
+            return Ok(false); // nothing sent
         }
 
-        // Add item to the current batch
-        current_batch.push(item);
-        current_size += item_size;
-    }
-
-    // Send any remaining items
-    if !current_batch.is_empty() {
-        let rows = current_batch
+        let rows: Vec<TableRow<&T>> = batch
             .iter()
-            .map(|item| {
-                // Generate an appropriate insertId based on the table type and data content
-                let insert_id = generate_insert_id(table_id, item, block_range.0);
-
-                TableRow {
-                    insert_id: Some(insert_id),
-                    json: item,
-                }
+            .map(|item| TableRow {
+                insert_id: Some(generate_insert_id(table_id, item, block_range.0)),
+                json: item,
             })
             .collect();
 
@@ -357,7 +279,8 @@ pub async fn insert_data<T: serde::Serialize>(
         let retry_config = RetryConfig::default();
         retry(
             || async {
-                match tabledata_client
+                match client
+                    .tabledata()
                     .insert(project_id, chain_name, table_id, &request)
                     .await
                 {
@@ -378,17 +301,13 @@ pub async fn insert_data<T: serde::Serialize>(
                     Err(e) => {
                         match e {
                             BigQueryError::Response(resp) => {
-                                error!("BigQuery API Error: {}", resp.message);
+                                error!("BigQuery API Error: {}", resp.message)
                             }
-                            BigQueryError::HttpClient(e) => {
-                                error!("HTTP Client error: {}", e);
-                            }
+                            BigQueryError::HttpClient(e) => error!("HTTP Client error: {}", e),
                             BigQueryError::HttpMiddleware(e) => {
-                                error!("HTTP Middleware error: {}", e);
+                                error!("HTTP Middleware error: {}", e)
                             }
-                            BigQueryError::TokenSource(e) => {
-                                error!("Token Source error: {}", e);
-                            }
+                            BigQueryError::TokenSource(e) => error!("Token Source error: {}", e),
                         }
                         Err(anyhow!("Data insertion failed"))
                     }
@@ -398,9 +317,69 @@ pub async fn insert_data<T: serde::Serialize>(
             "insert_data",
         )
         .await?;
+
+        batch.clear();
+        Ok(true) // something was sent
     }
 
-    // After each batch is sent, record metrics
+    for item in data {
+        // Estimate row size (payload + overhead)
+        let item_json_str = serde_json::to_string(&item)?;
+        let estimated_size = item_json_str.len() + ROW_OVERHEAD;
+
+        // If adding this row would exceed limit, flush first
+        if current_size + estimated_size > MAX_BATCH_BYTES {
+            if flush_batch(
+                client,
+                project_id,
+                chain_name,
+                table_id,
+                &mut current_batch,
+                block_range,
+            )
+            .await?
+            {
+                batches_sent += 1;
+            }
+            current_size = 0;
+        }
+
+        // Handle row larger than max on its own
+        if estimated_size > MAX_BATCH_BYTES {
+            // Send it as a single row batch
+            let mut single = vec![item];
+            flush_batch(
+                client,
+                project_id,
+                chain_name,
+                table_id,
+                &mut single,
+                block_range,
+            )
+            .await?;
+            batches_sent += 1;
+            continue;
+        }
+
+        current_size += estimated_size;
+        current_batch.push(item);
+    }
+
+    // Flush remaining rows
+    if flush_batch(
+        client,
+        project_id,
+        chain_name,
+        table_id,
+        &mut current_batch,
+        block_range,
+    )
+    .await?
+    {
+        batches_sent += 1;
+    }
+
+    // After batches are sent, record metrics
     if let Some(metrics) = metrics {
         metrics.bigquery_insert_latency.record(
             batch_start.elapsed().as_secs_f64(),
