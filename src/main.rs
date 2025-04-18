@@ -87,9 +87,6 @@ async fn main() -> Result<()> {
     let chain = Chain::from_chain_id(chain_id)?;
     info!("Chain ID: {:?}", chain_id);
 
-    // Create dataset and tables. Ensure everything is ready before proceeding.
-    storage::initialize_storage(chain_name.as_str(), &datasets, chain).await?;
-
     // Set up channels
     let channels = setup_channels(chain_name.as_str(), metrics.as_ref()).await?;
 
@@ -105,10 +102,14 @@ async fn main() -> Result<()> {
         }
     });
 
+    // Create dataset and tables. Ensure everything is ready before proceeding.
+    storage::initialize_storage(chain_name.as_str(), &datasets, chain).await?;
+
     // Get last processed block number from storage
-    // Use the maximum of last_processed_block + 1 and start_block (if specified)
     let last_processed_block =
         storage::bigquery::get_last_processed_block(chain_name.as_str(), &datasets).await?;
+    
+    // Use the maximum of last_processed_block + 1 and start_block (if specified)
     let mut block_number = if last_processed_block > 0 {
         // If we have processed blocks, start from the next one
         let next_block = last_processed_block + 1;
@@ -136,7 +137,7 @@ async fn main() -> Result<()> {
 
     info!("Starting block number: {:?}", block_number);
 
-    // Initialize data for loop
+    // Convert block number to proper type
     let mut block_number_to_process = BlockNumberOrTag::Number(block_number);
 
     // Get initial latest block number before loop
@@ -146,6 +147,11 @@ async fn main() -> Result<()> {
         .ok_or_else(|| RpcError::InvalidBlockNumberResponse {
             got: block_number_to_process.to_string(),
         })?;
+
+    info!("Initial chain tip: Block {}", last_known_latest_block);
+    info!("Starting indexing from block {} (distance from tip: {} blocks)", 
+          block_number, 
+          last_known_latest_block.saturating_sub(block_number));
 
     println!();
     info!("========================= STARTING INDEXER =========================");
@@ -203,14 +209,17 @@ async fn main() -> Result<()> {
         }
 
         // If indexer gets too close to tip, back off and retry
-        if block_number_to_process.as_number().unwrap()
-            > last_known_latest_block.saturating_sub(chain_tip_buffer)
+        if last_known_latest_block.saturating_sub(block_number_to_process.as_number().ok_or_else(|| RpcError::InvalidBlockNumberResponse {
+            got: block_number_to_process.to_string(),
+        })?) < chain_tip_buffer
         {
             info!(
                 "Buffer limit reached. Waiting for current block to be {} blocks behind tip: {} - current distance: {} - sleeping for 1s",
                 chain_tip_buffer,
                 last_known_latest_block,
-                last_known_latest_block.saturating_sub(block_number_to_process.as_number().unwrap())
+                last_known_latest_block.saturating_sub(block_number_to_process.as_number().ok_or_else(|| RpcError::InvalidBlockNumberResponse {
+                    got: block_number_to_process.to_string(),
+                })?)
             );
             tokio::time::sleep(tokio::time::Duration::from_millis(SLEEP_DURATION)).await;
             continue;
