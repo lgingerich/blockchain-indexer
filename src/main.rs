@@ -189,7 +189,7 @@ async fn main() -> Result<()> {
             RpcError::InvalidBlockNumberResponse {
                 got: block_number_to_process.to_string(),
             }
-        })? > (last_known_latest_block - chain_tip_buffer * 2)
+        })? > last_known_latest_block.saturating_sub(chain_tip_buffer * 2)
         {
             let latest_block: BlockNumberOrTag =
                 indexer::get_latest_block_number(&provider, metrics.as_ref()).await?;
@@ -204,13 +204,13 @@ async fn main() -> Result<()> {
 
         // If indexer gets too close to tip, back off and retry
         if block_number_to_process.as_number().unwrap()
-            > (last_known_latest_block - chain_tip_buffer)
+            > last_known_latest_block.saturating_sub(chain_tip_buffer)
         {
             info!(
                 "Buffer limit reached. Waiting for current block to be {} blocks behind tip: {} - current distance: {} - sleeping for 1s",
                 chain_tip_buffer,
                 last_known_latest_block,
-                last_known_latest_block - block_number_to_process.as_number().unwrap()
+                last_known_latest_block.saturating_sub(block_number_to_process.as_number().unwrap())
             );
             tokio::time::sleep(tokio::time::Duration::from_millis(SLEEP_DURATION)).await;
             continue;
@@ -218,7 +218,7 @@ async fn main() -> Result<()> {
 
         // Calculate how many blocks we can process in this batch
         let blocks_to_process = if let Some(end) = end_block {
-            let remaining = end - block_number + 1;
+            let remaining = end.saturating_sub(block_number).saturating_add(1);
             BATCH_SIZE.min(remaining as usize)
         } else {
             BATCH_SIZE
@@ -270,7 +270,7 @@ async fn main() -> Result<()> {
                         &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
                     );
                     metrics_instance.chain_tip_lag.record(
-                        last_known_latest_block - *block_num,
+                        last_known_latest_block.saturating_sub(*block_num),
                         &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
                     );
                 }
