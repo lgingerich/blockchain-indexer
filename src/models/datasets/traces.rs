@@ -42,6 +42,7 @@ pub enum RpcTraceData {
 /////////////////////////////////// Transformed Data ///////////////////////////////////
 #[derive(Debug, Clone, Serialize)]
 pub struct CommonTransformedTraceData {
+    pub id: String,
     pub chain_id: u64,
     pub block_time: DateTime<Utc>,
     pub block_date: NaiveDate,
