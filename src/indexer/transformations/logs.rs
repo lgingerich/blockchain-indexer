@@ -28,7 +28,10 @@ impl LogTransformer for RpcLogReceiptData {
                     RpcLogReceiptData::ZKsync(l) => &l.common,
                 };
 
+                let pk = format!("log_{}_{}_{}", chain_id, common_data.tx_hash.unwrap(), common_data.log_index.unwrap()); // Build primary key
+
                 let common = CommonTransformedLogData {
+                    id: pk,
                     chain_id,
                     block_time: common_data.block_time,
                     block_date: common_data.block_date,

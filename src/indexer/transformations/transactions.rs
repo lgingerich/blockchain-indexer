@@ -40,7 +40,10 @@ impl TransactionTransformer for RpcTransactionData {
                     RpcTransactionReceiptData::ZKsync(r) => &r.common,
                 };
 
+                let pk = format!("tx_{}_{}_{}", chain_id, common_receipt.tx_hash, common_receipt.tx_index.unwrap()); // Build primary key
+
                 let common = CommonTransformedTransactionData {
+                    id: pk,
                     chain_id,
                     block_time: common_tx // Have to get block time data from the block header
                         .block_number

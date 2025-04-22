@@ -7,6 +7,13 @@ use crate::models::common::Chain;
 pub fn block_schema(chain: Chain) -> TableSchema {
     let mut fields = vec![
         TableFieldSchema {
+            name: "id".to_string(),
+            data_type: TableFieldType::String,
+            mode: Some(TableFieldMode::Required),
+            description: Some("Primary key".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
             name: "chain_id".to_string(),
             data_type: TableFieldType::Integer,
             mode: Some(TableFieldMode::Required),
@@ -203,6 +210,13 @@ pub fn block_schema(chain: Chain) -> TableSchema {
 pub fn log_schema(chain: Chain) -> TableSchema {
     let fields = vec![
         TableFieldSchema {
+            name: "id".to_string(),
+            data_type: TableFieldType::String,
+            mode: Some(TableFieldMode::Required),
+            description: Some("Primary key".to_string()),
+            ..Default::default()
+        },
+        TableFieldSchema {
             name: "chain_id".to_string(),
             data_type: TableFieldType::Integer,
             mode: Some(TableFieldMode::Required),
@@ -296,6 +310,13 @@ pub fn log_schema(chain: Chain) -> TableSchema {
 
 pub fn transaction_schema(chain: Chain) -> TableSchema {
     let mut fields = vec![
+        TableFieldSchema {
+            name: "id".to_string(),
+            data_type: TableFieldType::String,
+            mode: Some(TableFieldMode::Required),
+            description: Some("Primary key".to_string()),
+            ..Default::default()
+        },
         TableFieldSchema {
             name: "chain_id".to_string(),
             data_type: TableFieldType::Integer,
@@ -523,6 +544,13 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
 
 pub fn trace_schema(chain: Chain) -> TableSchema {
     let fields = vec![
+        TableFieldSchema {
+            name: "id".to_string(),
+            data_type: TableFieldType::String,
+            mode: Some(TableFieldMode::Required),
+            description: Some("Primary key".to_string()),
+            ..Default::default()
+        },
         TableFieldSchema {
             name: "chain_id".to_string(),
             data_type: TableFieldType::Integer,

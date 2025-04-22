@@ -28,7 +28,10 @@ impl BlockTransformer for RpcHeaderData {
                     RpcHeaderData::ZKsync(h) => &h.common,
                 };
 
+                let pk = format!("block_{}_{}", chain_id, common_data.block_hash); // Build primary key
+
                 let common = CommonTransformedBlockData {
+                    id: pk,
                     chain_id,
                     block_time: common_data.block_time,
                     block_date: common_data.block_date,

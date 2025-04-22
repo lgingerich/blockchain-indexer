@@ -55,6 +55,7 @@ pub enum RpcHeaderData {
 // Base struct for common fields
 #[derive(Debug, Clone, Serialize)]
 pub struct CommonTransformedBlockData {
+    pub id: String,
     pub chain_id: u64,
     pub block_time: DateTime<Utc>,
     pub block_date: NaiveDate,

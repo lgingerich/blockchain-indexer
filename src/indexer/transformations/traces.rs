@@ -35,7 +35,29 @@ impl TraceTransformer for RpcTraceData {
                     RpcTraceData::ZKsync(t) => &t.common,
                 };
 
+                let pk = if common_data.trace_address.is_empty() {
+                    format!(
+                        "trace_{}_{}_{}",
+                        chain_id,
+                        common_data.tx_hash.unwrap(),
+                        common_data.trace_type
+                    )
+                } else {
+                    format!(
+                        "trace_{}_{}_{}_{}",
+                        chain_id,
+                        common_data.tx_hash.unwrap(),
+                        common_data.trace_type,
+                        common_data.trace_address
+                            .iter()
+                            .map(|&x| x.to_string())
+                            .collect::<Vec<String>>()
+                            .join("_")
+                    )
+                };
+
                 let common = CommonTransformedTraceData {
+                    id: pk,
                     chain_id,
                     block_time: block_map
                         .get(&common_data.block_number)

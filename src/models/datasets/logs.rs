@@ -40,6 +40,7 @@ pub enum RpcLogReceiptData {
 // Final output format
 #[derive(Debug, Clone, Serialize)]
 pub struct CommonTransformedLogData {
+    pub id: String,
     pub chain_id: u64,
     pub block_time: Option<DateTime<Utc>>,
     pub block_date: Option<NaiveDate>,
