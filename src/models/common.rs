@@ -23,6 +23,7 @@ pub struct Config {
     pub end_block: Option<u64>,
     pub chain_tip_buffer: u64,
     pub rpc_url: String,
+    pub dataset_location: String,
     pub datasets: Vec<String>,
     pub metrics: MetricsConfig,
 }
