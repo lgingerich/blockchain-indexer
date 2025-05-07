@@ -59,6 +59,7 @@ async fn main() -> Result<()> {
     let metrics_enabled = config.metrics.enabled;
     let metrics_addr = config.metrics.address;
     let metrics_port = config.metrics.port;
+    let dataset_location = config.dataset_location;
 
     // Initialize optional metrics
     let metrics = if metrics_enabled {
@@ -103,7 +104,7 @@ async fn main() -> Result<()> {
     });
 
     // Create dataset and tables. Ensure everything is ready before proceeding.
-    storage::initialize_storage(chain_name.as_str(), &datasets, chain).await?;
+    storage::initialize_storage(chain_name.as_str(), &dataset_location, &datasets, chain).await?;
 
     // Get last processed block number from storage
     let last_processed_block =

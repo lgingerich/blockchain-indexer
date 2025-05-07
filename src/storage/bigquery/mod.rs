@@ -75,7 +75,7 @@ pub async fn verify_table(
 }
 
 // Create a dataset
-pub async fn create_dataset(chain_name: &str) -> Result<()> {
+pub async fn create_dataset(chain_name: &str, dataset_location: &str) -> Result<()> {
     let (client, project_id) = &*get_client().await?;
     let dataset_client = client.dataset();
 
@@ -90,6 +90,7 @@ pub async fn create_dataset(chain_name: &str) -> Result<()> {
             project_id: project_id.clone(),
             dataset_id: chain_name.to_string(),
         },
+        location: dataset_location.to_string(),
         ..Default::default()
     };
 
@@ -411,125 +412,135 @@ fn generate_insert_id<T: serde::Serialize>(
     data: &T,
     fallback_block_number: u64,
 ) -> String {
-    // First convert the data to a Value so we can access its fields
     let value = match serde_json::to_value(data) {
         Ok(v) => v,
         Err(e) => {
             error!("Failed to serialize data for InsertID generation: {}", e);
-            // If serialization fails, fall back to a simple block-based ID
-            return format!("{table_id}-{fallback_block_number}");
+            // If serialization fails, hash a generic identifier
+            let hash_base = format!("{table_id}-{fallback_block_number}-serialization_error");
+            let mut hasher = Sha256::new();
+            hasher.update(hash_base.as_bytes());
+            let hash = format!("{:x}", hasher.finalize());
+            return format!("{table_id}-{fallback_block_number}-serr-{}", &hash[..32]);
         }
     };
 
-    // Get block_number from the data, with fallback to the parameter
     let block_number = value
         .get("block_number")
         .and_then(serde_json::Value::as_u64)
         .unwrap_or_else(|| {
+            // Log if block_number is missing for non-block tables
             if table_id != "blocks" {
-                // For blocks, block_number might be optional in some cases
                 warn!(
-                    "Missing block_number in data, using fallback: {}",
-                    fallback_block_number
+                    "Missing block_number in data for table '{}', using fallback: {}",
+                    table_id, fallback_block_number
                 );
             }
             fallback_block_number
         });
 
-    // Generate a base ID string that might exceed the length limit
-    let base_id = match table_id {
+    // Generate a base ID string or an error string (to be hashed)
+    let base_id_result: Result<String, String> = match table_id {
         "blocks" => {
             // For blocks, just use the block number
-            format!("block-{block_number}")
+            Ok(format!("block-{block_number}"))
         }
         "transactions" => {
-            // For transactions, combine block_number and tx_hash
-            let Some(tx_hash) = value.get("tx_hash").and_then(|v| v.as_str()) else {
-                error!(
-                    "Missing mandatory tx_hash field in transaction data for block {}",
-                    block_number
-                );
-                return format!("tx-{block_number}-unknown");
-            };
-
-            format!("tx-{block_number}-{tx_hash}")
+            value.get("tx_hash").and_then(|v| v.as_str()).map_or_else(
+                || {
+                    error!("Missing tx_hash field in transaction data for block {}", block_number);
+                    // Return an Err containing a base string for hashing
+                    Err(format!("tx-{block_number}-missing_hash"))
+                },
+                |tx_hash| Ok(format!("tx-{block_number}-{tx_hash}")),
+            )
         }
         "logs" => {
-            // For logs, combine block_number, tx_hash, tx_index, and log_index
-            let Some(tx_hash) = value.get("tx_hash").and_then(serde_json::Value::as_str) else {
-                error!(
-                    "Missing mandatory tx_hash field in log data for block {}",
-                    block_number
-                );
-                return format!("log-{block_number}-unknown-0-0");
-            };
+            let tx_hash = value.get("tx_hash").and_then(serde_json::Value::as_str);
+            let tx_index = value.get("tx_index").and_then(serde_json::Value::as_u64);
+            let log_index = value.get("log_index").and_then(serde_json::Value::as_u64);
 
-            let Some(tx_index) = value.get("tx_index").and_then(serde_json::Value::as_u64) else {
-                error!(
-                    "Missing mandatory tx_index field in log data for block {}",
-                    block_number
-                );
-                return format!("log-{block_number}-unknown-0-0");
-            };
-
-            let Some(log_index) = value.get("log_index").and_then(serde_json::Value::as_u64) else {
-                error!(
-                    "Missing mandatory log_index field in log data for block {}",
-                    block_number
-                );
-                return format!("log-{block_number}-unknown-0-0");
-            };
-
-            format!("log-{block_number}-{tx_hash}-{tx_index}-{log_index}")
+            match (tx_hash, tx_index, log_index) {
+                (Some(h), Some(txi), Some(li)) => Ok(format!("log-{block_number}-{h}-{txi}-{li}")),
+                _ => {
+                    error!("Missing mandatory fields (tx_hash, tx_index, log_index) in log data for block {}", block_number);
+                    // Create a base string for hashing including available fields
+                    let hash_base = format!(
+                        "log-{}-{}-{}-{}",
+                        block_number,
+                        tx_hash.unwrap_or("nohash"),
+                        tx_index.map_or("noTxIdx".to_string(), |i| i.to_string()),
+                        log_index.map_or("noLogIdx".to_string(), |i| i.to_string())
+                    );
+                    Err(hash_base)
+                }
+            }
         }
         "traces" => {
-            // For traces, combine block_number, tx_hash, and trace_address
-            let Some(tx_hash) = value.get("tx_hash").and_then(|v| v.as_str()) else {
-                error!(
-                    "Missing mandatory tx_hash field in trace data for block {}",
-                    block_number
-                );
-                return format!("trace-{block_number}-unknown-root");
-            };
+            let tx_hash = value.get("tx_hash").and_then(|v| v.as_str());
+            let addr_array_opt = value.get("trace_address").and_then(|v| v.as_array());
 
-            // Handle trace_address which is an array
-            let Some(addr_array) = value.get("trace_address").and_then(|v| v.as_array()) else {
-                error!(
-                    "Missing mandatory trace_address field in trace data for block {}",
-                    block_number
-                );
-                return format!("trace-{block_number}-unknown-root");
-            };
-
-            let trace_address = addr_array
-                .iter()
-                .map(|v| v.as_u64().unwrap_or(0).to_string())
-                .collect::<Vec<String>>()
-                .join("-");
-
-            format!("trace-{block_number}-{tx_hash}-{trace_address}")
+            match (tx_hash, addr_array_opt) {
+                (Some(h), Some(addr_array)) => {
+                    let trace_address = addr_array
+                        .iter()
+                        .map(|v| v.as_u64().unwrap_or(0).to_string()) // Use 0 for non-u64 values
+                        .collect::<Vec<String>>()
+                        .join("-");
+                    Ok(format!("trace-{block_number}-{h}-{trace_address}"))
+                }
+                _ => {
+                     error!("Missing mandatory fields (tx_hash, trace_address) in trace data for block {}", block_number);
+                     // Create a base string for hashing including available fields
+                     let addr_repr = addr_array_opt.map_or("noAddr".to_string(), |a| {
+                        // Simple representation of the array for hashing
+                        a.iter()
+                         .map(|v| v.to_string())
+                         .collect::<Vec<_>>()
+                         .join(",")
+                     });
+                     let hash_base = format!(
+                        "trace-{}-{}-{}",
+                        block_number,
+                        tx_hash.unwrap_or("nohash"),
+                        addr_repr
+                     );
+                     Err(hash_base)
+                }
+            }
         }
         // For any other table types
         _ => {
-            warn!("Invalid table ID: {}", table_id);
-            format!("{table_id}-{block_number}")
+            warn!("Invalid table ID '{}' for insertId generation", table_id);
+            // Return an Err containing a base string for hashing
+            Err(format!("{table_id}-{block_number}-unknown_type"))
         }
     };
 
-    // Check if the base ID exceeds the length limit (128 bytes)
-    // UTF-8 characters can be up to 4 bytes each, so we'll be conservative
-    if base_id.len() > 120 {
-        // Leave some margin for safety
-        // If it's too long, hash it to create a fixed-length ID
-        // Use the first 16 bytes of the SHA-256 hash (32 hex chars)
-        // and prepend with the table ID and block number for readability
+    // Process the result: Use Ok value directly, or hash the Err value string
+    let final_id_base = match base_id_result {
+        Ok(id) => id,
+        Err(hash_base) => {
+            // Hash the descriptive error string
+            let mut hasher = Sha256::new();
+            hasher.update(hash_base.as_bytes());
+            let hash = format!("{:x}", hasher.finalize());
+            // Keep table_id and block_number prefix for readability/partitioning
+            format!("{table_id}-{block_number}-hash-{}", &hash[..32]) // Use 32 chars (16 bytes) of hash
+        }
+    };
+
+    // Check if the final generated ID exceeds the length limit (128 bytes)
+    // Be conservative with UTF-8 length vs bytes.
+    if final_id_base.len() > 120 { // Leave some margin
+        // If it's too long (even potentially after hashing error cases), hash the whole thing
         let mut hasher = Sha256::new();
-        hasher.update(base_id.as_bytes());
+        hasher.update(final_id_base.as_bytes());
         let hash = format!("{:x}", hasher.finalize());
-        format!("{table_id}-{block_number}-{}", &hash[..32])
+        format!("{table_id}-{block_number}-long-{}", &hash[..32]) // Use 32 chars (16 bytes) of hash
     } else {
-        // If it's within the limit, use the base ID as is
-        base_id
+        // If it's within the limit, use the generated ID (which might already be a hash from error handling)
+        final_id_base
     }
 }
 

@@ -480,34 +480,25 @@ pub async fn setup_channels(chain_name: &str, metrics: Option<&Metrics>) -> Resu
     Ok(channels)
 }
 
-pub async fn initialize_storage(chain_name: &str, datasets: &[String], chain: Chain) -> Result<()> {
-    // Create dataset
-    bigquery::create_dataset(chain_name).await?;
+// Initialize BigQuery dataset and tables
+pub async fn initialize_storage(
+    chain_name: &str,
+    dataset_location: &str,
+    datasets: &[String],
+    chain: Chain,
+) -> Result<()> {
+    info!("Initializing storage for chain: {}", chain_name);
 
-    // Create all required tables
+    // Create dataset if it doesn't exist
+    bigquery::create_dataset(chain_name, dataset_location).await?;
+
+    // Create tables if they don't exist
     for table in ["blocks", "logs", "transactions", "traces"] {
         if datasets.contains(&table.to_owned()) {
             bigquery::create_table(chain_name, table, chain).await?;
         }
     }
 
-    let (client, project_id) = &*bigquery::get_client().await?;
-
-    // Verify dataset
-    if !bigquery::verify_dataset(client, project_id, chain_name).await? {
-        return Err(anyhow!("Dataset verification failed after creation"));
-    }
-
-    // Verify all tables
-    for table in datasets {
-        if !bigquery::verify_table(client, project_id, chain_name, table).await? {
-            return Err(anyhow!(
-                "Table '{}' verification failed after creation",
-                table
-            ));
-        }
-    }
-
-    info!("Storage initialization complete - all datasets and tables verified");
+    info!("Storage initialized successfully");
     Ok(())
 }
