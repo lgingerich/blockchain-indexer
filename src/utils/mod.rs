@@ -2,10 +2,11 @@ pub mod retry;
 
 use anyhow::{Context, Result};
 use chrono::{DateTime, NaiveDate, Utc};
-use std::{fs, path::Path};
+use std::path::Path;
 use tracing::{info, warn};
+use config::{Config, File, FileFormat};
 
-use crate::models::common::Config;
+use crate::models::common::Config as IndexerConfig;
 
 // TODO: Refactor so I don't need multiple conversion functions
 pub fn hex_to_u64(hex: String) -> Option<u64> {
@@ -44,18 +45,20 @@ pub fn sanitize_block_time(block_number: u64, datetime: DateTime<Utc>) -> DateTi
     }
 }
 
-pub fn load_config<P: AsRef<Path>>(file_name: P) -> Result<Config> {
+pub fn load_config<P: AsRef<Path>>(file_name: P) -> Result<IndexerConfig> {
     // Build the path to the config file
     let manifest_dir = env!("CARGO_MANIFEST_DIR").to_string();
     let config_path = Path::new(&manifest_dir).join(file_name);
     info!("Config path: {}", config_path.to_string_lossy());
 
-    // Read the file contents to a string
-    let contents = fs::read_to_string(config_path).context("failed to read config file")?;
+    // Use config-rs to load the YAML config file
+    let settings = Config::builder()
+        .add_source(File::from(config_path).format(FileFormat::Yaml))
+        .build()
+        .context("failed to read or parse config file")?;
 
-    // Parse the YAML into our Config struct
-    let mut config: Config =
-        serde_yaml::from_str(&contents).context("failed to parse config YAML")?;
+    // Deserialize into our Config struct
+    let mut config: IndexerConfig = settings.try_deserialize().context("failed to deserialize config into struct")?;
 
     // Convert hyphens to underscores in all relevant fields
     config.chain_name = config.chain_name.replace('-', "_");
