@@ -24,7 +24,6 @@ anyhow = "1.0.95"
 axum = "0.8.1"
 chrono = { version = "0.4.38", features = ["serde"] }
 config = { version = "0.15.11", features = ["yaml"] }
-eyre = "0.6.12"
 fastrand = "2.3.0"
 futures = "0.3.31"
 google-cloud-bigquery = "0.14.0"
