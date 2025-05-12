@@ -23,7 +23,7 @@ use crate::models::errors::RpcError;
 use crate::storage::{setup_channels, DatasetType};
 use crate::utils::load_config;
 
-const SLEEP_DURATION: u64 = 1000; // ms
+const SLEEP_DURATION: u64 = 3000; // 3000 ms = 3s
 const BATCH_SIZE: usize = 10; // Number of blocks to process in parallel
 
 #[tokio::main]
@@ -215,12 +215,13 @@ async fn main() -> Result<()> {
         })?) < chain_tip_buffer
         {
             info!(
-                "Buffer limit reached. Waiting for current block to be {} blocks behind tip: {} - current distance: {} - sleeping for 1s",
+                "Buffer limit reached. Waiting for current block to be {} blocks behind tip: {} - current distance: {} - sleeping for {} seconds",
                 chain_tip_buffer,
                 last_known_latest_block,
                 last_known_latest_block.saturating_sub(block_number_to_process.as_number().ok_or_else(|| RpcError::InvalidBlockNumberResponse {
                     got: block_number_to_process.to_string(),
-                })?)
+                })?),
+                SLEEP_DURATION as f64 / 1000.0
             );
             tokio::time::sleep(tokio::time::Duration::from_millis(SLEEP_DURATION)).await;
             continue;
@@ -350,7 +351,7 @@ async fn main() -> Result<()> {
                 "Waiting for L1 batch number to become available for block {}",
                 unavailable_block
             );
-            // Sleep for a full second before retrying
+            // Sleep before retrying
             tokio::time::sleep(tokio::time::Duration::from_millis(SLEEP_DURATION)).await;
             // Set block_number to the first unavailable block
             block_number = unavailable_block;
