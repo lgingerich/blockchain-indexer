@@ -30,7 +30,10 @@ impl BlockParser for AnyRpcBlock {
         let other = &self.other;
 
         // Get the block timestamp and convert to DateTime
-        let original_time = DateTime::from_timestamp(inner.timestamp as i64, 0).ok_or_else(|| anyhow::anyhow!("Invalid DateTime from timestamp: {}", inner.timestamp))?;
+        let original_time =
+            DateTime::from_timestamp(inner.timestamp as i64, 0).ok_or_else(|| {
+                anyhow::anyhow!("Invalid DateTime from timestamp: {}", inner.timestamp)
+            })?;
 
         // Sanitize the block time if it's block 0 with a 1970 date
         let block_time = sanitize_block_time(inner.number, original_time)?;
@@ -75,8 +78,9 @@ impl BlockParser for AnyRpcBlock {
                     .and_then(std::result::Result::ok)
                     .map(|s: String| {
                         let timestamp = hex_to_u64(s)?;
-                        DateTime::from_timestamp(timestamp as i64, 0)
-                            .ok_or_else(|| anyhow::anyhow!("Invalid DateTime from timestamp: {}", timestamp))
+                        DateTime::from_timestamp(timestamp as i64, 0).ok_or_else(|| {
+                            anyhow::anyhow!("Invalid DateTime from timestamp: {}", timestamp)
+                        })
                     })
                     .transpose()?,
             }),
@@ -414,12 +418,10 @@ impl BlockParser for AnyRpcBlock {
                 })
                 .collect::<Result<Vec<_>, _>>()?)
             }
-            BlockTransactions::Hashes(_) => {
-                Err(anyhow::anyhow!("Transaction hashes only blocks are not supported"))
-            }
-            BlockTransactions::Uncle => {
-                Err(anyhow::anyhow!("Uncle blocks are not supported"))
-            }
+            BlockTransactions::Hashes(_) => Err(anyhow::anyhow!(
+                "Transaction hashes only blocks are not supported"
+            )),
+            BlockTransactions::Uncle => Err(anyhow::anyhow!("Uncle blocks are not supported")),
         }
     }
 }

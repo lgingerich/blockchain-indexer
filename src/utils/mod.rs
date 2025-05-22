@@ -1,12 +1,12 @@
 pub mod retry;
 
+use anyhow::Result;
 use chrono::{DateTime, NaiveDate, Utc};
 use config::{Config, File, FileFormat};
 use std::path::Path;
 use tracing::warn;
-use anyhow::Result;
 
-use crate::models::{common::Config as IndexerConfig};
+use crate::models::common::Config as IndexerConfig;
 
 pub fn load_config<P: AsRef<Path>>(file_path: P) -> Result<IndexerConfig> {
     let settings = Config::builder()
@@ -39,10 +39,7 @@ pub fn hex_to_u128(hex: String) -> Result<u128> {
 // if the sanitized date was set to 2015 when Ethereum was launched, that will soon be
 // exceeded and then the indexer will fail for all chains. As this is tailored towards
 // usage with L2s, we will focus on safe usage with L2s.
-pub fn sanitize_block_time(
-    block_number: u64,
-    datetime: DateTime<Utc>,
-) -> Result<DateTime<Utc>> {
+pub fn sanitize_block_time(block_number: u64, datetime: DateTime<Utc>) -> Result<DateTime<Utc>> {
     // If this is block 0 with a Unix epoch date (or very close to it)
     if block_number == 0 && datetime.format("%Y").to_string() == "1970" {
         // Use January 1, 2020 as the fallback date

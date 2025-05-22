@@ -1,5 +1,5 @@
-use anyhow::Result;
 use alloy_primitives::{Address, TxKind};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::models::datasets::blocks::{RpcHeaderData, TransformedBlockData};

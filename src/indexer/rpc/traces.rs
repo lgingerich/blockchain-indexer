@@ -9,19 +9,11 @@ use serde_json::Value;
 use anyhow::Result;
 
 pub trait TraceParser {
-    fn parse_traces(
-        self,
-        chain: Chain,
-        block_number: u64,
-    ) -> Result<Vec<RpcTraceData>>;
+    fn parse_traces(self, chain: Chain, block_number: u64) -> Result<Vec<RpcTraceData>>;
 }
 
 impl TraceParser for Vec<TraceResult> {
-    fn parse_traces(
-        self,
-        chain: Chain,
-        block_number: u64,
-    ) -> Result<Vec<RpcTraceData>> {
+    fn parse_traces(self, chain: Chain, block_number: u64) -> Result<Vec<RpcTraceData>> {
         Ok(self
             .into_iter()
             .flat_map(|trace_result| {

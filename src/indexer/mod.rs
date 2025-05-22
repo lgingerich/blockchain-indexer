@@ -78,7 +78,10 @@ where
                 );
             }
 
-            let result = provider.get_chain_id().await.context("Failed to get chain ID");
+            let result = provider
+                .get_chain_id()
+                .await
+                .context("Failed to get chain ID");
 
             // Record metrics if enabled
             if let Some(metrics) = metrics {
@@ -132,7 +135,10 @@ where
                 );
             }
 
-            let result = provider.get_block_number().await.context("Failed to get latest block number");
+            let result = provider
+                .get_block_number()
+                .await
+                .context("Failed to get latest block number");
 
             // Record metrics if enabled
             if let Some(metrics) = metrics {
@@ -187,7 +193,15 @@ where
                 );
             }
 
-            let result = provider.get_block_by_number(block_number, kind).await.with_context(|| format!("Failed request to get_block_by_number() for block number {}", block_number));
+            let result = provider
+                .get_block_by_number(block_number, kind)
+                .await
+                .with_context(|| {
+                    format!(
+                        "Failed request to get_block_by_number() for block number {}",
+                        block_number
+                    )
+                });
 
             // Record metrics if enabled
             if let Some(metrics) = metrics {
@@ -241,7 +255,9 @@ where
                 );
             }
 
-            let result = provider.get_block_receipts(block).await.with_context(|| format!("Failed request to get_block_receipts() for block {}", block));
+            let result = provider.get_block_receipts(block).await.with_context(|| {
+                format!("Failed request to get_block_receipts() for block {}", block)
+            });
 
             // Record metrics if enabled
             if let Some(metrics) = metrics {
@@ -529,8 +545,7 @@ where
 
     // Fetch block data if needed
     let block = if need_block {
-        get_block_by_number(provider, block_number, BlockTransactionsKind::Full, metrics)
-            .await?
+        get_block_by_number(provider, block_number, BlockTransactionsKind::Full, metrics).await?
     } else {
         None
     };
@@ -538,8 +553,7 @@ where
     // Fetch receipts if needed
     let receipts = if need_receipts {
         let block_id = BlockId::Number(block_number);
-        get_block_receipts(provider, block_id, metrics)
-            .await?
+        get_block_receipts(provider, block_id, metrics).await?
     } else {
         None
     };

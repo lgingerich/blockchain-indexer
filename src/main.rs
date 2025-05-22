@@ -4,10 +4,10 @@ mod models;
 mod storage;
 mod utils;
 
-use anyhow::Result;
 use alloy_eips::BlockNumberOrTag;
 use alloy_network::AnyNetwork;
 use alloy_provider::ProviderBuilder;
+use anyhow::Result;
 
 use futures::{stream::FuturesUnordered, StreamExt};
 use opentelemetry::KeyValue;
@@ -137,7 +137,10 @@ async fn main() -> Result<()> {
     // Get initial latest block number before loop
     let latest_block_tag = indexer::get_latest_block_number(&provider, metrics.as_ref()).await?;
     let mut last_known_latest_block = latest_block_tag.as_number().ok_or_else(|| {
-        anyhow::anyhow!("Invalid block number response: {}", format!("{:?}", latest_block_tag))
+        anyhow::anyhow!(
+            "Invalid block number response: {}",
+            format!("{:?}", latest_block_tag)
+        )
     })?;
 
     info!("Initial chain tip: Block {}", last_known_latest_block);
@@ -186,21 +189,30 @@ async fn main() -> Result<()> {
 
         // Only check latest block if we're within 2x buffer of last known tip
         if block_number_to_process.as_number().ok_or_else(|| {
-            anyhow::anyhow!("Invalid block number response: {}", format!("{:?}", block_number_to_process))
+            anyhow::anyhow!(
+                "Invalid block number response: {}",
+                format!("{:?}", block_number_to_process)
+            )
         })? > last_known_latest_block.saturating_sub(chain_tip_buffer * 2)
         {
             let latest_block: BlockNumberOrTag =
                 indexer::get_latest_block_number(&provider, metrics.as_ref()).await?;
 
             last_known_latest_block = latest_block.as_number().ok_or_else(|| {
-                anyhow::anyhow!("Invalid block number response: {}", format!("{:?}", latest_block))
+                anyhow::anyhow!(
+                    "Invalid block number response: {}",
+                    format!("{:?}", latest_block)
+                )
             })?;
         }
 
         // If indexer gets too close to tip, back off and retry
         if last_known_latest_block.saturating_sub(block_number_to_process.as_number().ok_or_else(
             || {
-                anyhow::anyhow!("Invalid block number response: {}", format!("{:?}", block_number_to_process))
+                anyhow::anyhow!(
+                    "Invalid block number response: {}",
+                    format!("{:?}", block_number_to_process)
+                )
             },
         )?) < chain_tip_buffer
         {
@@ -329,7 +341,11 @@ async fn main() -> Result<()> {
                 }
                 Err(e) => {
                     // This is an unrecoverable error that survived all retries in mod.rs
-                    return Err(anyhow::anyhow!("Fatal error processing block {}: {}", block_num, e));
+                    return Err(anyhow::anyhow!(
+                        "Fatal error processing block {}: {}",
+                        block_num,
+                        e
+                    ));
                 }
             }
         }

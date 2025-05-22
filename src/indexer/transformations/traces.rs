@@ -28,7 +28,7 @@ impl TraceTransformer for RpcTraceData {
         block_map: &HashMap<u64, (DateTime<Utc>, NaiveDate, FixedBytes<32>)>,
         tx_index_map: &HashMap<FixedBytes<32>, Option<u64>>,
     ) -> Result<Vec<TransformedTraceData>> {
-        Ok(traces
+        traces
             .into_iter()
             .map(|trace| {
                 let common_data = match &trace {
@@ -36,9 +36,9 @@ impl TraceTransformer for RpcTraceData {
                     RpcTraceData::ZKsync(t) => &t.common,
                 };
 
-                let tx_hash = common_data.tx_hash.ok_or_else(|| {
-                    anyhow::anyhow!("Missing tx_hash for trace primary key")
-                })?;
+                let tx_hash = common_data
+                    .tx_hash
+                    .ok_or_else(|| anyhow::anyhow!("Missing tx_hash for trace primary key"))?;
 
                 let pk = if common_data.trace_address.is_empty() {
                     format!("trace_{}_{}_{}", chain_id, tx_hash, common_data.trace_type)
@@ -94,11 +94,11 @@ impl TraceTransformer for RpcTraceData {
                     Chain::Ethereum => Ok(TransformedTraceData::Ethereum(
                         EthereumTransformedTraceData { common },
                     )),
-                    Chain::ZKsync => Ok(TransformedTraceData::ZKsync(
-                        ZKsyncTransformedTraceData { common },
-                    )),
+                    Chain::ZKsync => Ok(TransformedTraceData::ZKsync(ZKsyncTransformedTraceData {
+                        common,
+                    })),
                 }
             })
-            .collect::<Result<Vec<_>>>()?)
+            .collect::<Result<Vec<_>>>()
     }
 }

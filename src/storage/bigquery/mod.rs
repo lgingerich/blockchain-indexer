@@ -36,8 +36,7 @@ pub async fn get_client() -> Result<Arc<(Client, String)>> {
 
     let (config, project_id_option) = ClientConfig::new_with_auth().await?;
     let client = Client::new(config).await?;
-    let project_id = project_id_option
-        .ok_or_else(|| anyhow::anyhow!("Project ID not found"))?;
+    let project_id = project_id_option.ok_or_else(|| anyhow::anyhow!("Project ID not found"))?;
 
     let client_arc = Arc::new((client, project_id));
 
@@ -54,11 +53,7 @@ pub async fn get_client() -> Result<Arc<(Client, String)>> {
 }
 
 // Verify that a dataset exists and is accessible
-pub async fn verify_dataset(
-    client: &Client,
-    project_id: &str,
-    chain_name: &str,
-) -> Result<bool> {
+pub async fn verify_dataset(client: &Client, project_id: &str, chain_name: &str) -> Result<bool> {
     // TODO: Better handle case when dataset is not found
     match client.dataset().get(project_id, chain_name).await {
         Ok(_) => Ok(true),
@@ -129,11 +124,7 @@ pub async fn create_dataset(chain_name: &str, dataset_location: &str) -> Result<
 }
 
 // Create a table
-pub async fn create_table(
-    chain_name: &str,
-    table_id: &str,
-    chain: Chain,
-) -> Result<()> {
+pub async fn create_table(chain_name: &str, table_id: &str, chain: Chain) -> Result<()> {
     let (client, project_id) = &*get_client().await?;
     let table_client = client.table(); // Create BigqueryTableClient
 
@@ -191,7 +182,7 @@ pub async fn create_table(
                             return Ok(()); // Treat as success for the retry logic
                         }
                     }
-                    Err(e   .into())
+                    Err(e.into())
                 }
             }
         },
@@ -490,16 +481,14 @@ fn generate_insert_id<T: serde::Serialize>(
         }
         _ => Err(anyhow::anyhow!(
             "Unknown table type '{}' for insertId generation (block {})",
-            table_id, block_number
+            table_id,
+            block_number
         )),
     }
 }
 
 // Get the last processed block number from storage
-pub async fn get_last_processed_block(
-    chain_name: &str,
-    datasets: &Vec<String>,
-) -> Result<u64> {
+pub async fn get_last_processed_block(chain_name: &str, datasets: &Vec<String>) -> Result<u64> {
     let (client, project_id) = &*get_client().await?;
     let job_client = client.job(); // Create BigqueryJobClient
     let mut min_block: Option<u64> = None;
@@ -522,8 +511,8 @@ pub async fn get_last_processed_block(
                 if let Some(rows) = result.rows {
                     if !rows.is_empty() {
                         // Safely access the first row and first column
-                        if let Some(row) = rows.get(0) {
-                            if let Some(cell) = row.f.get(0) {
+                        if let Some(row) = rows.first() {
+                            if let Some(cell) = row.f.first() {
                                 if let Value::String(str_value) = &cell.v {
                                     if let Ok(block_num) = str_value.parse::<u64>() {
                                         min_block = Some(match min_block {

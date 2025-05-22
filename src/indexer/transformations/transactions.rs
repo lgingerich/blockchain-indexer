@@ -28,7 +28,7 @@ impl TransactionTransformer for RpcTransactionData {
         chain_id: u64,
         block_map: &HashMap<u64, (DateTime<Utc>, NaiveDate, FixedBytes<32>)>,
     ) -> Result<Vec<TransformedTransactionData>> {
-        Ok(transactions
+        transactions
             .into_iter()
             .zip(receipts)
             .map(|(tx, receipt)| {
@@ -123,6 +123,6 @@ impl TransactionTransformer for RpcTransactionData {
                     }
                 }
             })
-            .collect::<Result<Vec<_>>>()?)
+            .collect::<Result<Vec<_>>>()
     }
 }

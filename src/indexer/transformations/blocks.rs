@@ -19,7 +19,7 @@ impl BlockTransformer for RpcHeaderData {
         chain: Chain,
         chain_id: u64,
     ) -> Result<Vec<TransformedBlockData>> {
-        Ok(headers
+        headers
             .into_iter()
             .map(|header| {
                 let common_data = match &header {
@@ -78,6 +78,6 @@ impl BlockTransformer for RpcHeaderData {
                     }
                 }
             })
-            .collect::<Result<Vec<_>>>()?)
+            .collect::<Result<Vec<_>>>()
     }
 }

@@ -1,16 +1,11 @@
-use std::sync::Arc;
-use tracing::info;
 use anyhow::{Context, Result};
-use axum::{
-    extract::State,
-    http::StatusCode,
-    routing::get,
-    Router,
-};
+use axum::{extract::State, http::StatusCode, routing::get, Router};
 use opentelemetry::metrics::{Counter, Gauge, Histogram, MeterProvider};
 use opentelemetry_sdk::metrics::SdkMeterProvider;
 use prometheus::{Encoder, TextEncoder};
 use std::net::SocketAddr;
+use std::sync::Arc;
+use tracing::info;
 
 #[derive(Clone)]
 pub struct Metrics {
@@ -161,10 +156,14 @@ impl Metrics {
             addr, access_url
         );
 
-        let listener = tokio::net::TcpListener::bind(addr).await.with_context(|| format!("Failed to bind metrics server to {addr}"))?;
+        let listener = tokio::net::TcpListener::bind(addr)
+            .await
+            .with_context(|| format!("Failed to bind metrics server to {addr}"))?;
 
         tokio::spawn(async move {
-            let _ = axum::serve(listener, app).await.context("Failed to serve metrics");
+            let _ = axum::serve(listener, app)
+                .await
+                .context("Failed to serve metrics");
         });
 
         Ok(())
@@ -179,14 +178,12 @@ async fn metrics_handler(
     let metric_families = registry.gather();
     let mut buffer = vec![];
 
-    encoder
-        .encode(&metric_families, &mut buffer)
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to encode metrics: {}", e),
-            )
-        })?;
+    encoder.encode(&metric_families, &mut buffer).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to encode metrics: {}", e),
+        )
+    })?;
 
     String::from_utf8(buffer).map_err(|e| {
         (

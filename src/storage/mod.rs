@@ -84,7 +84,7 @@ impl DataChannels {
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
 
-        return Err(anyhow::anyhow!("Shutdown timeout"));
+        Err(anyhow::anyhow!("Shutdown timeout"))
     }
 
     fn all_workers_completed(&self, target_block: u64) -> bool {
@@ -135,11 +135,7 @@ impl DataChannels {
             && self.traces_tx.capacity() == MAX_CHANNEL_CAPACITY
     }
 
-    pub async fn send_dataset(
-        &self,
-        dataset_type: DatasetType,
-        block_number: u64,
-    ) -> Result<()> {
+    pub async fn send_dataset(&self, dataset_type: DatasetType, block_number: u64) -> Result<()> {
         match dataset_type {
             DatasetType::Blocks(data) => {
                 if let Err(e) = self.blocks_tx.send((data, block_number)).await {
@@ -167,10 +163,7 @@ impl DataChannels {
 }
 
 // TODO: Better align/unify error handling in this function.
-pub async fn setup_channels(
-    chain_name: &str,
-    metrics: Option<&Metrics>,
-) -> Result<DataChannels> {
+pub async fn setup_channels(chain_name: &str, metrics: Option<&Metrics>) -> Result<DataChannels> {
     let (blocks_tx, mut blocks_rx) = mpsc::channel(MAX_CHANNEL_CAPACITY);
     let (transactions_tx, mut transactions_rx) = mpsc::channel(MAX_CHANNEL_CAPACITY);
     let (logs_tx, mut logs_rx) = mpsc::channel(MAX_CHANNEL_CAPACITY);
@@ -223,23 +216,22 @@ pub async fn setup_channels(
                         }
 
                         // Insert batch if we've collected BATCH_SIZE different blocks or if we've waited too long
-                        if block_count >= BATCH_SIZE || last_batch_time.elapsed() >= MAX_BATCH_WAIT {
-                            if !batch.is_empty() {
-                                insert_data(&blocks_dataset, "blocks", batch, (min_block, max_block), metrics_clone.as_ref())
-                                    .await
-                                    .map_err(|e| anyhow::anyhow!(
-                                        "Failed to insert block data batch (blocks {}-{}): {}",
-                                        min_block, max_block, &e.to_string()
-                                    ))?;
-                                channels_clone.update_blocks_progress(max_block);
-                                batch = Vec::new();
-                                min_block = u64::MAX;
-                                max_block = 0;
-                                block_count = 0;
-                                block_numbers.clear();
-                                last_batch_time = Instant::now();
-                            }
+                        if (block_count >= BATCH_SIZE || last_batch_time.elapsed() >= MAX_BATCH_WAIT) && !batch.is_empty() {
+                            insert_data(&blocks_dataset, "blocks", batch, (min_block, max_block), metrics_clone.as_ref())
+                                .await
+                                .map_err(|e| anyhow::anyhow!(
+                                    "Failed to insert block data batch (blocks {}-{}): {}",
+                                    min_block, max_block, &e.to_string()
+                                ))?;
+                            channels_clone.update_blocks_progress(max_block);
+                            batch = Vec::new();
+                            min_block = u64::MAX;
+                            max_block = 0;
+                            block_count = 0;
+                            block_numbers.clear();
+                            last_batch_time = Instant::now();
                         }
+
                     }
                     res = shutdown_rx.recv() => {
                         match res {
@@ -311,23 +303,22 @@ pub async fn setup_channels(
                         }
 
                         // Insert batch if we've collected BATCH_SIZE different blocks or if we've waited too long
-                        if block_count >= BATCH_SIZE || last_batch_time.elapsed() >= MAX_BATCH_WAIT {
-                            if !batch.is_empty() {
-                                insert_data(&transactions_dataset, "transactions", batch, (min_block, max_block), metrics_clone.as_ref())
-                                    .await
-                                    .map_err(|e| anyhow::anyhow!(
-                                        "Failed to insert transaction data batch (blocks {}-{}): {}",
-                                        min_block, max_block, &e.to_string()
-                                    ))?;
-                                channels_clone.update_transactions_progress(max_block);
-                                batch = Vec::new();
-                                min_block = u64::MAX;
-                                max_block = 0;
-                                block_count = 0;
-                                block_numbers.clear();
-                                last_batch_time = Instant::now();
-                            }
+                        if (block_count >= BATCH_SIZE || last_batch_time.elapsed() >= MAX_BATCH_WAIT) && !batch.is_empty() {
+                            insert_data(&transactions_dataset, "transactions", batch, (min_block, max_block), metrics_clone.as_ref())
+                                .await
+                                .map_err(|e| anyhow::anyhow!(
+                                    "Failed to insert transaction data batch (blocks {}-{}): {}",
+                                    min_block, max_block, &e.to_string()
+                                ))?;
+                            channels_clone.update_transactions_progress(max_block);
+                            batch = Vec::new();
+                            min_block = u64::MAX;
+                            max_block = 0;
+                            block_count = 0;
+                            block_numbers.clear();
+                            last_batch_time = Instant::now();
                         }
+
                     }
                     res = shutdown_rx.recv() => {
                         match res {
@@ -399,23 +390,22 @@ pub async fn setup_channels(
                         }
 
                         // Insert batch if we've collected BATCH_SIZE different blocks or if we've waited too long
-                        if block_count >= BATCH_SIZE || last_batch_time.elapsed() >= MAX_BATCH_WAIT {
-                            if !batch.is_empty() {
-                                insert_data(&logs_dataset, "logs", batch, (min_block, max_block), metrics_clone.as_ref())
-                                    .await
-                                    .map_err(|e| anyhow::anyhow!(
-                                        "Failed to insert log data batch (blocks {}-{}): {}",
-                                        min_block, max_block, &e.to_string()
-                                    ))?;
-                                channels_clone.update_logs_progress(max_block);
-                                batch = Vec::new();
-                                min_block = u64::MAX;
-                                max_block = 0;
-                                block_count = 0;
-                                block_numbers.clear();
-                                last_batch_time = Instant::now();
-                            }
+                        if (block_count >= BATCH_SIZE || last_batch_time.elapsed() >= MAX_BATCH_WAIT) && !batch.is_empty() {
+                            insert_data(&logs_dataset, "logs", batch, (min_block, max_block), metrics_clone.as_ref())
+                                .await
+                                .map_err(|e| anyhow::anyhow!(
+                                    "Failed to insert log data batch (blocks {}-{}): {}",
+                                    min_block, max_block, &e.to_string()
+                                ))?;
+                            channels_clone.update_logs_progress(max_block);
+                            batch = Vec::new();
+                            min_block = u64::MAX;
+                            max_block = 0;
+                            block_count = 0;
+                            block_numbers.clear();
+                            last_batch_time = Instant::now();
                         }
+
                     }
                     res = shutdown_rx.recv() => {
                         match res {
@@ -487,23 +477,22 @@ pub async fn setup_channels(
                         }
 
                         // Insert batch if we've collected BATCH_SIZE different blocks or if we've waited too long
-                        if block_count >= BATCH_SIZE || last_batch_time.elapsed() >= MAX_BATCH_WAIT {
-                            if !batch.is_empty() {
-                                insert_data(&traces_dataset, "traces", batch, (min_block, max_block), metrics_clone.as_ref())
-                                    .await
-                                    .map_err(|e| anyhow::anyhow!(
-                                        "Failed to insert trace data batch (blocks {}-{}): {}",
-                                        min_block, max_block, &e.to_string()
-                                    ))?;
-                                channels_clone.update_traces_progress(max_block);
-                                batch = Vec::new();
-                                min_block = u64::MAX;
-                                max_block = 0;
-                                block_count = 0;
-                                block_numbers.clear();
-                                last_batch_time = Instant::now();
-                            }
+                        if (block_count >= BATCH_SIZE || last_batch_time.elapsed() >= MAX_BATCH_WAIT) && !batch.is_empty() {
+                            insert_data(&traces_dataset, "traces", batch, (min_block, max_block), metrics_clone.as_ref())
+                                .await
+                                .map_err(|e| anyhow::anyhow!(
+                                    "Failed to insert trace data batch (blocks {}-{}): {}",
+                                    min_block, max_block, &e.to_string()
+                                ))?;
+                            channels_clone.update_traces_progress(max_block);
+                            batch = Vec::new();
+                            min_block = u64::MAX;
+                            max_block = 0;
+                            block_count = 0;
+                            block_numbers.clear();
+                            last_batch_time = Instant::now();
                         }
+
                     }
                     res = shutdown_rx.recv() => {
                         match res {
