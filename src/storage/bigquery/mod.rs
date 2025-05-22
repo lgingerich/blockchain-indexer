@@ -6,7 +6,6 @@ use crate::storage::bigquery::schema::{
     block_schema, log_schema, trace_schema, transaction_schema,
 };
 use crate::utils::retry::{retry, RetryConfig};
-use anyhow::{anyhow, Result};
 use google_cloud_bigquery::client::{Client, ClientConfig};
 use google_cloud_bigquery::http::dataset::{Dataset, DatasetReference};
 use google_cloud_bigquery::http::error::Error as BigQueryError;
@@ -20,9 +19,10 @@ use google_cloud_bigquery::http::tabledata::{
 };
 use once_cell::sync::OnceCell;
 use opentelemetry::KeyValue;
-use sha2::{Digest, Sha256};
 use std::sync::Arc;
 use tracing::{error, info, warn};
+
+use anyhow::Result;
 
 // Define a static OnceCell to hold the shared Client and Project ID
 static BIGQUERY_CLIENT: OnceCell<Arc<(Client, String)>> = OnceCell::new();
@@ -36,27 +36,34 @@ pub async fn get_client() -> Result<Arc<(Client, String)>> {
 
     let (config, project_id_option) = ClientConfig::new_with_auth().await?;
     let client = Client::new(config).await?;
-    let project_id = project_id_option.ok_or_else(|| anyhow!("Project ID not found"))?;
-    info!("Project ID: {}", project_id);
+    let project_id = project_id_option
+        .ok_or_else(|| anyhow::anyhow!("Project ID not found"))?;
 
     let client_arc = Arc::new((client, project_id));
 
     match BIGQUERY_CLIENT.set(client_arc.clone()) {
-        Ok(()) => Ok(client_arc),
-        Err(_e) => {
-            // If we failed to set (because another thread set it first),
-            // return the value that was set by the other thread
-            Ok(BIGQUERY_CLIENT.get().unwrap().clone())
+        Ok(()) => {
+            info!(
+                "Initialized and cached BigQuery client for Project ID: {}",
+                client_arc.1
+            );
+            Ok(client_arc)
         }
+        Err(_e) => Ok(BIGQUERY_CLIENT.get().unwrap().clone()),
     }
 }
 
 // Verify that a dataset exists and is accessible
-pub async fn verify_dataset(client: &Client, project_id: &str, chain_name: &str) -> Result<bool> {
+pub async fn verify_dataset(
+    client: &Client,
+    project_id: &str,
+    chain_name: &str,
+) -> Result<bool> {
+    // TODO: Better handle case when dataset is not found
     match client.dataset().get(project_id, chain_name).await {
         Ok(_) => Ok(true),
         Err(BigQueryError::Response(resp)) if resp.message.contains("Not found") => Ok(false),
-        Err(e) => Err(anyhow!("Failed to verify dataset: {}", e)),
+        Err(e) => Err(e.into()),
     }
 }
 
@@ -67,10 +74,11 @@ pub async fn verify_table(
     chain_name: &str,
     table_id: &str,
 ) -> Result<bool> {
+    // TODO: Better handle case when table is not found
     match client.table().get(project_id, chain_name, table_id).await {
         Ok(_) => Ok(true),
         Err(BigQueryError::Response(resp)) if resp.message.contains("Not found") => Ok(false),
-        Err(e) => Err(anyhow!("Failed to verify table: {}", e)),
+        Err(e) => Err(e.into()),
     }
 }
 
@@ -94,36 +102,38 @@ pub async fn create_dataset(chain_name: &str, dataset_location: &str) -> Result<
         ..Default::default()
     };
 
-    // Retry::spawn(get_retry_config("create_dataset"), || async {
     let retry_config = RetryConfig::default();
     retry(
         || async {
             match dataset_client.create(&metadata).await {
                 Ok(_) => {
-                    info!(chain_name, project_id = ?project_id, "Dataset successfully created");
-                    Ok(())
+                    info!(
+                        "Dataset successfully created for chain_name: {}, project_id: {}",
+                        chain_name, project_id
+                    );
+                    Ok::<(), anyhow::Error>(())
                 }
                 Err(BigQueryError::Response(resp)) if resp.message.contains("Already Exists") => {
                     info!("Dataset '{}' already exists", chain_name);
                     Ok(())
                 }
-                Err(e) => {
-                    error!("Failed to create dataset: {}", e);
-                    Err(anyhow!("Dataset creation failed: {}", e))
-                }
+                Err(e) => Err(e.into()),
             }
         },
         &retry_config,
         "create_dataset",
     )
-    .await
-    .map_err(|e| anyhow!("Failed to create dataset after retries: {}", e))?;
+    .await?;
 
     Ok(())
 }
 
 // Create a table
-pub async fn create_table(chain_name: &str, table_id: &str, chain: Chain) -> Result<()> {
+pub async fn create_table(
+    chain_name: &str,
+    table_id: &str,
+    chain: Chain,
+) -> Result<()> {
     let (client, project_id) = &*get_client().await?;
     let table_client = client.table(); // Create BigqueryTableClient
 
@@ -141,7 +151,7 @@ pub async fn create_table(chain_name: &str, table_id: &str, chain: Chain) -> Res
         "logs" => log_schema(chain),
         "transactions" => transaction_schema(chain),
         "traces" => trace_schema(chain),
-        _ => return Err(anyhow!("Invalid table ID: {}", table_id)),
+        _ => return Err(anyhow::anyhow!("Invalid table ID: {}", table_id)),
     };
 
     let metadata = Table {
@@ -159,7 +169,6 @@ pub async fn create_table(chain_name: &str, table_id: &str, chain: Chain) -> Res
         ..Default::default()
     };
 
-    // Retry::spawn(get_retry_config("create_table"), || async {
     let retry_config = RetryConfig::default();
     retry(
         || async {
@@ -169,39 +178,27 @@ pub async fn create_table(chain_name: &str, table_id: &str, chain: Chain) -> Res
                         "Table '{}' successfully created in dataset '{}'",
                         table_id, chain_name
                     );
-                    Ok(())
+                    Ok::<(), anyhow::Error>(())
                 }
                 Err(e) => {
-                    match e {
-                        BigQueryError::Response(resp) => {
-                            if resp.message.contains("Already Exists") {
-                                info!(
-                                    "Table '{}' already exists in dataset '{}'",
-                                    table_id, chain_name
-                                );
-                                return Ok(());
-                            }
-                            error!("BigQuery API Error: {}", resp.message);
-                        }
-                        BigQueryError::HttpClient(e) => {
-                            error!("HTTP Client error: {}", e);
-                        }
-                        BigQueryError::HttpMiddleware(e) => {
-                            error!("HTTP Middleware error: {}", e);
-                        }
-                        BigQueryError::TokenSource(e) => {
-                            error!("Token Source error: {}", e);
+                    // Check for specific "Already Exists" error using status code
+                    if let BigQueryError::Response(resp) = &e {
+                        if resp.message.contains("Already Exists") {
+                            info!(
+                                "Table '{}' already exists in dataset '{}'",
+                                table_id, chain_name
+                            );
+                            return Ok(()); // Treat as success for the retry logic
                         }
                     }
-                    Err(anyhow!("Table creation failed"))
+                    Err(e   .into())
                 }
             }
         },
         &retry_config,
         "create_table",
     )
-    .await
-    .map_err(|e| anyhow!("Failed to create table after retries: {}", e))?;
+    .await?;
 
     Ok(())
 }
@@ -258,13 +255,26 @@ pub async fn insert_data<T: serde::Serialize>(
         block_range: (u64, u64),
     ) -> Result<bool> {
         if batch.is_empty() {
-            return Ok(false); // nothing sent
+            return Ok(false);
         }
 
+        // Step 1: Try to generate all insert IDs. Collect results.
+        let insert_ids_results: Vec<Result<String>> = batch
+            .iter()
+            .map(|item| generate_insert_id(table_id, item, block_range.0))
+            .collect();
+
+        // Step 2: Check if any ID generation failed. Propagate the first error found.
+        let insert_ids: Vec<String> = insert_ids_results
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // Step 3: If all IDs generated successfully, create the TableRow vector.
         let rows: Vec<TableRow<&T>> = batch
             .iter()
-            .map(|item| TableRow {
-                insert_id: Some(generate_insert_id(table_id, item, block_range.0)),
+            .zip(insert_ids.iter()) // Zip items with their generated IDs
+            .map(|(item, insert_id)| TableRow {
+                insert_id: Some(insert_id.clone()), // Clone the ID string
                 json: item,
             })
             .collect();
@@ -286,32 +296,14 @@ pub async fn insert_data<T: serde::Serialize>(
                     .await
                 {
                     Ok(response) => {
-                        if let Some(errors) = response.insert_errors {
-                            if !errors.is_empty() {
-                                for error in errors {
-                                    error!("Row {} failed to insert", error.index);
-                                    for err_msg in error.errors {
-                                        error!("Error: {}", err_msg.message);
-                                    }
-                                }
-                                return Err(anyhow!("Some rows failed to insert"));
+                        if let Some(insert_errors) = response.insert_errors {
+                            if !insert_errors.is_empty() {
+                                return Err(anyhow::anyhow!("Insert errors: {:?}", insert_errors));
                             }
                         }
                         Ok(())
                     }
-                    Err(e) => {
-                        match e {
-                            BigQueryError::Response(resp) => {
-                                error!("BigQuery API Error: {}", resp.message)
-                            }
-                            BigQueryError::HttpClient(e) => error!("HTTP Client error: {}", e),
-                            BigQueryError::HttpMiddleware(e) => {
-                                error!("HTTP Middleware error: {}", e)
-                            }
-                            BigQueryError::TokenSource(e) => error!("Token Source error: {}", e),
-                        }
-                        Err(anyhow!("Data insertion failed"))
-                    }
+                    Err(e) => Err(e.into()),
                 }
             },
             &retry_config,
@@ -320,7 +312,7 @@ pub async fn insert_data<T: serde::Serialize>(
         .await?;
 
         batch.clear();
-        Ok(true) // something was sent
+        Ok(true)
     }
 
     for item in data {
@@ -411,19 +403,8 @@ fn generate_insert_id<T: serde::Serialize>(
     table_id: &str,
     data: &T,
     fallback_block_number: u64,
-) -> String {
-    let value = match serde_json::to_value(data) {
-        Ok(v) => v,
-        Err(e) => {
-            error!("Failed to serialize data for InsertID generation: {}", e);
-            // If serialization fails, hash a generic identifier
-            let hash_base = format!("{table_id}-{fallback_block_number}-serialization_error");
-            let mut hasher = Sha256::new();
-            hasher.update(hash_base.as_bytes());
-            let hash = format!("{:x}", hasher.finalize());
-            return format!("{table_id}-{fallback_block_number}-serr-{}", &hash[..32]);
-        }
-    };
+) -> Result<String> {
+    let value = serde_json::to_value(data)?;
 
     let block_number = value
         .get("block_number")
@@ -439,113 +420,86 @@ fn generate_insert_id<T: serde::Serialize>(
             fallback_block_number
         });
 
-    // Generate a base ID string or an error string (to be hashed)
-    let base_id_result: Result<String, String> = match table_id {
-        "blocks" => {
-            // For blocks, just use the block number
-            Ok(format!("block-{block_number}"))
-        }
-        "transactions" => {
-            value.get("tx_hash").and_then(|v| v.as_str()).map_or_else(
-                || {
-                    error!("Missing tx_hash field in transaction data for block {}", block_number);
-                    // Return an Err containing a base string for hashing
-                    Err(format!("tx-{block_number}-missing_hash"))
-                },
-                |tx_hash| Ok(format!("tx-{block_number}-{tx_hash}")),
-            )
-        }
+    match table_id {
+        "blocks" => Ok(format!("block-{}", block_number)),
+        "transactions" => value.get("tx_hash").and_then(|v| v.as_str()).map_or_else(
+            || {
+                Err(anyhow::anyhow!(
+                    "tx_hash for transactions table (block {})",
+                    block_number
+                ))
+            },
+            |tx_hash| Ok(format!("tx-{}-{}", block_number, tx_hash)),
+        ),
         "logs" => {
-            let tx_hash = value.get("tx_hash").and_then(serde_json::Value::as_str);
-            let tx_index = value.get("tx_index").and_then(serde_json::Value::as_u64);
-            let log_index = value.get("log_index").and_then(serde_json::Value::as_u64);
+            let tx_hash_opt = value.get("tx_hash").and_then(serde_json::Value::as_str);
+            let tx_index_opt = value.get("tx_index").and_then(serde_json::Value::as_u64);
+            let log_index_opt = value.get("log_index").and_then(serde_json::Value::as_u64);
 
-            match (tx_hash, tx_index, log_index) {
-                (Some(h), Some(txi), Some(li)) => Ok(format!("log-{block_number}-{h}-{txi}-{li}")),
+            match (tx_hash_opt, tx_index_opt, log_index_opt) {
+                (Some(h), Some(txi), Some(li)) => {
+                    Ok(format!("log-{}-{}-{}-{}", block_number, h, txi, li))
+                }
                 _ => {
-                    error!("Missing mandatory fields (tx_hash, tx_index, log_index) in log data for block {}", block_number);
-                    // Create a base string for hashing including available fields
-                    let hash_base = format!(
-                        "log-{}-{}-{}-{}",
-                        block_number,
-                        tx_hash.unwrap_or("nohash"),
-                        tx_index.map_or("noTxIdx".to_string(), |i| i.to_string()),
-                        log_index.map_or("noLogIdx".to_string(), |i| i.to_string())
-                    );
-                    Err(hash_base)
+                    let mut missing = Vec::new();
+                    if tx_hash_opt.is_none() {
+                        missing.push("tx_hash");
+                    }
+                    if tx_index_opt.is_none() {
+                        missing.push("tx_index");
+                    }
+                    if log_index_opt.is_none() {
+                        missing.push("log_index");
+                    }
+                    Err(anyhow::anyhow!(
+                        "[{}] for logs table (block {})",
+                        missing.join(", "),
+                        block_number
+                    ))
                 }
             }
         }
         "traces" => {
-            let tx_hash = value.get("tx_hash").and_then(|v| v.as_str());
+            let tx_hash_opt = value.get("tx_hash").and_then(|v| v.as_str());
             let addr_array_opt = value.get("trace_address").and_then(|v| v.as_array());
 
-            match (tx_hash, addr_array_opt) {
+            match (tx_hash_opt, addr_array_opt) {
                 (Some(h), Some(addr_array)) => {
                     let trace_address = addr_array
                         .iter()
-                        .map(|v| v.as_u64().unwrap_or(0).to_string()) // Use 0 for non-u64 values
+                        .map(|v| v.as_u64().unwrap_or(0).to_string())
                         .collect::<Vec<String>>()
                         .join("-");
-                    Ok(format!("trace-{block_number}-{h}-{trace_address}"))
+                    Ok(format!("trace-{}-{}-{}", block_number, h, trace_address))
                 }
                 _ => {
-                     error!("Missing mandatory fields (tx_hash, trace_address) in trace data for block {}", block_number);
-                     // Create a base string for hashing including available fields
-                     let addr_repr = addr_array_opt.map_or("noAddr".to_string(), |a| {
-                        // Simple representation of the array for hashing
-                        a.iter()
-                         .map(|v| v.to_string())
-                         .collect::<Vec<_>>()
-                         .join(",")
-                     });
-                     let hash_base = format!(
-                        "trace-{}-{}-{}",
-                        block_number,
-                        tx_hash.unwrap_or("nohash"),
-                        addr_repr
-                     );
-                     Err(hash_base)
+                    let mut missing = Vec::new();
+                    if tx_hash_opt.is_none() {
+                        missing.push("tx_hash");
+                    }
+                    if addr_array_opt.is_none() {
+                        missing.push("trace_address");
+                    }
+                    Err(anyhow::anyhow!(
+                        "[{}] for traces table (block {})",
+                        missing.join(", "),
+                        block_number
+                    ))
                 }
             }
         }
-        // For any other table types
-        _ => {
-            warn!("Invalid table ID '{}' for insertId generation", table_id);
-            // Return an Err containing a base string for hashing
-            Err(format!("{table_id}-{block_number}-unknown_type"))
-        }
-    };
-
-    // Process the result: Use Ok value directly, or hash the Err value string
-    let final_id_base = match base_id_result {
-        Ok(id) => id,
-        Err(hash_base) => {
-            // Hash the descriptive error string
-            let mut hasher = Sha256::new();
-            hasher.update(hash_base.as_bytes());
-            let hash = format!("{:x}", hasher.finalize());
-            // Keep table_id and block_number prefix for readability/partitioning
-            format!("{table_id}-{block_number}-hash-{}", &hash[..32]) // Use 32 chars (16 bytes) of hash
-        }
-    };
-
-    // Check if the final generated ID exceeds the length limit (128 bytes)
-    // Be conservative with UTF-8 length vs bytes.
-    if final_id_base.len() > 120 { // Leave some margin
-        // If it's too long (even potentially after hashing error cases), hash the whole thing
-        let mut hasher = Sha256::new();
-        hasher.update(final_id_base.as_bytes());
-        let hash = format!("{:x}", hasher.finalize());
-        format!("{table_id}-{block_number}-long-{}", &hash[..32]) // Use 32 chars (16 bytes) of hash
-    } else {
-        // If it's within the limit, use the generated ID (which might already be a hash from error handling)
-        final_id_base
+        _ => Err(anyhow::anyhow!(
+            "Unknown table type '{}' for insertId generation (block {})",
+            table_id, block_number
+        )),
     }
 }
 
 // Get the last processed block number from storage
-pub async fn get_last_processed_block(chain_name: &str, datasets: &Vec<String>) -> Result<u64> {
+pub async fn get_last_processed_block(
+    chain_name: &str,
+    datasets: &Vec<String>,
+) -> Result<u64> {
     let (client, project_id) = &*get_client().await?;
     let job_client = client.job(); // Create BigqueryJobClient
     let mut min_block: Option<u64> = None;
@@ -567,23 +521,36 @@ pub async fn get_last_processed_block(chain_name: &str, datasets: &Vec<String>) 
             Ok(result) => {
                 if let Some(rows) = result.rows {
                     if !rows.is_empty() {
-                        if let Value::String(str_value) = &rows[0].f[0].v {
-                            if let Ok(block_num) = str_value.parse::<u64>() {
-                                min_block = Some(match min_block {
-                                    Some(current_min) => current_min.min(block_num),
-                                    None => block_num,
-                                });
+                        // Safely access the first row and first column
+                        if let Some(row) = rows.get(0) {
+                            if let Some(cell) = row.f.get(0) {
+                                if let Value::String(str_value) = &cell.v {
+                                    if let Ok(block_num) = str_value.parse::<u64>() {
+                                        min_block = Some(match min_block {
+                                            Some(current_min) => current_min.min(block_num),
+                                            None => block_num,
+                                        });
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
             Err(e) => {
-                error!("Failed to query table {}: {}", table_id, e);
+                // If querying any table fails, propagate the error immediately.
+                error!(
+                    "Failed to query max block for table '{}.{}.{}': {}",
+                    project_id, chain_name, table_id, e
+                );
+                return Err(e.into());
             }
         }
     }
     let min_block = min_block.unwrap_or(0);
-    info!("Last processed block: {}", min_block);
+    info!(
+        "Last processed block across specified tables: {}",
+        min_block
+    );
     Ok(min_block)
 }

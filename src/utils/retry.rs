@@ -1,4 +1,3 @@
-use anyhow::{anyhow, Error, Result};
 use std::{future::Future, time::Duration};
 use tokio::time::sleep;
 use tracing::{error, warn};
@@ -21,10 +20,11 @@ impl Default for RetryConfig {
     }
 }
 
-pub async fn retry<F, Fut, T>(operation: F, config: &RetryConfig, context: &str) -> Result<T, Error>
+pub async fn retry<F, Fut, T, E>(operation: F, config: &RetryConfig, context: &str) -> Result<T, E>
 where
     F: Fn() -> Fut,
-    Fut: Future<Output = std::result::Result<T, Error>>,
+    Fut: Future<Output = std::result::Result<T, E>>,
+    E: std::fmt::Display + std::fmt::Debug,
 {
     let mut attempt = 1;
     let mut delay = config.base_delay_ms;
@@ -38,10 +38,7 @@ where
                         "Operation '{}' failed after {} attempts. Final error: {}",
                         context, attempt, e
                     );
-                    let error_msg = e.to_string();
-                    return Err(
-                        anyhow!(error_msg).context(format!("Failed after {} attempts", attempt))
-                    );
+                    return Err(e);
                 }
 
                 warn!(

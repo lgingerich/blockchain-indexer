@@ -1,6 +1,8 @@
 pub mod rpc;
 pub mod transformations;
 
+use anyhow::{Context, Result};
+
 use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_network::{
     primitives::BlockTransactionsKind, AnyRpcBlock, AnyTransactionReceipt, Network,
@@ -13,7 +15,6 @@ use alloy_rpc_types_trace::{
 
 use alloy_primitives::FixedBytes;
 use alloy_transport::Transport;
-use anyhow::{anyhow, Result};
 use opentelemetry::KeyValue;
 use std::collections::HashMap;
 use tracing::warn;
@@ -29,10 +30,7 @@ use crate::models::datasets::blocks::RpcHeaderData;
 use crate::models::datasets::logs::RpcLogReceiptData;
 use crate::models::datasets::traces::RpcTraceData;
 use crate::models::datasets::transactions::RpcTransactionData;
-use crate::utils::{
-    retry::{retry, RetryConfig},
-    strip_html,
-};
+use crate::utils::retry::{retry, RetryConfig};
 
 use alloy_consensus::TxEnvelope;
 use alloy_network::AnyTxEnvelope;
@@ -80,7 +78,7 @@ where
                 );
             }
 
-            let result = provider.get_chain_id().await;
+            let result = provider.get_chain_id().await.context("Failed to get chain ID");
 
             // Record metrics if enabled
             if let Some(metrics) = metrics {
@@ -103,13 +101,7 @@ where
                 }
             }
 
-            result.map_err(|e| {
-                warn!(
-                    "Failed to get chain ID with error: {}",
-                    strip_html(&format!("{:?}", e))
-                );
-                anyhow!("RPC error: {}", strip_html(&e.to_string()))
-            })
+            result
         },
         &retry_config,
         "get_chain_id",
@@ -140,7 +132,7 @@ where
                 );
             }
 
-            let result = provider.get_block_number().await;
+            let result = provider.get_block_number().await.context("Failed to get latest block number");
 
             // Record metrics if enabled
             if let Some(metrics) = metrics {
@@ -162,15 +154,7 @@ where
                 }
             }
 
-            result
-                .map_err(|e| {
-                    warn!(
-                        "Failed to get latest block number with error: {}",
-                        strip_html(&format!("{:?}", e))
-                    );
-                    anyhow!("RPC error: {}", strip_html(&e.to_string()))
-                })
-                .map(BlockNumberOrTag::Number)
+            result.map(BlockNumberOrTag::Number)
         },
         &retry_config,
         "get_latest_block_number",
@@ -203,7 +187,7 @@ where
                 );
             }
 
-            let result = provider.get_block_by_number(block_number, kind).await;
+            let result = provider.get_block_by_number(block_number, kind).await.with_context(|| format!("Failed request to get_block_by_number() for block number {}", block_number));
 
             // Record metrics if enabled
             if let Some(metrics) = metrics {
@@ -225,14 +209,7 @@ where
                 }
             }
 
-            result.map_err(|e| {
-                warn!(
-                    "Failed to get block by number {} with error: {}",
-                    block_number,
-                    strip_html(&format!("{:?}", e))
-                );
-                anyhow!("RPC error: {}", strip_html(&e.to_string()))
-            })
+            result
         },
         &retry_config,
         "get_block_by_number",
@@ -264,7 +241,7 @@ where
                 );
             }
 
-            let result = provider.get_block_receipts(block).await;
+            let result = provider.get_block_receipts(block).await.with_context(|| format!("Failed request to get_block_receipts() for block {}", block));
 
             // Record metrics if enabled
             if let Some(metrics) = metrics {
@@ -286,14 +263,7 @@ where
                 }
             }
 
-            result.map_err(|e| {
-                warn!(
-                    "Failed to get block receipts for block {} with error: {}",
-                    block,
-                    strip_html(&format!("{:?}", e))
-                );
-                anyhow!("RPC error: {}", strip_html(&e.to_string()))
-            })
+            result
         },
         &retry_config,
         "get_block_receipts",
@@ -313,7 +283,6 @@ where
 {
     const BATCH_SIZE: usize = 10; // Configurable batch size
 
-    // Retry::spawn(get_retry_config("debug_trace_transaction"), || async {
     let retry_config = RetryConfig::default();
     retry(
         || async {
@@ -336,7 +305,18 @@ where
 
                 // Create futures for each transaction in the batch
                 for tx_hash in tx_batch {
-                    futures.push(provider.debug_trace_transaction(*tx_hash, trace_options.clone()));
+                    let trace_options_clone = trace_options.clone(); // Clone for this specific future
+                    futures.push(async move {
+                        provider
+                            .debug_trace_transaction(*tx_hash, trace_options_clone) // Use the clone
+                            .await
+                            .with_context(|| {
+                                format!(
+                                    "Failed request to debug_trace_transaction() for transaction hash {}",
+                                    tx_hash
+                                )
+                            })
+                    });
                 }
 
                 // Execute batch of futures concurrently
@@ -356,7 +336,7 @@ where
                                 warn!(
                                     "Skipping oversized trace for transaction {}: {}",
                                     tx_batch[idx],
-                                    strip_html(&e.to_string())
+                                    &e.to_string()
                                 );
                                 continue;
                             }
@@ -370,16 +350,7 @@ where
                                     ],
                                 );
                             }
-                            warn!(
-                                "Failed to trace transaction {} with error: {}",
-                                tx_batch[idx],
-                                strip_html(&format!("{:?}", e))
-                            );
-                            return Err(anyhow!(
-                                "RPC error tracing transaction {}: {}",
-                                tx_batch[idx],
-                                strip_html(&e.to_string())
-                            ));
+                            return Err(e);
                         }
                     }
                 }
@@ -396,13 +367,12 @@ where
                 );
             }
 
-            Ok(all_traces)
+            Ok(Some(all_traces))
         },
         &retry_config,
         "debug_trace_transaction",
     )
     .await
-    .map(Some)
 }
 
 pub async fn parse_data(
@@ -559,11 +529,8 @@ where
 
     // Fetch block data if needed
     let block = if need_block {
-        Some(
-            get_block_by_number(provider, block_number, BlockTransactionsKind::Full, metrics)
-                .await?
-                .ok_or_else(|| anyhow!("Provider returned no block"))?,
-        )
+        get_block_by_number(provider, block_number, BlockTransactionsKind::Full, metrics)
+            .await?
     } else {
         None
     };
@@ -571,11 +538,8 @@ where
     // Fetch receipts if needed
     let receipts = if need_receipts {
         let block_id = BlockId::Number(block_number);
-        Some(
-            get_block_receipts(provider, block_id, metrics)
-                .await?
-                .ok_or_else(|| anyhow!("Provider returned no receipts"))?,
-        )
+        get_block_receipts(provider, block_id, metrics)
+            .await?
     } else {
         None
     };
@@ -636,7 +600,9 @@ where
     let parsed_data = parse_data(
         chain,
         chain_id,
-        block_number.as_number().unwrap(),
+        block_number
+            .as_number()
+            .ok_or_else(|| anyhow::anyhow!("Expected block number, got {:?}", block_number))?,
         block,
         receipts,
         traces,

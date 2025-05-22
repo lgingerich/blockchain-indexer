@@ -1,5 +1,4 @@
 use alloy_primitives::FixedBytes;
-use anyhow::Result;
 use chrono::{DateTime, NaiveDate, Utc};
 use std::collections::HashMap;
 
@@ -8,6 +7,8 @@ use crate::models::datasets::transactions::{
     CommonTransformedTransactionData, EthereumTransformedTransactionData, RpcTransactionData,
     RpcTransactionReceiptData, TransformedTransactionData, ZKsyncTransformedTransactionData,
 };
+
+use anyhow::Result;
 
 pub trait TransactionTransformer {
     fn transform_transactions(
@@ -83,31 +84,45 @@ impl TransactionTransformer for RpcTransactionData {
 
                 match chain {
                     Chain::Ethereum => {
-                        let RpcTransactionData::Ethereum(eth_tx) = tx else {
-                            panic!("Expected Ethereum transaction for Ethereum chain");
+                        let eth_tx = match tx {
+                            RpcTransactionData::Ethereum(data) => data,
+                            _ => {
+                                return Err(anyhow::anyhow!(
+                                    "Expected Ethereum transaction for Ethereum chain"
+                                ))
+                            }
                         };
 
-                        TransformedTransactionData::Ethereum(EthereumTransformedTransactionData {
-                            common,
-                            max_fee_per_blob_gas: eth_tx.max_fee_per_blob_gas,
-                            blobs: eth_tx.blobs,
-                            commitments: eth_tx.commitments,
-                            proofs: eth_tx.proofs,
-                        })
+                        Ok(TransformedTransactionData::Ethereum(
+                            EthereumTransformedTransactionData {
+                                common,
+                                max_fee_per_blob_gas: eth_tx.max_fee_per_blob_gas,
+                                blobs: eth_tx.blobs,
+                                commitments: eth_tx.commitments,
+                                proofs: eth_tx.proofs,
+                            },
+                        ))
                     }
                     Chain::ZKsync => {
-                        let RpcTransactionData::ZKsync(zksync_tx) = tx else {
-                            panic!("Expected ZKsync transaction for ZKsync chain");
+                        let zksync_tx = match tx {
+                            RpcTransactionData::ZKsync(data) => data,
+                            _ => {
+                                return Err(anyhow::anyhow!(
+                                    "Expected ZKsync transaction for ZKsync chain"
+                                ))
+                            }
                         };
 
-                        TransformedTransactionData::ZKsync(ZKsyncTransformedTransactionData {
-                            common,
-                            l1_batch_number: zksync_tx.l1_batch_number,
-                            l1_batch_tx_index: zksync_tx.l1_batch_tx_index,
-                        })
+                        Ok(TransformedTransactionData::ZKsync(
+                            ZKsyncTransformedTransactionData {
+                                common,
+                                l1_batch_number: zksync_tx.l1_batch_number,
+                                l1_batch_tx_index: zksync_tx.l1_batch_tx_index,
+                            },
+                        ))
                     }
                 }
             })
-            .collect())
+            .collect::<Result<Vec<_>>>()?)
     }
 }

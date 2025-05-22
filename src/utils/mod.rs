@@ -1,20 +1,33 @@
 pub mod retry;
 
-use anyhow::{Context, Result};
 use chrono::{DateTime, NaiveDate, Utc};
-use std::path::Path;
-use tracing::{info, warn};
 use config::{Config, File, FileFormat};
+use std::path::Path;
+use tracing::warn;
+use anyhow::Result;
 
-use crate::models::common::Config as IndexerConfig;
+use crate::models::{common::Config as IndexerConfig};
 
-// TODO: Refactor so I don't need multiple conversion functions
-pub fn hex_to_u64(hex: String) -> Option<u64> {
-    u64::from_str_radix(hex.trim_start_matches("0x"), 16).ok()
+pub fn load_config<P: AsRef<Path>>(file_path: P) -> Result<IndexerConfig> {
+    let settings = Config::builder()
+        .add_source(File::from(file_path.as_ref()).format(FileFormat::Yaml))
+        .build()?;
+
+    let mut cfg: IndexerConfig = settings.try_deserialize()?;
+
+    // Convert hyphens to underscores in all relevant fields
+    cfg.chain_name = cfg.chain_name.replace('-', "_");
+
+    Ok(cfg)
 }
 
-pub fn hex_to_u128(hex: String) -> Option<u128> {
-    u128::from_str_radix(hex.trim_start_matches("0x"), 16).ok()
+// TODO: Refactor so I don't need multiple conversion functions
+pub fn hex_to_u64(hex: String) -> Result<u64> {
+    Ok(u64::from_str_radix(hex.trim_start_matches("0x"), 16)?)
+}
+
+pub fn hex_to_u128(hex: String) -> Result<u128> {
+    Ok(u128::from_str_radix(hex.trim_start_matches("0x"), 16)?)
 }
 
 // Sanitizes block dates for block 0 to avoid BigQuery partitioning errors.
@@ -26,11 +39,15 @@ pub fn hex_to_u128(hex: String) -> Option<u128> {
 // if the sanitized date was set to 2015 when Ethereum was launched, that will soon be
 // exceeded and then the indexer will fail for all chains. As this is tailored towards
 // usage with L2s, we will focus on safe usage with L2s.
-pub fn sanitize_block_time(block_number: u64, datetime: DateTime<Utc>) -> DateTime<Utc> {
+pub fn sanitize_block_time(
+    block_number: u64,
+    datetime: DateTime<Utc>,
+) -> Result<DateTime<Utc>> {
     // If this is block 0 with a Unix epoch date (or very close to it)
     if block_number == 0 && datetime.format("%Y").to_string() == "1970" {
         // Use January 1, 2020 as the fallback date
-        let fallback_date = NaiveDate::from_ymd_opt(2020, 1, 1).unwrap();
+        let fallback_date = NaiveDate::from_ymd_opt(2020, 1, 1)
+            .ok_or_else(|| anyhow::anyhow!("Internal error: Hardcoded fallback date (2020-01-01) for block time sanitization is invalid."))?;
         let fallback_time = datetime.time();
         let fallback_datetime =
             DateTime::<Utc>::from_naive_utc_and_offset(fallback_date.and_time(fallback_time), Utc);
@@ -39,150 +56,8 @@ pub fn sanitize_block_time(block_number: u64, datetime: DateTime<Utc>) -> DateTi
             "Sanitized block 0 time from {} (Unix epoch) to {} to avoid BigQuery partitioning errors",
             datetime, fallback_datetime
         );
-        fallback_datetime
+        Ok(fallback_datetime)
     } else {
-        datetime
+        Ok(datetime)
     }
-}
-
-pub fn load_config<P: AsRef<Path>>(file_name: P) -> Result<IndexerConfig> {
-    // Build the path to the config file
-    let manifest_dir = env!("CARGO_MANIFEST_DIR").to_string();
-    let config_path = Path::new(&manifest_dir).join(file_name);
-    info!("Config path: {}", config_path.to_string_lossy());
-
-    // Use config-rs to load the YAML config file
-    let settings = Config::builder()
-        .add_source(File::from(config_path).format(FileFormat::Yaml))
-        .build()
-        .context("failed to read or parse config file")?;
-
-    // Deserialize into our Config struct
-    let mut config: IndexerConfig = settings.try_deserialize().context("failed to deserialize config into struct")?;
-
-    // Convert hyphens to underscores in all relevant fields
-    config.chain_name = config.chain_name.replace('-', "_");
-
-    Ok(config)
-}
-
-/// Strips HTML content from API error responses, with special handling for HTTP status codes
-///
-/// # Arguments
-/// * `response` - The API response string that may contain HTML
-///
-/// # Returns
-/// * `String` - The cleaned string with HTML removed and status codes preserved
-pub fn strip_html(response: &str) -> String {
-    // Define the state for our parser
-    enum State {
-        Normal,
-        InTag,
-        InScript,
-        InStyle,
-    }
-
-    let mut result = String::with_capacity(response.len());
-    let mut state = State::Normal;
-
-    // Process each character in the response
-    let mut chars = response.chars().peekable();
-    while let Some(c) = chars.next() {
-        match state {
-            State::Normal => {
-                if c == '<' {
-                    // Check if we're entering a script or style tag
-                    let tag: String = chars
-                        .clone()
-                        .take_while(|&c| c != '>' && c != ' ')
-                        .collect();
-
-                    if tag.eq_ignore_ascii_case("script") {
-                        state = State::InScript;
-                    } else if tag.eq_ignore_ascii_case("style") {
-                        state = State::InStyle;
-                    } else {
-                        state = State::InTag;
-                    }
-                } else {
-                    // Preserve non-HTML content
-                    result.push(c);
-                }
-            }
-            State::InTag => {
-                if c == '>' {
-                    // Add a space to preserve text formatting
-                    result.push(' ');
-                    state = State::Normal;
-                }
-            }
-            State::InScript => {
-                // Look for </script> to exit script state
-                if c == '<' && chars.peek() == Some(&'/') {
-                    // Check for "script>"
-                    let script_close: String = chars
-                        .clone()
-                        .skip(1) // Skip the '/'
-                        .take_while(|&c| c != '>')
-                        .collect();
-
-                    if script_close.eq_ignore_ascii_case("script") {
-                        // Skip past the "</script>"
-                        for _ in 0.."script>".len() {
-                            chars.next();
-                        }
-                        state = State::Normal;
-                    }
-                }
-            }
-            State::InStyle => {
-                // Look for </style> to exit style state
-                if c == '<' && chars.peek() == Some(&'/') {
-                    // Check for "style>"
-                    let style_close: String = chars
-                        .clone()
-                        .skip(1) // Skip the '/'
-                        .take_while(|&c| c != '>')
-                        .collect();
-
-                    if style_close.eq_ignore_ascii_case("style") {
-                        // Skip past the "</style>"
-                        for _ in 0.."style>".len() {
-                            chars.next();
-                        }
-                        state = State::Normal;
-                    }
-                }
-            }
-        }
-    }
-
-    // Normalize and clean up the response
-    let result = result.trim().to_string();
-
-    // Special handling for HTTP status codes in the format you're seeing
-    if let Some(status_code) = extract_http_status(&result) {
-        return format!("HTTP {}: {}", status_code, result.trim());
-    }
-
-    result
-}
-
-/// Extract HTTP status code from a string if present
-fn extract_http_status(s: &str) -> Option<u16> {
-    // Common pattern in HTTP error responses: number followed by text
-    let s = s.trim();
-
-    // Look for patterns like "429 Too Many Requests" or "429 429 Too Many Requests"
-    let mut words = s.split_whitespace();
-    if let Some(first_word) = words.next() {
-        if let Ok(status) = first_word.parse::<u16>() {
-            if status >= 100 && status < 600 {
-                // Valid HTTP status range
-                return Some(status);
-            }
-        }
-    }
-
-    None
 }
