@@ -7,8 +7,8 @@ mod utils;
 use alloy_eips::BlockNumberOrTag;
 use alloy_network::AnyNetwork;
 use alloy_provider::ProviderBuilder;
+use anyhow::Result;
 
-use anyhow::{anyhow, Result};
 use futures::{stream::FuturesUnordered, StreamExt};
 use opentelemetry::KeyValue;
 use tokio::{signal, time::Instant};
@@ -19,11 +19,13 @@ use url::Url;
 use crate::metrics::Metrics;
 use crate::models::common::{Chain, TransformedData};
 use crate::models::datasets::blocks::TransformedBlockData;
-use crate::models::errors::RpcError;
 use crate::storage::{setup_channels, DatasetType};
 use crate::utils::load_config;
 
-const SLEEP_DURATION: u64 = 1000; // ms
+use std::future::Future;
+use std::pin::Pin;
+
+const SLEEP_DURATION: u64 = 3000; // 3000 ms = 3s
 const BATCH_SIZE: usize = 10; // Number of blocks to process in parallel
 
 #[tokio::main]
@@ -37,17 +39,8 @@ async fn main() -> Result<()> {
     info!("=========================== INITIALIZING ===========================");
 
     // Load config
-    let config = match load_config("config.yml") {
-        Ok(config) => {
-            info!("Config loaded successfully");
-            info!("{:?}", config);
-            config
-        }
-        Err(e) => {
-            error!("Failed to load config: {}", e);
-            return Err(anyhow!(e));
-        }
-    };
+    let config = load_config("config.yml")?;
+    info!("Config loaded successfully");
 
     // Parse configs
     let chain_name = config.chain_name;
@@ -62,7 +55,7 @@ async fn main() -> Result<()> {
     let dataset_location = config.dataset_location;
 
     // Initialize optional metrics
-    let metrics = if metrics_enabled {
+    let metrics: Option<Metrics> = if metrics_enabled {
         Some(Metrics::new(chain_name.to_string())?)
     } else {
         info!("Metrics are disabled");
@@ -71,14 +64,14 @@ async fn main() -> Result<()> {
 
     // Start metrics server if metrics are enabled
     if let Some(metrics_instance) = &metrics {
-        metrics_instance
+        let _ = metrics_instance
             .start_metrics_server(metrics_addr.as_str(), metrics_port)
             .await;
     }
 
     // Create RPC provider
     let rpc_url: Url = rpc.parse()?;
-    info!("RPC URL: {:?}", rpc);
+    info!("RPC URL: {:?}", rpc_url);
     let provider = ProviderBuilder::new()
         .network::<AnyNetwork>()
         .on_http(rpc_url);
@@ -109,7 +102,7 @@ async fn main() -> Result<()> {
     // Get last processed block number from storage
     let last_processed_block =
         storage::bigquery::get_last_processed_block(chain_name.as_str(), &datasets).await?;
-    
+
     // Use the maximum of last_processed_block + 1 and start_block (if specified)
     let mut block_number = if last_processed_block > 0 {
         // If we have processed blocks, start from the next one
@@ -142,17 +135,20 @@ async fn main() -> Result<()> {
     let mut block_number_to_process = BlockNumberOrTag::Number(block_number);
 
     // Get initial latest block number before loop
-    let mut last_known_latest_block = indexer::get_latest_block_number(&provider, metrics.as_ref())
-        .await?
-        .as_number()
-        .ok_or_else(|| RpcError::InvalidBlockNumberResponse {
-            got: block_number_to_process.to_string(),
-        })?;
+    let latest_block_tag = indexer::get_latest_block_number(&provider, metrics.as_ref()).await?;
+    let mut last_known_latest_block = latest_block_tag.as_number().ok_or_else(|| {
+        anyhow::anyhow!(
+            "Invalid block number response: {}",
+            format!("{:?}", latest_block_tag)
+        )
+    })?;
 
     info!("Initial chain tip: Block {}", last_known_latest_block);
-    info!("Starting indexing from block {} (distance from tip: {} blocks)", 
-          block_number, 
-          last_known_latest_block.saturating_sub(block_number));
+    info!(
+        "Starting indexing from block {} (distance from tip: {} blocks)",
+        block_number,
+        last_known_latest_block.saturating_sub(block_number)
+    );
 
     println!();
     info!("========================= STARTING INDEXER =========================");
@@ -193,34 +189,39 @@ async fn main() -> Result<()> {
 
         // Only check latest block if we're within 2x buffer of last known tip
         if block_number_to_process.as_number().ok_or_else(|| {
-            RpcError::InvalidBlockNumberResponse {
-                got: block_number_to_process.to_string(),
-            }
+            anyhow::anyhow!(
+                "Invalid block number response: {}",
+                format!("{:?}", block_number_to_process)
+            )
         })? > last_known_latest_block.saturating_sub(chain_tip_buffer * 2)
         {
             let latest_block: BlockNumberOrTag =
                 indexer::get_latest_block_number(&provider, metrics.as_ref()).await?;
 
-            last_known_latest_block =
-                latest_block
-                    .as_number()
-                    .ok_or_else(|| RpcError::InvalidBlockNumberResponse {
-                        got: latest_block.to_string(),
-                    })?;
+            last_known_latest_block = latest_block.as_number().ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Invalid block number response: {}",
+                    format!("{:?}", latest_block)
+                )
+            })?;
         }
 
         // If indexer gets too close to tip, back off and retry
-        if last_known_latest_block.saturating_sub(block_number_to_process.as_number().ok_or_else(|| RpcError::InvalidBlockNumberResponse {
-            got: block_number_to_process.to_string(),
-        })?) < chain_tip_buffer
+        if last_known_latest_block.saturating_sub(block_number_to_process.as_number().ok_or_else(
+            || {
+                anyhow::anyhow!(
+                    "Invalid block number response: {}",
+                    format!("{:?}", block_number_to_process)
+                )
+            },
+        )?) < chain_tip_buffer
         {
             info!(
-                "Buffer limit reached. Waiting for current block to be {} blocks behind tip: {} - current distance: {} - sleeping for 1s",
+                "Buffer limit reached. Waiting for current block to be {} blocks behind tip: {} - current distance: {} - sleeping for {} seconds",
                 chain_tip_buffer,
                 last_known_latest_block,
-                last_known_latest_block.saturating_sub(block_number_to_process.as_number().ok_or_else(|| RpcError::InvalidBlockNumberResponse {
-                    got: block_number_to_process.to_string(),
-                })?)
+                last_known_latest_block.saturating_sub(block_number_to_process.as_number().ok_or_else(|| anyhow::anyhow!("Invalid block number response: {}", format!("{:?}", block_number_to_process)))?),
+                SLEEP_DURATION as f64 / 1000.0
             );
             tokio::time::sleep(tokio::time::Duration::from_millis(SLEEP_DURATION)).await;
             continue;
@@ -240,14 +241,16 @@ async fn main() -> Result<()> {
             .collect();
 
         // Process blocks using Tokio's built-in parallelism
-        let futures = FuturesUnordered::new();
+        let futures: FuturesUnordered<
+            Pin<Box<dyn Future<Output = Result<TransformedData>> + Send>>,
+        > = FuturesUnordered::new();
 
         for block_num in &block_batch {
             let provider = provider.clone();
             let datasets = datasets.clone();
             let metrics_ref = metrics.as_ref();
 
-            futures.push(async move {
+            futures.push(Box::pin(async move {
                 let block_start_time = Instant::now();
 
                 // Process the block
@@ -286,7 +289,7 @@ async fn main() -> Result<()> {
                 }
 
                 result
-            });
+            }));
         }
 
         let results: Vec<Result<TransformedData>> = futures.collect().await;
@@ -326,7 +329,7 @@ async fn main() -> Result<()> {
 
                     for (dataset_name, dataset) in dataset_mappings {
                         if datasets.contains(&dataset_name.to_string()) {
-                            channels.send_dataset(dataset, *block_num).await;
+                            let _ = channels.send_dataset(dataset, *block_num).await;
                         }
                     }
 
@@ -338,8 +341,11 @@ async fn main() -> Result<()> {
                 }
                 Err(e) => {
                     // This is an unrecoverable error that survived all retries in mod.rs
-                    error!("Fatal error processing block {}: {}", block_num, e);
-                    return Err(e); // Exit the program - something is seriously wrong
+                    return Err(anyhow::anyhow!(
+                        "Fatal error processing block {}: {}",
+                        block_num,
+                        e
+                    ));
                 }
             }
         }
@@ -350,7 +356,7 @@ async fn main() -> Result<()> {
                 "Waiting for L1 batch number to become available for block {}",
                 unavailable_block
             );
-            // Sleep for a full second before retrying
+            // Sleep before retrying
             tokio::time::sleep(tokio::time::Duration::from_millis(SLEEP_DURATION)).await;
             // Set block_number to the first unavailable block
             block_number = unavailable_block;

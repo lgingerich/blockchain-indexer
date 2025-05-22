@@ -1,10 +1,9 @@
-use anyhow::Result;
-
 use crate::models::common::Chain;
 use crate::models::datasets::blocks::{
     CommonTransformedBlockData, EthereumTransformedBlockData, RpcHeaderData, TransformedBlockData,
     ZKsyncTransformedBlockData,
 };
+use anyhow::Result;
 
 pub trait BlockTransformer {
     fn transform_blocks(
@@ -20,7 +19,7 @@ impl BlockTransformer for RpcHeaderData {
         chain: Chain,
         chain_id: u64,
     ) -> Result<Vec<TransformedBlockData>> {
-        Ok(headers
+        headers
             .into_iter()
             .map(|header| {
                 let common_data = match &header {
@@ -58,22 +57,27 @@ impl BlockTransformer for RpcHeaderData {
                 };
 
                 match chain {
-                    Chain::Ethereum => {
-                        TransformedBlockData::Ethereum(EthereumTransformedBlockData { common })
-                    }
+                    Chain::Ethereum => Ok(TransformedBlockData::Ethereum(
+                        EthereumTransformedBlockData { common },
+                    )),
                     Chain::ZKsync => {
-                        let RpcHeaderData::ZKsync(zksync_data) = header else {
-                            panic!("Expected ZKsync header for ZKsync chain");
+                        let zksync_data = match header {
+                            RpcHeaderData::ZKsync(data) => data,
+                            _ => {
+                                return Err(anyhow::anyhow!(
+                                    "Expected ZKsync header for ZKsync chain"
+                                ))
+                            }
                         };
 
-                        TransformedBlockData::ZKsync(ZKsyncTransformedBlockData {
+                        Ok(TransformedBlockData::ZKsync(ZKsyncTransformedBlockData {
                             common,
                             l1_batch_number: zksync_data.l1_batch_number,
                             l1_batch_timestamp: zksync_data.l1_batch_timestamp,
-                        })
+                        }))
                     }
                 }
             })
-            .collect())
+            .collect::<Result<Vec<_>>>()
     }
 }

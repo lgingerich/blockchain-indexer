@@ -1,11 +1,11 @@
-use std::sync::Arc;
-use tracing::info;
-
-use axum::{routing::get, Router};
+use anyhow::{Context, Result};
+use axum::{extract::State, http::StatusCode, routing::get, Router};
 use opentelemetry::metrics::{Counter, Gauge, Histogram, MeterProvider};
-use opentelemetry_sdk::metrics::{MetricError, SdkMeterProvider};
+use opentelemetry_sdk::metrics::SdkMeterProvider;
 use prometheus::{Encoder, TextEncoder};
 use std::net::SocketAddr;
+use std::sync::Arc;
+use tracing::info;
 
 #[derive(Clone)]
 pub struct Metrics {
@@ -34,7 +34,7 @@ pub struct Metrics {
 }
 
 impl Metrics {
-    pub fn new(chain_name: String) -> Result<Self, MetricError> {
+    pub fn new(chain_name: String) -> Result<Self> {
         // Create a new prometheus registry
         let registry = prometheus::Registry::new();
 
@@ -128,18 +128,21 @@ impl Metrics {
         })
     }
 
-    pub async fn start_metrics_server(&self, addr: &str, port: u16) {
-        // Parse socket address, with error handling
-        let addr = match format!("{addr}:{port}").parse::<SocketAddr>() {
-            Ok(addr) => addr,
-            Err(e) => {
-                tracing::error!("Invalid metrics server address format: {}:{} - {}", addr, port, e);
-                return;
-            }
-        };
+    pub async fn start_metrics_server(&self, addr: &str, port: u16) -> Result<()> {
+        // Parse socket address
+        let addr: SocketAddr = format!("{addr}:{port}")
+            .parse()
+            .with_context(|| format!("Invalid metrics server address format: {addr}:{port}"))?;
+
         let registry = self.registry.clone();
 
-        let app = Router::new().route("/metrics", get(move || metrics_handler(registry.clone())));
+        // let app = Router::new()
+        //     .route("/metrics", get(metrics_handler))
+        //     .with_state(registry.clone());
+
+        let app = Router::new()
+            .route("/metrics", get(metrics_handler))
+            .with_state(registry.clone());
 
         // Determine the access URL based on the binding address. Only used for logging.
         let access_url = if addr.ip().to_string() == "0.0.0.0" {
@@ -153,43 +156,39 @@ impl Metrics {
             addr, access_url
         );
 
-        // Handle potential binding errors gracefully
-        let listener = match tokio::net::TcpListener::bind(addr).await {
-            Ok(listener) => listener,
-            Err(e) => {
-                if e.kind() == std::io::ErrorKind::AddrInUse {
-                    tracing::warn!("Metrics server address {}:{} is already in use. Metrics will not be available.", addr.ip(), port);
-                } else {
-                    tracing::error!("Failed to bind metrics server to {}:{}: {}", addr.ip(), port, e);
-                }
-                return;
-            }
-        };
+        let listener = tokio::net::TcpListener::bind(addr)
+            .await
+            .with_context(|| format!("Failed to bind metrics server to {addr}"))?;
 
-        // Spawn the server in a separate task
         tokio::spawn(async move {
-            if let Err(e) = axum::serve(listener, app).await {
-                tracing::error!("Metrics server error: {}", e);
-            }
+            let _ = axum::serve(listener, app)
+                .await
+                .context("Failed to serve metrics");
         });
+
+        Ok(())
     }
 }
 
-async fn metrics_handler(registry: Arc<prometheus::Registry>) -> String {
+#[axum::debug_handler]
+async fn metrics_handler(
+    State(registry): State<Arc<prometheus::Registry>>,
+) -> Result<String, (StatusCode, String)> {
     let encoder = TextEncoder::new();
     let metric_families = registry.gather();
     let mut buffer = vec![];
-    
-    if let Err(e) = encoder.encode(&metric_families, &mut buffer) {
-        tracing::error!("Failed to encode metrics: {}", e);
-        return "Error encoding metrics".to_string();
-    }
-    
-    match String::from_utf8(buffer) {
-        Ok(result) => result,
-        Err(e) => {
-            tracing::error!("Invalid UTF-8 in metrics output: {}", e);
-            "Error converting metrics to UTF-8".to_string()
-        }
-    }
+
+    encoder.encode(&metric_families, &mut buffer).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to encode metrics: {}", e),
+        )
+    })?;
+
+    String::from_utf8(buffer).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to convert metrics buffer to string: {}", e),
+        )
+    })
 }

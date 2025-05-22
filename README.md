@@ -21,19 +21,6 @@ Features include:
 - Terraform (for cloud deployment)
 
 
-## TO DO
-
-### Features
-- [ ] Add support for more chains (e.g. Optimism, Arbitrum)
-- [ ] Add support for more storage options (e.g. S3, Postgres)
-- [ ] Add reorg handling
-
-### Misc Improvements
-- [ ] `serde_yaml` is no longer maintained but doesn't have a good replacement yet. Check for other possibly unmaintained crates.
-- [ ] Add benchmarks
-- [ ] Finish migration to enum-based error handling with `thiserror`
-
-
 ## Indexer Configuration
 
 The indexer is configured through a single `config.yml` file. To get started:
@@ -66,15 +53,6 @@ cp config.yml.example config.yml
     - `port`: The port for the metrics server (e.g., 9100).
 
 The actual `config.yml` file is excluded from version control. See `config.yml.example` for a template with all supported options.
-
-### GCP Networking Costs
-
-When running this indexer and storing data in Google BigQuery, be mindful of potential networking costs. To minimize these costs:
-
-- **Run the indexer in the same GCP region as your BigQuery datasets.** If the indexer is running in a different region or outside of GCP, you will incur data transfer costs when data is sent to BigQuery.
-- For example, if your `dataset_location` in `config.yml` is set to `us-central1`, ideally, your indexer application should also be running on a VM or service within the `us-central1` region.
-
-Consult the [Google Cloud networking pricing](https://cloud.google.com/vpc/network-pricing) and [BigQuery pricing](https://cloud.google.com/bigquery/pricing) pages for detailed information.
 
 
 ## Deployment Options

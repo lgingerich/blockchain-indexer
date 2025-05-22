@@ -1,5 +1,4 @@
 use alloy_primitives::FixedBytes;
-use anyhow::Result;
 use chrono::{DateTime, NaiveDate, Utc};
 use std::collections::HashMap;
 
@@ -8,6 +7,8 @@ use crate::models::datasets::traces::{
     CommonTransformedTraceData, EthereumTransformedTraceData, RpcTraceData, TransformedTraceData,
     ZKsyncTransformedTraceData,
 };
+
+use anyhow::Result;
 
 pub trait TraceTransformer {
     fn transform_traces(
@@ -27,7 +28,7 @@ impl TraceTransformer for RpcTraceData {
         block_map: &HashMap<u64, (DateTime<Utc>, NaiveDate, FixedBytes<32>)>,
         tx_index_map: &HashMap<FixedBytes<32>, Option<u64>>,
     ) -> Result<Vec<TransformedTraceData>> {
-        Ok(traces
+        traces
             .into_iter()
             .map(|trace| {
                 let common_data = match &trace {
@@ -35,20 +36,20 @@ impl TraceTransformer for RpcTraceData {
                     RpcTraceData::ZKsync(t) => &t.common,
                 };
 
+                let tx_hash = common_data
+                    .tx_hash
+                    .ok_or_else(|| anyhow::anyhow!("Missing tx_hash for trace primary key"))?;
+
                 let pk = if common_data.trace_address.is_empty() {
-                    format!(
-                        "trace_{}_{}_{}",
-                        chain_id,
-                        common_data.tx_hash.unwrap(),
-                        common_data.trace_type
-                    )
+                    format!("trace_{}_{}_{}", chain_id, tx_hash, common_data.trace_type)
                 } else {
                     format!(
                         "trace_{}_{}_{}_{}",
                         chain_id,
-                        common_data.tx_hash.unwrap(),
+                        tx_hash,
                         common_data.trace_type,
-                        common_data.trace_address
+                        common_data
+                            .trace_address
                             .iter()
                             .map(|&x| x.to_string())
                             .collect::<Vec<String>>()
@@ -72,7 +73,7 @@ impl TraceTransformer for RpcTraceData {
                         .get(&common_data.block_number)
                         .map(|(_, _, hash)| *hash)
                         .unwrap_or_default(),
-                    tx_hash: common_data.tx_hash,
+                    tx_hash: Some(tx_hash),
                     tx_index: common_data
                         .tx_hash
                         .and_then(|hash| tx_index_map.get(&hash).copied().flatten()),
@@ -90,14 +91,14 @@ impl TraceTransformer for RpcTraceData {
                 };
 
                 match chain {
-                    Chain::Ethereum => {
-                        TransformedTraceData::Ethereum(EthereumTransformedTraceData { common })
-                    }
-                    Chain::ZKsync => {
-                        TransformedTraceData::ZKsync(ZKsyncTransformedTraceData { common })
-                    }
+                    Chain::Ethereum => Ok(TransformedTraceData::Ethereum(
+                        EthereumTransformedTraceData { common },
+                    )),
+                    Chain::ZKsync => Ok(TransformedTraceData::ZKsync(ZKsyncTransformedTraceData {
+                        common,
+                    })),
                 }
             })
-            .collect())
+            .collect::<Result<Vec<_>>>()
     }
 }

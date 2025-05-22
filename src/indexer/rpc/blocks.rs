@@ -5,7 +5,6 @@ use alloy_consensus::constants::{
 use alloy_consensus::{TxEip4844Variant, TxEnvelope};
 use alloy_network::{primitives::BlockTransactions, AnyRpcBlock, AnyTxEnvelope};
 use alloy_primitives::{Address, Bytes, FixedBytes, TxKind, Uint};
-use anyhow::Result;
 use chrono::DateTime;
 
 use crate::models::common::{Chain, TransactionTo};
@@ -16,8 +15,9 @@ use crate::models::datasets::transactions::{
     CommonRpcTransactionData, EthereumRpcTransactionData, RpcTransactionData,
     ZKsyncRpcTransactionData,
 };
-use crate::models::errors::BlockError;
 use crate::utils::{hex_to_u128, hex_to_u64, sanitize_block_time};
+
+use anyhow::Result;
 
 pub trait BlockParser {
     fn parse_header(&self, chain: Chain) -> Result<Vec<RpcHeaderData>>;
@@ -31,10 +31,12 @@ impl BlockParser for AnyRpcBlock {
 
         // Get the block timestamp and convert to DateTime
         let original_time =
-            DateTime::from_timestamp(inner.timestamp as i64, 0).expect("invalid timestamp");
+            DateTime::from_timestamp(inner.timestamp as i64, 0).ok_or_else(|| {
+                anyhow::anyhow!("Invalid DateTime from timestamp: {}", inner.timestamp)
+            })?;
 
         // Sanitize the block time if it's block 0 with a 1970 date
-        let block_time = sanitize_block_time(inner.number, original_time);
+        let block_time = sanitize_block_time(inner.number, original_time)?;
 
         // Define common fields that exist across all chains
         let common = CommonRpcHeaderData {
@@ -69,18 +71,18 @@ impl BlockParser for AnyRpcBlock {
                 l1_batch_number: other
                     .get_deserialized::<String>("l1BatchNumber")
                     .and_then(std::result::Result::ok)
-                    .map(|hex_str| {
-                        hex_to_u64(hex_str).expect("failed to convert 'l1BatchNumber' hex to u64")
-                    }),
+                    .map(hex_to_u64)
+                    .transpose()?,
                 l1_batch_timestamp: other
                     .get_deserialized::<String>("l1BatchTimestamp")
                     .and_then(std::result::Result::ok)
-                    .map(|hex_str| {
-                        let timestamp = hex_to_u64(hex_str)
-                            .expect("failed to convert 'l1BatchTimestamp' hex to u64");
-                        DateTime::from_timestamp(timestamp as i64, 0)
-                            .expect("invalid timestamp for 'l1BatchTimestamp'")
-                    }),
+                    .map(|s: String| {
+                        let timestamp = hex_to_u64(s)?;
+                        DateTime::from_timestamp(timestamp as i64, 0).ok_or_else(|| {
+                            anyhow::anyhow!("Invalid DateTime from timestamp: {}", timestamp)
+                        })
+                    })
+                    .transpose()?,
             }),
         };
 
@@ -93,7 +95,7 @@ impl BlockParser for AnyRpcBlock {
                 Ok(self
                 .transactions
                 .txns()
-                .map(|transaction| {
+                .map(|transaction| -> Result<RpcTransactionData> {
                     let inner = &transaction.inner;
                     let block_hash = transaction.block_hash;
                     let block_number = transaction.block_number;
@@ -130,7 +132,7 @@ impl BlockParser for AnyRpcBlock {
                         // Ethereum will always enter this match arm
                         // Other chains will only enter this match arm for tx_type = Legacy
                         AnyTxEnvelope::Ethereum(inner) => {
-                            let common_tx = match inner {
+                            let eth_tx_data = match inner {
                                 TxEnvelope::Legacy(signed) => {
                                     let tx = signed.tx();
 
@@ -279,39 +281,39 @@ impl BlockParser for AnyRpcBlock {
                             // for legacy transactions. This handles converting back to
                             // proper chain type.
                             let other = &transaction.other;
-                            match chain {
-                                Chain::Ethereum => common_tx,
-                                Chain::ZKsync => match common_tx {
+                            Ok(match chain {
+                                Chain::Ethereum => eth_tx_data,
+                                Chain::ZKsync => match eth_tx_data {
                                     RpcTransactionData::Ethereum(t) => {
                                         RpcTransactionData::ZKsync(ZKsyncRpcTransactionData {
                                             common: CommonRpcTransactionData {
                                                 max_fee_per_gas: other
                                                     .get_deserialized::<String>("maxFeePerGas")
                                                     .and_then(std::result::Result::ok)
-                                                    .map(|hex_str| hex_to_u128(hex_str)
-                                                        .expect("failed to convert 'maxFeePerGas' hex to u128")),
+                                                    .map(hex_to_u128)
+                                                    .transpose()?,
                                                 max_priority_fee_per_gas: other
                                                     .get_deserialized::<String>("maxPriorityFeePerGas")
                                                     .and_then(std::result::Result::ok)
-                                                    .map(|hex_str| hex_to_u128(hex_str)
-                                                        .expect("failed to convert 'maxPriorityFeePerGas' hex to u128")),                                                        
+                                                    .map(hex_to_u128)
+                                                    .transpose()?,
                                                 ..t.common
                                             },
                                             l1_batch_number: other
                                                 .get_deserialized::<String>("l1BatchNumber")
                                                 .and_then(std::result::Result::ok)
-                                                .map(|hex_str| hex_to_u64(hex_str)
-                                                    .expect("failed to convert 'l1BatchNumber' hex to u64")),
+                                                .map(hex_to_u64)
+                                                .transpose()?,
                                             l1_batch_tx_index: other
                                                 .get_deserialized::<String>("l1BatchTxIndex")
                                                 .and_then(std::result::Result::ok)
-                                                .map(|hex_str| hex_to_u64(hex_str)
-                                                    .expect("failed to convert 'l1BatchTxIndex' hex to u64")),
+                                                .map(hex_to_u64)
+                                                .transpose()?,
                                         })
                                     },
                                     _ => unreachable!("Expected Ethereum transaction format for legacy transaction")
                                 }
-                            }
+                            })
                         }
                         // Ethereum should never enter this match arm
                         // Other chains will enter this match arm for tx_type != Legacy
@@ -322,31 +324,45 @@ impl BlockParser for AnyRpcBlock {
                             let inner = &unknown.inner;
                             let ty = inner.ty;
 
+                            let nonce_str = other_fields
+                                .get_deserialized::<String>("nonce")
+                                .and_then(std::result::Result::ok)
+                                .ok_or_else(|| anyhow::anyhow!("'nonce' field missing"))?;
+                            let nonce = hex_to_u64(nonce_str)?;
+
+                            let gas_str = other_fields
+                                .get_deserialized::<String>("gas")
+                                .and_then(std::result::Result::ok)
+                                .ok_or_else(|| anyhow::anyhow!("'gas' field missing"))?;
+                            let gas_limit = hex_to_u64(gas_str)?;
+
+                            let to_address = other_fields
+                                .get_deserialized::<TxKind>("to")
+                                .transpose()
+                                .map_err(|e| anyhow::anyhow!("failed to deserialize 'to' as TxKind: {}", e))?
+                                .map(TransactionTo::TxKind)
+                                .or_else(|| {
+                                    // If TxKind parsing fails, try parsing as Address
+                                    other_fields
+                                        .get_deserialized::<Address>("to")
+                                        .transpose() // Convert Option<Result<Address, _>> to Result<Option<Address>, _>
+                                        .map_err(|e| anyhow::anyhow!("failed to deserialize 'to' as Address: {}", e))
+                                        .ok() // Convert Result to Option, discarding errors
+                                        .flatten() // Flatten Option<Option<Address>> to Option<Address>
+                                        .map(TransactionTo::Address)
+                                })
+                                .ok_or_else(|| anyhow::anyhow!("failed to deserialize 'to' as either TxKind or Address, or field missing"))?;
+
+
                             let common_fields = CommonRpcTransactionData {
                                 block_number,
                                 block_hash,
                                 tx_hash: unknown.hash,
                                 tx_index,
                                 tx_type: ty.0, // Gets the first element of the tuple as u8
-                                nonce: hex_to_u64(
-                                other_fields
-                                        .get_deserialized::<String>("nonce")
-                                        .expect("'nonce' field missing")
-                                        .expect("failed to deserialize 'nonce'")
-                                    ).expect("failed to convert 'nonce' hex to u64"),
+                                nonce,
                                 from_address: transaction.from,
-                                to_address: other_fields
-                                    .get_deserialized::<TxKind>("to")
-                                    .and_then(std::result::Result::ok)
-                                    .map(TransactionTo::TxKind)
-                                    .or_else(|| {
-                                        // If TxKind parsing fails, try parsing as Address
-                                        other_fields
-                                            .get_deserialized::<Address>("to")
-                                            .and_then(std::result::Result::ok)
-                                            .map(TransactionTo::Address)
-                                    })
-                                    .expect("failed to deserialize 'to' as either TxKind or Address"),
+                                to_address,
                                 input: other_fields
                                     .get_deserialized::<Bytes>("input")
                                     .and_then(std::result::Result::ok),
@@ -357,21 +373,19 @@ impl BlockParser for AnyRpcBlock {
                                 gas_price: other_fields
                                     .get_deserialized::<String>("gasPrice")
                                     .and_then(std::result::Result::ok)
-                                    .map(|hex_str| hex_to_u128(hex_str).expect("failed to convert 'gasPrice' hex to u128")),
-                                gas_limit: hex_to_u64(
-                                other_fields
-                                        .get_deserialized::<String>("gas")
-                                        .expect("'gas' field missing")
-                                        .expect("failed to deserialize 'gas'")
-                                    ).expect("failed to convert 'gas' hex to u64"),
+                                    .map(hex_to_u128)
+                                    .transpose()?,
+                                gas_limit,
                                 max_fee_per_gas: other_fields
                                     .get_deserialized::<String>("maxFeePerGas")
                                     .and_then(std::result::Result::ok)
-                                    .map(|hex_str| hex_to_u128(hex_str).expect("failed to convert 'maxFeePerGas' hex to u128")),
+                                    .map(hex_to_u128)
+                                    .transpose()?,
                                 max_priority_fee_per_gas: other_fields
                                     .get_deserialized::<String>("maxPriorityFeePerGas")
                                     .and_then(std::result::Result::ok)
-                                    .map(|hex_str| hex_to_u128(hex_str).expect("failed to convert 'maxPriorityFeePerGas' hex to u128")),
+                                    .map(hex_to_u128)
+                                    .transpose()?,
                                 effective_gas_price,
                                 blob_versioned_hashes: memo.blob_versioned_hashes
                                     .get()
@@ -384,26 +398,30 @@ impl BlockParser for AnyRpcBlock {
                                     unreachable!("Ethereum transactions should be handled by AnyTxEnvelope::Ethereum variant") // TODO: Should be able to get rid of this after refactor
                                 }
                                 Chain::ZKsync => {
-                                    RpcTransactionData::ZKsync(ZKsyncRpcTransactionData {
+                                    Ok(RpcTransactionData::ZKsync(ZKsyncRpcTransactionData {
                                         common: common_fields,
                                         l1_batch_number: other_fields
                                             .get_deserialized::<String>("l1BatchNumber")
                                             .and_then(std::result::Result::ok)
-                                            .map(|hex_str| hex_to_u64(hex_str).expect("failed to convert 'l1BatchNumber' hex to u64")),
+                                            .map(hex_to_u64)
+                                            .transpose()?,
                                         l1_batch_tx_index: other_fields
                                             .get_deserialized::<String>("l1BatchTxIndex")
                                             .and_then(std::result::Result::ok)
-                                            .map(|hex_str| hex_to_u64(hex_str).expect("failed to convert 'l1BatchTxIndex' hex to u64")),
-                                    })
+                                            .map(hex_to_u64)
+                                            .transpose()?,
+                                    }))
                                 }
                             }
                         }
                     }
                 })
-                .collect())
+                .collect::<Result<Vec<_>, _>>()?)
             }
-            BlockTransactions::Hashes(_) => Err(BlockError::TransactionHashesOnly.into()),
-            BlockTransactions::Uncle => Err(BlockError::UncleBlocksNotSupported.into()),
+            BlockTransactions::Hashes(_) => Err(anyhow::anyhow!(
+                "Transaction hashes only blocks are not supported"
+            )),
+            BlockTransactions::Uncle => Err(anyhow::anyhow!("Uncle blocks are not supported")),
         }
     }
 }

@@ -4,8 +4,9 @@ use crate::models::datasets::traces::{
 };
 use alloy_primitives::FixedBytes;
 use alloy_rpc_types_trace::geth::{CallFrame, GethTrace, TraceResult};
-use anyhow::Result;
 use serde_json::Value;
+
+use anyhow::Result;
 
 pub trait TraceParser {
     fn parse_traces(self, chain: Chain, block_number: u64) -> Result<Vec<RpcTraceData>>;

@@ -1,15 +1,15 @@
-chain_name: "ethereum"                     # Used in dataset names and for chain-specific logic.
+chain_name: "zksync_era"                   # Used in dataset names and for chain-specific logic.
 chain_tip_buffer: 100                      # Number of blocks to stay away from chain tip to avoid reorgs.
 
 start_block: 0                             # (Optional) Start block. 
                                            # If 0 and end_block is 0, will try to resume from the last processed block in BigQuery.
                                            # If no prior data, starts from actual block 0.
-end_block: 0                               # (Optional) End block. 
+end_block: 100                             # (Optional) End block. 
                                            # If 0, will run continuously until interrupted.
 
 rpc_url: "https://mainnet.era.zksync.io"   # URL of the RPC provider. Ensure it supports necessary methods (e.g., trace_block if traces are enabled).
 
-dataset_location: "us-central1"            # GCP region for BigQuery dataset creation (e.g., "us-central1", "europe-west2").
+dataset_location: "US"                     # GCP region for BigQuery dataset creation (e.g., "US", "europe-west2").
 
 datasets:                                  # List of datasets to index. Options: "blocks", "transactions", "logs", "traces".
   - "blocks"

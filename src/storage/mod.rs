@@ -1,13 +1,13 @@
 pub mod bigquery;
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration as StdDuration;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::{self, Sender};
 use tokio::time::{Duration, Instant};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 use crate::metrics::Metrics;
 use crate::models::common::Chain;
@@ -16,7 +16,6 @@ use crate::models::datasets::logs::TransformedLogData;
 use crate::models::datasets::traces::TransformedTraceData;
 use crate::models::datasets::transactions::TransformedTransactionData;
 use crate::storage::bigquery::insert_data;
-use crate::utils::strip_html;
 
 const MAX_CHANNEL_CAPACITY: usize = 1024;
 const BATCH_SIZE: usize = 10; // Number of blocks to batch together
@@ -56,7 +55,7 @@ impl DataChannels {
     pub async fn shutdown(self, end_block: Option<u64>) -> Result<()> {
         // Signal all workers to shutdown
         if let Err(e) = self.shutdown.send(()) {
-            error!("Failed to send shutdown signal to workers: {}", e);
+            return Err(e.into());
         }
 
         let timeout = StdDuration::from_secs(60 * 5);
@@ -85,8 +84,7 @@ impl DataChannels {
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
 
-        error!("Shutdown timed out with data still being processed");
-        Err(anyhow!("Shutdown timed out"))
+        Err(anyhow::anyhow!("Shutdown timeout"))
     }
 
     fn all_workers_completed(&self, target_block: u64) -> bool {
@@ -137,32 +135,34 @@ impl DataChannels {
             && self.traces_tx.capacity() == MAX_CHANNEL_CAPACITY
     }
 
-    pub async fn send_dataset(&self, dataset_type: DatasetType, block_number: u64) {
+    pub async fn send_dataset(&self, dataset_type: DatasetType, block_number: u64) -> Result<()> {
         match dataset_type {
             DatasetType::Blocks(data) => {
                 if let Err(e) = self.blocks_tx.send((data, block_number)).await {
-                    error!("Failed to send blocks batch to channel: {}", e);
+                    return Err(e.into());
                 }
             }
             DatasetType::Transactions(data) => {
                 if let Err(e) = self.transactions_tx.send((data, block_number)).await {
-                    error!("Failed to send transactions batch to channel: {}", e);
+                    return Err(e.into());
                 }
             }
             DatasetType::Logs(data) => {
                 if let Err(e) = self.logs_tx.send((data, block_number)).await {
-                    error!("Failed to send logs batch to channel: {}", e);
+                    return Err(e.into());
                 }
             }
             DatasetType::Traces(data) => {
                 if let Err(e) = self.traces_tx.send((data, block_number)).await {
-                    error!("Failed to send traces batch to channel: {}", e);
+                    return Err(e.into());
                 }
             }
         }
+        Ok(())
     }
 }
 
+// TODO: Better align/unify error handling in this function.
 pub async fn setup_channels(chain_name: &str, metrics: Option<&Metrics>) -> Result<DataChannels> {
     let (blocks_tx, mut blocks_rx) = mpsc::channel(MAX_CHANNEL_CAPACITY);
     let (transactions_tx, mut transactions_rx) = mpsc::channel(MAX_CHANNEL_CAPACITY);
@@ -195,7 +195,7 @@ pub async fn setup_channels(chain_name: &str, metrics: Option<&Metrics>) -> Resu
     let channels_clone = channels.clone();
     let metrics_clone = metrics.clone();
     tokio::spawn(async move {
-        let result = async {
+        let result: Result<()> = async {
             let mut batch = Vec::new();
             let mut min_block = u64::MAX;
             let mut max_block = 0;
@@ -216,35 +216,50 @@ pub async fn setup_channels(chain_name: &str, metrics: Option<&Metrics>) -> Resu
                         }
 
                         // Insert batch if we've collected BATCH_SIZE different blocks or if we've waited too long
-                        if block_count >= BATCH_SIZE || last_batch_time.elapsed() >= MAX_BATCH_WAIT {
-                            if !batch.is_empty() {
-                                if let Err(e) = insert_data(&blocks_dataset, "blocks", batch, (min_block, max_block), metrics_clone.as_ref()).await {
-                                    error!("Failed to insert block data: {}", strip_html(&e.to_string()));
-                                }
-                                channels_clone.update_blocks_progress(max_block);
-                                batch = Vec::new();
-                                min_block = u64::MAX;
-                                max_block = 0;
-                                block_count = 0;
-                                block_numbers.clear();
-                                last_batch_time = Instant::now();
-                            }
+                        if (block_count >= BATCH_SIZE || last_batch_time.elapsed() >= MAX_BATCH_WAIT) && !batch.is_empty() {
+                            insert_data(&blocks_dataset, "blocks", batch, (min_block, max_block), metrics_clone.as_ref())
+                                .await
+                                .map_err(|e| anyhow::anyhow!(
+                                    "Failed to insert block data batch (blocks {}-{}): {}",
+                                    min_block, max_block, &e.to_string()
+                                ))?;
+                            channels_clone.update_blocks_progress(max_block);
+                            batch = Vec::new();
+                            min_block = u64::MAX;
+                            max_block = 0;
+                            block_count = 0;
+                            block_numbers.clear();
+                            last_batch_time = Instant::now();
                         }
+
                     }
-                    _ = shutdown_rx.recv() => {
+                    res = shutdown_rx.recv() => {
+                        match res {
+                            Ok(_) => debug!("Blocks worker received shutdown signal."),
+                            Err(e) => match e {
+                                broadcast::error::RecvError::Closed => debug!("Blocks worker shutdown channel closed."),
+                                broadcast::error::RecvError::Lagged(n) => warn!("Blocks worker lagged and missed {} shutdown signals. Proceeding with shutdown.", n),
+                            },
+                        }
                         debug!("Blocks worker processing remaining items...");
                         // Process any remaining items in the batch
                         if !batch.is_empty() {
-                            if let Err(e) = insert_data(&blocks_dataset, "blocks", batch, (min_block, max_block), metrics_clone.as_ref()).await {
-                                error!("Failed to insert final block data: {}", strip_html(&e.to_string()));
-                            }
+                            insert_data(&blocks_dataset, "blocks", batch, (min_block, max_block), metrics_clone.as_ref())
+                                .await
+                                .map_err(|e| anyhow::anyhow!(
+                                    "Failed to insert final block data batch (blocks {}-{}): {}",
+                                    min_block, max_block, &e.to_string()
+                                ))?;
                             channels_clone.update_blocks_progress(max_block);
                         }
                         // Process any remaining items in the channel
                         while let Some((blocks, block_number)) = blocks_rx.recv().await {
-                            if let Err(e) = insert_data(&blocks_dataset, "blocks", blocks, (block_number, block_number), metrics_clone.as_ref()).await {
-                                error!("Failed to insert final block data: {}", strip_html(&e.to_string()));
-                            }
+                            insert_data(&blocks_dataset, "blocks", blocks, (block_number, block_number), metrics_clone.as_ref())
+                                .await
+                                .map_err(|e| anyhow::anyhow!(
+                                    "Failed to insert final block data (block {}): {}",
+                                    block_number, &e.to_string()
+                                ))?;
                             channels_clone.update_blocks_progress(block_number);
                         }
                         debug!("Blocks worker completed");
@@ -252,11 +267,11 @@ pub async fn setup_channels(chain_name: &str, metrics: Option<&Metrics>) -> Resu
                     }
                 }
             }
-            Ok::<_, anyhow::Error>(())
+            Ok(())
         }.await;
 
         if let Err(e) = result {
-            error!("Blocks worker error: {}", strip_html(&e.to_string()));
+            error!("Blocks worker error: {}", &e.to_string());
         }
         info!("Blocks worker shut down");
     });
@@ -267,7 +282,7 @@ pub async fn setup_channels(chain_name: &str, metrics: Option<&Metrics>) -> Resu
     let channels_clone = channels.clone();
     let metrics_clone = metrics.clone();
     tokio::spawn(async move {
-        let result = async {
+        let result: Result<()> = async {
             let mut batch = Vec::new();
             let mut min_block = u64::MAX;
             let mut max_block = 0;
@@ -288,35 +303,50 @@ pub async fn setup_channels(chain_name: &str, metrics: Option<&Metrics>) -> Resu
                         }
 
                         // Insert batch if we've collected BATCH_SIZE different blocks or if we've waited too long
-                        if block_count >= BATCH_SIZE || last_batch_time.elapsed() >= MAX_BATCH_WAIT {
-                            if !batch.is_empty() {
-                                if let Err(e) = insert_data(&transactions_dataset, "transactions", batch, (min_block, max_block), metrics_clone.as_ref()).await {
-                                    error!("Failed to insert transaction data: {}", strip_html(&e.to_string()));
-                                }
-                                channels_clone.update_transactions_progress(max_block);
-                                batch = Vec::new();
-                                min_block = u64::MAX;
-                                max_block = 0;
-                                block_count = 0;
-                                block_numbers.clear();
-                                last_batch_time = Instant::now();
-                            }
+                        if (block_count >= BATCH_SIZE || last_batch_time.elapsed() >= MAX_BATCH_WAIT) && !batch.is_empty() {
+                            insert_data(&transactions_dataset, "transactions", batch, (min_block, max_block), metrics_clone.as_ref())
+                                .await
+                                .map_err(|e| anyhow::anyhow!(
+                                    "Failed to insert transaction data batch (blocks {}-{}): {}",
+                                    min_block, max_block, &e.to_string()
+                                ))?;
+                            channels_clone.update_transactions_progress(max_block);
+                            batch = Vec::new();
+                            min_block = u64::MAX;
+                            max_block = 0;
+                            block_count = 0;
+                            block_numbers.clear();
+                            last_batch_time = Instant::now();
                         }
+
                     }
-                    _ = shutdown_rx.recv() => {
+                    res = shutdown_rx.recv() => {
+                        match res {
+                            Ok(_) => debug!("Transactions worker received shutdown signal."),
+                            Err(e) => match e {
+                                broadcast::error::RecvError::Closed => debug!("Transactions worker shutdown channel closed."),
+                                broadcast::error::RecvError::Lagged(n) => warn!("Transactions worker lagged and missed {} shutdown signals. Proceeding with shutdown.", n),
+                            },
+                        }
                         debug!("Transactions worker processing remaining items...");
                         // Process any remaining items in the batch
                         if !batch.is_empty() {
-                            if let Err(e) = insert_data(&transactions_dataset, "transactions", batch, (min_block, max_block), metrics_clone.as_ref()).await {
-                                error!("Failed to insert final transaction data: {}", strip_html(&e.to_string()));
-                            }
+                            insert_data(&transactions_dataset, "transactions", batch, (min_block, max_block), metrics_clone.as_ref())
+                                .await
+                                .map_err(|e| anyhow::anyhow!(
+                                    "Failed to insert final transaction data batch (blocks {}-{}): {}",
+                                    min_block, max_block, &e.to_string()
+                                ))?;
                             channels_clone.update_transactions_progress(max_block);
                         }
                         // Process any remaining items in the channel
                         while let Some((transactions, block_number)) = transactions_rx.recv().await {
-                            if let Err(e) = insert_data(&transactions_dataset, "transactions", transactions, (block_number, block_number), metrics_clone.as_ref()).await {
-                                error!("Failed to insert final transaction data: {}", strip_html(&e.to_string()));
-                            }
+                            insert_data(&transactions_dataset, "transactions", transactions, (block_number, block_number), metrics_clone.as_ref())
+                                .await
+                                .map_err(|e| anyhow::anyhow!(
+                                    "Failed to insert final transaction data (block {}): {}",
+                                    block_number, &e.to_string()
+                                ))?;
                             channels_clone.update_transactions_progress(block_number);
                         }
                         debug!("Transactions worker completed");
@@ -324,11 +354,11 @@ pub async fn setup_channels(chain_name: &str, metrics: Option<&Metrics>) -> Resu
                     }
                 }
             }
-            Ok::<_, anyhow::Error>(())
+            Ok(())
         }.await;
 
         if let Err(e) = result {
-            error!("Transactions worker error: {}", strip_html(&e.to_string()));
+            error!("Transactions worker error: {}", &e.to_string());
         }
         info!("Transactions worker shut down");
     });
@@ -339,7 +369,7 @@ pub async fn setup_channels(chain_name: &str, metrics: Option<&Metrics>) -> Resu
     let channels_clone = channels.clone();
     let metrics_clone = metrics.clone();
     tokio::spawn(async move {
-        let result = async {
+        let result: Result<()> = async {
             let mut batch = Vec::new();
             let mut min_block = u64::MAX;
             let mut max_block = 0;
@@ -360,35 +390,50 @@ pub async fn setup_channels(chain_name: &str, metrics: Option<&Metrics>) -> Resu
                         }
 
                         // Insert batch if we've collected BATCH_SIZE different blocks or if we've waited too long
-                        if block_count >= BATCH_SIZE || last_batch_time.elapsed() >= MAX_BATCH_WAIT {
-                            if !batch.is_empty() {
-                                if let Err(e) = insert_data(&logs_dataset, "logs", batch, (min_block, max_block), metrics_clone.as_ref()).await {
-                                    error!("Failed to insert log data: {}", strip_html(&e.to_string()));
-                                }
-                                channels_clone.update_logs_progress(max_block);
-                                batch = Vec::new();
-                                min_block = u64::MAX;
-                                max_block = 0;
-                                block_count = 0;
-                                block_numbers.clear();
-                                last_batch_time = Instant::now();
-                            }
+                        if (block_count >= BATCH_SIZE || last_batch_time.elapsed() >= MAX_BATCH_WAIT) && !batch.is_empty() {
+                            insert_data(&logs_dataset, "logs", batch, (min_block, max_block), metrics_clone.as_ref())
+                                .await
+                                .map_err(|e| anyhow::anyhow!(
+                                    "Failed to insert log data batch (blocks {}-{}): {}",
+                                    min_block, max_block, &e.to_string()
+                                ))?;
+                            channels_clone.update_logs_progress(max_block);
+                            batch = Vec::new();
+                            min_block = u64::MAX;
+                            max_block = 0;
+                            block_count = 0;
+                            block_numbers.clear();
+                            last_batch_time = Instant::now();
                         }
+
                     }
-                    _ = shutdown_rx.recv() => {
+                    res = shutdown_rx.recv() => {
+                        match res {
+                            Ok(_) => debug!("Logs worker received shutdown signal."),
+                            Err(e) => match e {
+                                broadcast::error::RecvError::Closed => debug!("Logs worker shutdown channel closed."),
+                                broadcast::error::RecvError::Lagged(n) => warn!("Logs worker lagged and missed {} shutdown signals. Proceeding with shutdown.", n),
+                            },
+                        }
                         debug!("Logs worker processing remaining items...");
                         // Process any remaining items in the batch
                         if !batch.is_empty() {
-                            if let Err(e) = insert_data(&logs_dataset, "logs", batch, (min_block, max_block), metrics_clone.as_ref()).await {
-                                error!("Failed to insert final log data: {}", strip_html(&e.to_string()));
-                            }
+                            insert_data(&logs_dataset, "logs", batch, (min_block, max_block), metrics_clone.as_ref())
+                                .await
+                                .map_err(|e| anyhow::anyhow!(
+                                    "Failed to insert final log data batch (blocks {}-{}): {}",
+                                    min_block, max_block, &e.to_string()
+                                ))?;
                             channels_clone.update_logs_progress(max_block);
                         }
                         // Process any remaining items in the channel
                         while let Some((logs, block_number)) = logs_rx.recv().await {
-                            if let Err(e) = insert_data(&logs_dataset, "logs", logs, (block_number, block_number), metrics_clone.as_ref()).await {
-                                error!("Failed to insert final log data: {}", strip_html(&e.to_string()));
-                            }
+                            insert_data(&logs_dataset, "logs", logs, (block_number, block_number), metrics_clone.as_ref())
+                                .await
+                                .map_err(|e| anyhow::anyhow!(
+                                    "Failed to insert final log data (block {}): {}",
+                                    block_number, &e.to_string()
+                                ))?;
                             channels_clone.update_logs_progress(block_number);
                         }
                         debug!("Logs worker completed");
@@ -396,11 +441,11 @@ pub async fn setup_channels(chain_name: &str, metrics: Option<&Metrics>) -> Resu
                     }
                 }
             }
-            Ok::<_, anyhow::Error>(())
+            Ok(())
         }.await;
 
         if let Err(e) = result {
-            error!("Logs worker error: {}", strip_html(&e.to_string()));
+            error!("Logs worker error: {}", &e.to_string());
         }
         info!("Logs worker shut down");
     });
@@ -411,7 +456,7 @@ pub async fn setup_channels(chain_name: &str, metrics: Option<&Metrics>) -> Resu
     let channels_clone = channels.clone();
     let metrics_clone = metrics.clone();
     tokio::spawn(async move {
-        let result = async {
+        let result: Result<()> = async {
             let mut batch = Vec::new();
             let mut min_block = u64::MAX;
             let mut max_block = 0;
@@ -432,35 +477,50 @@ pub async fn setup_channels(chain_name: &str, metrics: Option<&Metrics>) -> Resu
                         }
 
                         // Insert batch if we've collected BATCH_SIZE different blocks or if we've waited too long
-                        if block_count >= BATCH_SIZE || last_batch_time.elapsed() >= MAX_BATCH_WAIT {
-                            if !batch.is_empty() {
-                                if let Err(e) = insert_data(&traces_dataset, "traces", batch, (min_block, max_block), metrics_clone.as_ref()).await {
-                                    error!("Failed to insert trace data: {}", strip_html(&e.to_string()));
-                                }
-                                channels_clone.update_traces_progress(max_block);
-                                batch = Vec::new();
-                                min_block = u64::MAX;
-                                max_block = 0;
-                                block_count = 0;
-                                block_numbers.clear();
-                                last_batch_time = Instant::now();
-                            }
+                        if (block_count >= BATCH_SIZE || last_batch_time.elapsed() >= MAX_BATCH_WAIT) && !batch.is_empty() {
+                            insert_data(&traces_dataset, "traces", batch, (min_block, max_block), metrics_clone.as_ref())
+                                .await
+                                .map_err(|e| anyhow::anyhow!(
+                                    "Failed to insert trace data batch (blocks {}-{}): {}",
+                                    min_block, max_block, &e.to_string()
+                                ))?;
+                            channels_clone.update_traces_progress(max_block);
+                            batch = Vec::new();
+                            min_block = u64::MAX;
+                            max_block = 0;
+                            block_count = 0;
+                            block_numbers.clear();
+                            last_batch_time = Instant::now();
                         }
+
                     }
-                    _ = shutdown_rx.recv() => {
+                    res = shutdown_rx.recv() => {
+                        match res {
+                            Ok(_) => debug!("Traces worker received shutdown signal."),
+                            Err(e) => match e {
+                                broadcast::error::RecvError::Closed => debug!("Traces worker shutdown channel closed."),
+                                broadcast::error::RecvError::Lagged(n) => warn!("Traces worker lagged and missed {} shutdown signals. Proceeding with shutdown.", n),
+                            },
+                        }
                         debug!("Traces worker processing remaining items...");
                         // Process any remaining items in the batch
                         if !batch.is_empty() {
-                            if let Err(e) = insert_data(&traces_dataset, "traces", batch, (min_block, max_block), metrics_clone.as_ref()).await {
-                                error!("Failed to insert final trace data: {}", strip_html(&e.to_string()));
-                            }
+                            insert_data(&traces_dataset, "traces", batch, (min_block, max_block), metrics_clone.as_ref())
+                                .await
+                                .map_err(|e| anyhow::anyhow!(
+                                    "Failed to insert final trace data batch (blocks {}-{}): {}",
+                                    min_block, max_block, &e.to_string()
+                                ))?;
                             channels_clone.update_traces_progress(max_block);
                         }
                         // Process any remaining items in the channel
                         while let Some((traces, block_number)) = traces_rx.recv().await {
-                            if let Err(e) = insert_data(&traces_dataset, "traces", traces, (block_number, block_number), metrics_clone.as_ref()).await {
-                                error!("Failed to insert final trace data: {}", strip_html(&e.to_string()));
-                            }
+                            insert_data(&traces_dataset, "traces", traces, (block_number, block_number), metrics_clone.as_ref())
+                                .await
+                                .map_err(|e| anyhow::anyhow!(
+                                    "Failed to insert final trace data (block {}): {}",
+                                    block_number, &e.to_string()
+                                ))?;
                             channels_clone.update_traces_progress(block_number);
                         }
                         debug!("Traces worker completed");
@@ -468,11 +528,11 @@ pub async fn setup_channels(chain_name: &str, metrics: Option<&Metrics>) -> Resu
                     }
                 }
             }
-            Ok::<_, anyhow::Error>(())
+            Ok(())
         }.await;
 
         if let Err(e) = result {
-            error!("Traces worker error: {}", strip_html(&e.to_string()));
+            error!("Traces worker error: {}", &e.to_string());
         }
         info!("Traces worker shut down");
     });

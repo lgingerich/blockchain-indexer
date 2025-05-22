@@ -1,6 +1,5 @@
 use alloy_consensus::Eip658Value;
 use alloy_network::AnyTransactionReceipt;
-use anyhow::Result;
 use chrono::DateTime;
 
 use crate::models::common::Chain;
@@ -12,6 +11,8 @@ use crate::models::datasets::transactions::{
     ZKsyncRpcTransactionReceiptData,
 };
 use crate::utils::{hex_to_u64, sanitize_block_time};
+
+use anyhow::Result;
 
 pub trait ReceiptParser {
     fn parse_transaction_receipts(&self, chain: Chain) -> Result<Vec<RpcTransactionReceiptData>>;
@@ -56,19 +57,15 @@ impl ReceiptParser for Vec<AnyTransactionReceipt> {
                             .other
                             .get_deserialized::<String>("l1BatchNumber")
                             .and_then(std::result::Result::ok)
-                            .map(|hex_str| {
-                                hex_to_u64(hex_str)
-                                    .expect("failed to convert 'l1BatchNumber' hex to u64")
-                            });
+                            .map(hex_to_u64)
+                            .transpose()?;
 
                         let l1_batch_tx_index = receipt
                             .other
                             .get_deserialized::<String>("l1BatchTxIndex")
                             .and_then(std::result::Result::ok)
-                            .map(|hex_str| {
-                                hex_to_u64(hex_str)
-                                    .expect("failed to convert 'l1BatchTxIndex' hex to u64")
-                            });
+                            .map(hex_to_u64)
+                            .transpose()?;
 
                         RpcTransactionReceiptData::ZKsync(ZKsyncRpcTransactionReceiptData {
                             common,
@@ -100,10 +97,10 @@ impl ReceiptParser for Vec<AnyTransactionReceipt> {
                         let block_time = if let (Some(block_num), Some(time)) =
                             (log.block_number, original_time)
                         {
-                            Some(sanitize_block_time(block_num, time))
+                            sanitize_block_time(block_num, time).map(Some)
                         } else {
-                            original_time
-                        };
+                            Ok(original_time)
+                        }?;
 
                         let common = CommonRpcLogReceiptData {
                             block_time,

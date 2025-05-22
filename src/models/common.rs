@@ -1,4 +1,5 @@
 use alloy_primitives::{Address, TxKind};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::models::datasets::blocks::{RpcHeaderData, TransformedBlockData};
@@ -7,7 +8,6 @@ use crate::models::datasets::traces::{RpcTraceData, TransformedTraceData};
 use crate::models::datasets::transactions::{
     RpcTransactionData, RpcTransactionReceiptData, TransformedTransactionData,
 };
-use crate::models::errors::ChainError;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MetricsConfig {
@@ -35,13 +35,12 @@ pub enum Chain {
 }
 
 impl Chain {
-    pub fn from_chain_id(chain_id: u64) -> Result<Self, ChainError> {
+    pub fn from_chain_id(chain_id: u64) -> Result<Self> {
         match chain_id {
             1 => Ok(Self::Ethereum),
-            232 | 320 | 324 | 325 | 388 | 1217 | 1345 | 2741 | 2904 | 9637 | 50104 | 61166 | 543210 => {
-                Ok(Self::ZKsync)
-            } // Lens | ZKcandy | ZKsync Era | GRVT | OpenZK | SxT | Cronos zkEVM | Abstract | Ripio LaChain | WonderFi |Sophon | Treasure Chain | Zero Network
-            _ => Err(ChainError::UnsupportedChainId { chain_id }),
+            232 | 320 | 324 | 325 | 388 | 1217 | 1345 | 2741 | 2904 | 9637 | 50104 | 61166
+            | 543210 => Ok(Self::ZKsync), // Lens | ZKcandy | ZKsync Era | GRVT | OpenZK | SxT | Cronos zkEVM | Abstract | Ripio LaChain | WonderFi |Sophon | Treasure Chain | Zero Network
+            _ => Err(anyhow::anyhow!("Unsupported chain id: {}", chain_id)),
         }
     }
 }
