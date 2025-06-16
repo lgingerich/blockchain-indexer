@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use axum::{extract::State, http::StatusCode, routing::get, Router};
 use opentelemetry::metrics::{Counter, Gauge, Histogram, MeterProvider};
+use opentelemetry::{KeyValue};
 use opentelemetry_sdk::metrics::SdkMeterProvider;
 use prometheus::{Encoder, TextEncoder};
 use std::net::SocketAddr;
@@ -12,6 +13,9 @@ pub struct Metrics {
     registry: Arc<prometheus::Registry>,
     _provider: SdkMeterProvider,
     pub chain_name: String,
+    
+    // Pre-computed common attributes to avoid repeated allocations
+    common_attributes: Vec<KeyValue>,
 
     // Block processing metrics
     pub blocks_processed: Counter<u64>,
@@ -46,6 +50,9 @@ impl Metrics {
         // Set up a meter to create instruments
         let provider = SdkMeterProvider::builder().with_reader(exporter).build();
         let meter = provider.meter("indexer_metrics");
+
+        // Pre-compute common attributes
+        let common_attributes = vec![KeyValue::new("chain", chain_name.clone())];
 
         let blocks_processed = meter
             .u64_counter("indexer_blocks_processed")
@@ -114,6 +121,7 @@ impl Metrics {
             registry: Arc::new(registry),
             _provider: provider,
             chain_name,
+            common_attributes,
             blocks_processed,
             blocks_per_second,
             latest_processed_block,
@@ -126,6 +134,71 @@ impl Metrics {
             bigquery_insert_latency,
             bigquery_batch_size,
         })
+    }
+
+    // Convenience methods for recording metrics with pre-computed attributes
+    
+    pub fn record_blocks_processed(&self, count: u64) {
+        self.blocks_processed.add(count, &self.common_attributes);
+    }
+    
+    pub fn record_blocks_per_second(&self, rate: f64) {
+        self.blocks_per_second.record(rate, &self.common_attributes);
+    }
+    
+    pub fn record_latest_processed_block(&self, block_num: u64) {
+        self.latest_processed_block.record(block_num, &self.common_attributes);
+    }
+    
+    pub fn record_latest_block_processing_time(&self, time_secs: f64) {
+        self.latest_block_processing_time.record(time_secs, &self.common_attributes);
+    }
+    
+    pub fn record_chain_tip(&self, block_num: u64) {
+        self.chain_tip_block.record(block_num, &self.common_attributes);
+    }
+    
+    pub fn record_chain_tip_lag(&self, lag: u64) {
+        self.chain_tip_lag.record(lag, &self.common_attributes);
+    }
+    
+    pub fn record_rpc_request(&self, method: &str) {
+        let mut attrs = self.common_attributes.clone();
+        attrs.push(KeyValue::new("method", method.to_string()));
+        self.rpc_requests.add(1, &attrs);
+    }
+    
+    pub fn record_rpc_error(&self, method: &str) {
+        let mut attrs = self.common_attributes.clone();
+        attrs.push(KeyValue::new("method", method.to_string()));
+        self.rpc_errors.add(1, &attrs);
+    }
+    
+    pub fn record_rpc_latency(&self, method: &str, latency_secs: f64) {
+        let mut attrs = self.common_attributes.clone();
+        attrs.push(KeyValue::new("method", method.to_string()));
+        self.rpc_latency.record(latency_secs, &attrs);
+    }
+    
+    pub fn record_bigquery_insert_latency(&self, latency_secs: f64) {
+        self.bigquery_insert_latency.record(latency_secs, &self.common_attributes);
+    }
+    
+    pub fn record_bigquery_batch_size(&self, size: f64) {
+        self.bigquery_batch_size.record(size, &self.common_attributes);
+    }
+
+    // Optimized methods for BigQuery that include table name
+    pub fn record_bigquery_insert_latency_with_table(&self, table: &str, latency_secs: f64) {
+        let mut attrs = self.common_attributes.clone();
+        attrs.push(KeyValue::new("table", table.to_string()));
+        self.bigquery_insert_latency.record(latency_secs, &attrs);
+    }
+    
+    pub fn record_bigquery_batch_size_with_table(&self, table: &str, size: f64) {
+        let mut attrs = self.common_attributes.clone();
+        attrs.push(KeyValue::new("table", table.to_string()));
+        self.bigquery_batch_size.record(size, &attrs);
     }
 
     pub async fn start_metrics_server(&self, addr: &str, port: u16) -> Result<()> {

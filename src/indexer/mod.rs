@@ -15,7 +15,6 @@ use alloy_rpc_types_trace::{
 
 use alloy_primitives::FixedBytes;
 use alloy_transport::Transport;
-use opentelemetry::KeyValue;
 use std::collections::HashMap;
 use tracing::warn;
 
@@ -69,13 +68,7 @@ where
 
             // Record metrics if enabled
             if let Some(metrics) = metrics {
-                metrics.rpc_requests.add(
-                    1,
-                    &[
-                        KeyValue::new("chain", metrics.chain_name.clone()),
-                        KeyValue::new("method", "get_chain_id"),
-                    ],
-                );
+                metrics.record_rpc_request("get_chain_id");
             }
 
             let result = provider
@@ -85,22 +78,10 @@ where
 
             // Record metrics if enabled
             if let Some(metrics) = metrics {
-                metrics.rpc_latency.record(
-                    start.elapsed().as_secs_f64(),
-                    &[
-                        KeyValue::new("chain", metrics.chain_name.clone()),
-                        KeyValue::new("method", "get_chain_id"),
-                    ],
-                );
-
+                metrics.record_rpc_latency("get_chain_id", start.elapsed().as_secs_f64());
+                
                 if result.is_err() {
-                    metrics.rpc_errors.add(
-                        1,
-                        &[
-                            KeyValue::new("chain", metrics.chain_name.clone()),
-                            KeyValue::new("method", "get_chain_id"),
-                        ],
-                    );
+                    metrics.record_rpc_error("get_chain_id");
                 }
             }
 
@@ -126,13 +107,7 @@ where
             let start = std::time::Instant::now();
 
             if let Some(metrics) = metrics {
-                metrics.rpc_requests.add(
-                    1,
-                    &[
-                        KeyValue::new("chain", metrics.chain_name.clone()),
-                        KeyValue::new("method", "get_latest_block_number"),
-                    ],
-                );
+                metrics.record_rpc_request("get_latest_block_number");
             }
 
             let result = provider
@@ -142,21 +117,9 @@ where
 
             // Record metrics if enabled
             if let Some(metrics) = metrics {
-                metrics.rpc_latency.record(
-                    start.elapsed().as_secs_f64(),
-                    &[
-                        KeyValue::new("chain", metrics.chain_name.clone()),
-                        KeyValue::new("method", "get_latest_block_number"),
-                    ],
-                );
+                metrics.record_rpc_latency("get_latest_block_number", start.elapsed().as_secs_f64());
                 if result.is_err() {
-                    metrics.rpc_errors.add(
-                        1,
-                        &[
-                            KeyValue::new("chain", metrics.chain_name.clone()),
-                            KeyValue::new("method", "get_latest_block_number"),
-                        ],
-                    );
+                    metrics.record_rpc_error("get_latest_block_number");
                 }
             }
 
@@ -184,13 +147,7 @@ where
             let start = std::time::Instant::now();
 
             if let Some(metrics) = metrics {
-                metrics.rpc_requests.add(
-                    1,
-                    &[
-                        KeyValue::new("chain", metrics.chain_name.clone()),
-                        KeyValue::new("method", "get_block_by_number"),
-                    ],
-                );
+                metrics.record_rpc_request("get_block_by_number");
             }
 
             let result = provider
@@ -205,21 +162,9 @@ where
 
             // Record metrics if enabled
             if let Some(metrics) = metrics {
-                metrics.rpc_latency.record(
-                    start.elapsed().as_secs_f64(),
-                    &[
-                        KeyValue::new("chain", metrics.chain_name.clone()),
-                        KeyValue::new("method", "get_block_by_number"),
-                    ],
-                );
+                metrics.record_rpc_latency("get_block_by_number", start.elapsed().as_secs_f64());
                 if result.is_err() {
-                    metrics.rpc_errors.add(
-                        1,
-                        &[
-                            KeyValue::new("chain", metrics.chain_name.clone()),
-                            KeyValue::new("method", "get_block_by_number"),
-                        ],
-                    );
+                    metrics.record_rpc_error("get_block_by_number");
                 }
             }
 
@@ -246,13 +191,7 @@ where
             let start = std::time::Instant::now();
 
             if let Some(metrics) = metrics {
-                metrics.rpc_requests.add(
-                    1,
-                    &[
-                        KeyValue::new("chain", metrics.chain_name.clone()),
-                        KeyValue::new("method", "get_block_receipts"),
-                    ],
-                );
+                metrics.record_rpc_request("get_block_receipts");
             }
 
             let result = provider.get_block_receipts(block).await.with_context(|| {
@@ -261,21 +200,9 @@ where
 
             // Record metrics if enabled
             if let Some(metrics) = metrics {
-                metrics.rpc_latency.record(
-                    start.elapsed().as_secs_f64(),
-                    &[
-                        KeyValue::new("chain", metrics.chain_name.clone()),
-                        KeyValue::new("method", "get_block_receipts"),
-                    ],
-                );
+                metrics.record_rpc_latency("get_block_receipts", start.elapsed().as_secs_f64());
                 if result.is_err() {
-                    metrics.rpc_errors.add(
-                        1,
-                        &[
-                            KeyValue::new("chain", metrics.chain_name.clone()),
-                            KeyValue::new("method", "get_block_receipts"),
-                        ],
-                    );
+                    metrics.record_rpc_error("get_block_receipts");
                 }
             }
 
@@ -305,13 +232,7 @@ where
             let start = std::time::Instant::now();
 
             if let Some(metrics) = metrics {
-                metrics.rpc_requests.add(
-                    1,
-                    &[
-                        KeyValue::new("chain", metrics.chain_name.clone()),
-                        KeyValue::new("method", "debug_trace_transaction"),
-                    ],
-                );
+                metrics.record_rpc_request("debug_trace_transaction");
             }
 
             // Process transactions in batches
@@ -358,13 +279,7 @@ where
                             }
 
                             if let Some(metrics) = metrics {
-                                metrics.rpc_errors.add(
-                                    1,
-                                    &[
-                                        KeyValue::new("chain", metrics.chain_name.clone()),
-                                        KeyValue::new("method", "debug_trace_transaction"),
-                                    ],
-                                );
+                                metrics.record_rpc_error("debug_trace_transaction");
                             }
                             return Err(e);
                         }
@@ -374,13 +289,7 @@ where
 
             // Record metrics if enabled
             if let Some(metrics) = metrics {
-                metrics.rpc_latency.record(
-                    start.elapsed().as_secs_f64(),
-                    &[
-                        KeyValue::new("chain", metrics.chain_name.clone()),
-                        KeyValue::new("method", "debug_trace_transaction"),
-                    ],
-                );
+                metrics.record_rpc_latency("debug_trace_transaction", start.elapsed().as_secs_f64());
             }
 
             Ok(Some(all_traces))

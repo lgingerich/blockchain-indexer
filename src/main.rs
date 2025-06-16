@@ -10,7 +10,6 @@ use alloy_provider::ProviderBuilder;
 use anyhow::Result;
 
 use futures::{stream::FuturesUnordered, StreamExt};
-use opentelemetry::KeyValue;
 use tokio::{signal, time::Instant};
 use tracing::{error, info};
 use tracing_subscriber::{self, EnvFilter};
@@ -266,25 +265,14 @@ async fn main() -> Result<()> {
 
                 // Update metrics for this block if available
                 if let Some(metrics_instance) = metrics_ref {
-                    metrics_instance.blocks_processed.add(
-                        1,
-                        &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
+                    metrics_instance.record_blocks_processed(1);
+                    metrics_instance.record_latest_processed_block(*block_num);
+                    metrics_instance.record_latest_block_processing_time(
+                        block_start_time.elapsed().as_secs_f64()
                     );
-                    metrics_instance.latest_processed_block.record(
-                        *block_num,
-                        &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
-                    );
-                    metrics_instance.latest_block_processing_time.record(
-                        block_start_time.elapsed().as_secs_f64(),
-                        &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
-                    );
-                    metrics_instance.chain_tip_block.record(
-                        last_known_latest_block,
-                        &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
-                    );
-                    metrics_instance.chain_tip_lag.record(
-                        last_known_latest_block.saturating_sub(*block_num),
-                        &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
+                    metrics_instance.record_chain_tip(last_known_latest_block);
+                    metrics_instance.record_chain_tip_lag(
+                        last_known_latest_block.saturating_sub(*block_num)
                     );
                 }
 
@@ -376,10 +364,7 @@ async fn main() -> Result<()> {
             let elapsed = last_metric_update.elapsed();
             if elapsed.as_secs() >= 1 {
                 let blocks_per_second = blocks_since_last_metric as f64 / elapsed.as_secs_f64();
-                metrics_instance.blocks_per_second.record(
-                    blocks_per_second,
-                    &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
-                );
+                metrics_instance.record_blocks_per_second(blocks_per_second);
 
                 // Reset counters
                 blocks_since_last_metric = 0;
