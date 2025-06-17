@@ -187,7 +187,7 @@ pub async fn setup_channels(chain_name: &str, metrics: Option<&Metrics>) -> Resu
     };
 
     // Clone metrics once at the beginning if it exists
-    let metrics = metrics.map(|m| m.clone());
+    let metrics = metrics.cloned();
 
     // Spawn worker for blocks
     let blocks_dataset = chain_name.to_owned();

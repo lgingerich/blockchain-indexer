@@ -4,9 +4,7 @@ pub mod transformations;
 use anyhow::{Context, Result};
 
 use alloy_eips::{BlockId, BlockNumberOrTag};
-use alloy_network::{
-    AnyRpcBlock, AnyTransactionReceipt, Network, BlockResponse,
-};
+use alloy_network::{AnyRpcBlock, AnyTransactionReceipt, BlockResponse, Network};
 use alloy_provider::{ext::DebugApi, Provider};
 use alloy_rpc_types_trace::{
     common::TraceResult,
@@ -50,10 +48,7 @@ where
 {
 }
 
-pub async fn get_chain_id<N>(
-    provider: &dyn Provider<N>,
-    metrics: Option<&Metrics>,
-) -> Result<u64>
+pub async fn get_chain_id<N>(provider: &dyn Provider<N>, metrics: Option<&Metrics>) -> Result<u64>
 where
     N: Network,
 {
@@ -75,7 +70,7 @@ where
             // Record metrics if enabled
             if let Some(metrics) = metrics {
                 metrics.record_rpc_latency("get_chain_id", start.elapsed().as_secs_f64());
-                
+
                 if result.is_err() {
                     metrics.record_rpc_error("get_chain_id");
                 }
@@ -112,7 +107,8 @@ where
 
             // Record metrics if enabled
             if let Some(metrics) = metrics {
-                metrics.record_rpc_latency("get_latest_block_number", start.elapsed().as_secs_f64());
+                metrics
+                    .record_rpc_latency("get_latest_block_number", start.elapsed().as_secs_f64());
                 if result.is_err() {
                     metrics.record_rpc_error("get_latest_block_number");
                 }
@@ -144,7 +140,8 @@ where
             }
 
             let result = provider
-                .get_block(block_number.into()).full()
+                .get_block(block_number.into())
+                .full()
                 .await
                 .with_context(|| {
                     format!(
@@ -457,7 +454,6 @@ where
         None
     };
 
-
     // Fetch traces if needed
     let traces = if need_traces {
         // Get transaction hashes from block if we have it
@@ -492,40 +488,39 @@ where
             Vec::new()
         };
 
-
-    // // Fetch traces if needed
-    // let traces = if need_traces {
-    //     // Get transaction hashes from block if we have it
-    //     let tx_hashes = if let Some(block_data) = &block {
-    //         block_data
-    //             .transactions()
-    //             .map(|transaction| match &transaction.inner.inner {
-    //                 AnyTxEnvelope::Ethereum(inner) => match inner {
-    //                     TxEnvelope::Legacy(signed) => {
-    //                         (*signed.hash(), transaction.transaction_index)
-    //                     }
-    //                     TxEnvelope::Eip2930(signed) => {
-    //                         (*signed.hash(), transaction.transaction_index)
-    //                     }
-    //                     TxEnvelope::Eip1559(signed) => {
-    //                         (*signed.hash(), transaction.transaction_index)
-    //                     }
-    //                     TxEnvelope::Eip4844(signed) => {
-    //                         (*signed.hash(), transaction.transaction_index)
-    //                     }
-    //                     TxEnvelope::Eip7702(signed) => {
-    //                         (*signed.hash(), transaction.transaction_index)
-    //                     }
-    //                     _ => (FixedBytes::<32>::ZERO, None),
-    //                 },
-    //                 AnyTxEnvelope::Unknown(unknown) => {
-    //                     (unknown.hash, transaction.transaction_index)
-    //                 }
-    //             })
-    //             .collect()
-    //     } else {
-    //         Vec::new()
-    //     };
+        // // Fetch traces if needed
+        // let traces = if need_traces {
+        //     // Get transaction hashes from block if we have it
+        //     let tx_hashes = if let Some(block_data) = &block {
+        //         block_data
+        //             .transactions()
+        //             .map(|transaction| match &transaction.inner.inner {
+        //                 AnyTxEnvelope::Ethereum(inner) => match inner {
+        //                     TxEnvelope::Legacy(signed) => {
+        //                         (*signed.hash(), transaction.transaction_index)
+        //                     }
+        //                     TxEnvelope::Eip2930(signed) => {
+        //                         (*signed.hash(), transaction.transaction_index)
+        //                     }
+        //                     TxEnvelope::Eip1559(signed) => {
+        //                         (*signed.hash(), transaction.transaction_index)
+        //                     }
+        //                     TxEnvelope::Eip4844(signed) => {
+        //                         (*signed.hash(), transaction.transaction_index)
+        //                     }
+        //                     TxEnvelope::Eip7702(signed) => {
+        //                         (*signed.hash(), transaction.transaction_index)
+        //                     }
+        //                     _ => (FixedBytes::<32>::ZERO, None),
+        //                 },
+        //                 AnyTxEnvelope::Unknown(unknown) => {
+        //                     (unknown.hash, transaction.transaction_index)
+        //                 }
+        //             })
+        //             .collect()
+        //     } else {
+        //         Vec::new()
+        //     };
 
         let trace_options = GethDebugTracingOptions {
             config: GethDefaultTracingOptions::default(),

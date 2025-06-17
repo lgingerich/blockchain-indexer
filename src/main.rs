@@ -268,12 +268,11 @@ async fn main() -> Result<()> {
                     metrics_instance.record_blocks_processed(1);
                     metrics_instance.record_latest_processed_block(*block_num);
                     metrics_instance.record_latest_block_processing_time(
-                        block_start_time.elapsed().as_secs_f64()
+                        block_start_time.elapsed().as_secs_f64(),
                     );
                     metrics_instance.record_chain_tip(last_known_latest_block);
-                    metrics_instance.record_chain_tip_lag(
-                        last_known_latest_block.saturating_sub(*block_num)
-                    );
+                    metrics_instance
+                        .record_chain_tip_lag(last_known_latest_block.saturating_sub(*block_num));
                 }
 
                 result

@@ -360,7 +360,7 @@ pub async fn insert_data<T: serde::Serialize>(
     if let Some(metrics) = metrics {
         metrics.record_bigquery_insert_latency_with_table(
             table_id,
-            batch_start.elapsed().as_secs_f64()
+            batch_start.elapsed().as_secs_f64(),
         );
     }
 

@@ -89,7 +89,6 @@ impl BlockParser for AnyRpcBlock {
         Ok(vec![header])
     }
 
-
     fn parse_transactions(&self, chain: Chain) -> Result<Vec<RpcTransactionData>> {
         match &self.transactions {
             BlockTransactions::Full(txs) => {
