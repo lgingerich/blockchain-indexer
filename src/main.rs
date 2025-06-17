@@ -73,7 +73,7 @@ async fn main() -> Result<()> {
     info!("RPC URL: {:?}", rpc_url);
     let provider = ProviderBuilder::new()
         .network::<AnyNetwork>()
-        .on_http(rpc_url);
+        .connect_http(rpc_url);
 
     // Get chain ID
     let chain_id = indexer::get_chain_id(&provider, metrics.as_ref()).await?;

@@ -12,7 +12,6 @@ use tracing::info;
 pub struct Metrics {
     registry: Arc<prometheus::Registry>,
     _provider: SdkMeterProvider,
-    pub chain_name: String,
     
     // Pre-computed common attributes to avoid repeated allocations
     common_attributes: Vec<KeyValue>,
@@ -120,7 +119,6 @@ impl Metrics {
         Ok(Self {
             registry: Arc::new(registry),
             _provider: provider,
-            chain_name,
             common_attributes,
             blocks_processed,
             blocks_per_second,
@@ -180,14 +178,6 @@ impl Metrics {
         self.rpc_latency.record(latency_secs, &attrs);
     }
     
-    pub fn record_bigquery_insert_latency(&self, latency_secs: f64) {
-        self.bigquery_insert_latency.record(latency_secs, &self.common_attributes);
-    }
-    
-    pub fn record_bigquery_batch_size(&self, size: f64) {
-        self.bigquery_batch_size.record(size, &self.common_attributes);
-    }
-
     // Optimized methods for BigQuery that include table name
     pub fn record_bigquery_insert_latency_with_table(&self, table: &str, latency_secs: f64) {
         let mut attrs = self.common_attributes.clone();
