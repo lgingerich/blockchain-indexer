@@ -6,10 +6,14 @@ mod utils;
 
 use alloy_eips::BlockNumberOrTag;
 use alloy_network::AnyNetwork;
-
+use alloy_provider::RootProvider;
+use alloy_rpc_client::RpcClient;
+use alloy_transport_http::Http;
 use anyhow::Result;
-
 use futures::{stream::FuturesUnordered, StreamExt};
+use http::{HeaderMap, HeaderValue};
+use reqwest;
+use std::{future::Future, pin::Pin};
 use tokio::{signal, time::Instant};
 use tracing::{error, info};
 use tracing_subscriber::{self, EnvFilter};
@@ -20,9 +24,6 @@ use crate::models::common::{Chain, TransformedData};
 use crate::models::datasets::blocks::TransformedBlockData;
 use crate::storage::{setup_channels, DatasetType};
 use crate::utils::load_config;
-
-use std::future::Future;
-use std::pin::Pin;
 
 const SLEEP_DURATION: u64 = 3000; // 3000 ms = 3s
 const BATCH_SIZE: usize = 10; // Number of blocks to process in parallel
@@ -68,13 +69,6 @@ async fn main() -> Result<()> {
             .await;
     }
 
-
-    use alloy_transport_http::Http;
-    use alloy_provider::RootProvider;
-    use alloy_rpc_client::RpcClient;
-    use http::{HeaderMap, HeaderValue};
-    use reqwest;
-
     // Create RPC provider with no-cache headers to ensure we always get fresh data
     // This prevents any potential caching issues that could lead to stale data
     let rpc_url: Url = rpc.parse()?;
@@ -93,7 +87,7 @@ async fn main() -> Result<()> {
     // Create RPC client and provider
     let rpc_client = RpcClient::new(http, true);
     let provider: RootProvider<AnyNetwork> = RootProvider::new(rpc_client);
-    
+
     // Get chain ID
     let chain_id = indexer::get_chain_id(&provider, metrics.as_ref()).await?;
     let chain = Chain::from_chain_id(chain_id)?;
