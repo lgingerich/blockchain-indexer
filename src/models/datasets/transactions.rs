@@ -66,9 +66,9 @@ pub struct CommonRpcTransactionReceiptData {
     pub from_address: Address,
     pub to_address: Option<Address>,
     pub contract_address: Option<Address>,
-    pub gas_used: u128,
+    pub gas_used: u64,
     pub effective_gas_price: u128,
-    pub cumulative_gas_used: u128,
+    pub cumulative_gas_used: u64,
 }
 
 // Ethereum-specific receipt
@@ -113,11 +113,11 @@ pub struct CommonTransformedTransactionData {
     pub value: Option<String>,
     pub gas_price: Option<u128>,
     pub gas_limit: u64,
-    pub gas_used: u128,
+    pub gas_used: u64,
     pub max_fee_per_gas: Option<u128>,
     pub max_priority_fee_per_gas: Option<u128>,
     pub effective_gas_price: u128,
-    pub cumulative_gas_used: u128,
+    pub cumulative_gas_used: u64,
     pub blob_versioned_hashes: Vec<FixedBytes<32>>,
 }
 

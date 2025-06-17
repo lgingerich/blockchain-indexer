@@ -18,7 +18,6 @@ use google_cloud_bigquery::http::tabledata::{
     list::Value,
 };
 use once_cell::sync::OnceCell;
-use opentelemetry::KeyValue;
 use std::sync::Arc;
 use tracing::{error, info, warn};
 
@@ -217,13 +216,7 @@ pub async fn insert_data<T: serde::Serialize>(
 
     // Record batch size if metrics enabled
     if let Some(metrics) = metrics {
-        metrics.bigquery_batch_size.record(
-            total_rows as f64,
-            &[
-                KeyValue::new("chain", metrics.chain_name.clone()),
-                KeyValue::new("table", table_id.to_string()),
-            ],
-        );
+        metrics.record_bigquery_batch_size_with_table(table_id, total_rows as f64);
     }
 
     let mut current_batch = Vec::new();
@@ -365,12 +358,9 @@ pub async fn insert_data<T: serde::Serialize>(
 
     // After batches are sent, record metrics
     if let Some(metrics) = metrics {
-        metrics.bigquery_insert_latency.record(
+        metrics.record_bigquery_insert_latency_with_table(
+            table_id,
             batch_start.elapsed().as_secs_f64(),
-            &[
-                KeyValue::new("chain", metrics.chain_name.clone()),
-                KeyValue::new("table", table_id.to_string()),
-            ],
         );
     }
 

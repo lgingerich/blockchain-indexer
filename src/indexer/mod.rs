@@ -4,9 +4,7 @@ pub mod transformations;
 use anyhow::{Context, Result};
 
 use alloy_eips::{BlockId, BlockNumberOrTag};
-use alloy_network::{
-    primitives::BlockTransactionsKind, AnyRpcBlock, AnyTransactionReceipt, Network,
-};
+use alloy_network::{AnyRpcBlock, AnyTransactionReceipt, BlockResponse, Network};
 use alloy_provider::{ext::DebugApi, Provider};
 use alloy_rpc_types_trace::{
     common::TraceResult,
@@ -14,8 +12,6 @@ use alloy_rpc_types_trace::{
 };
 
 use alloy_primitives::FixedBytes;
-use alloy_transport::Transport;
-use opentelemetry::KeyValue;
 use std::collections::HashMap;
 use tracing::warn;
 
@@ -39,27 +35,21 @@ use alloy_rpc_types_trace::geth::{
     GethDefaultTracingOptions,
 };
 
-pub trait ProviderDebugApi<T, N>: Provider<T, N> + DebugApi<N, T>
+pub trait ProviderDebugApi<N>: Provider<N> + DebugApi<N>
 where
-    T: Transport + Clone + Send + Sync,
     N: Network,
 {
 }
 
-impl<T, N, U> ProviderDebugApi<T, N> for U
+impl<N, U> ProviderDebugApi<N> for U
 where
-    U: Provider<T, N> + DebugApi<N, T>,
-    T: Transport + Clone + Send + Sync,
+    U: Provider<N> + DebugApi<N>,
     N: Network,
 {
 }
 
-pub async fn get_chain_id<T, N>(
-    provider: &dyn Provider<T, N>,
-    metrics: Option<&Metrics>,
-) -> Result<u64>
+pub async fn get_chain_id<N>(provider: &dyn Provider<N>, metrics: Option<&Metrics>) -> Result<u64>
 where
-    T: Transport + Clone,
     N: Network,
 {
     let retry_config = RetryConfig::default();
@@ -69,13 +59,7 @@ where
 
             // Record metrics if enabled
             if let Some(metrics) = metrics {
-                metrics.rpc_requests.add(
-                    1,
-                    &[
-                        KeyValue::new("chain", metrics.chain_name.clone()),
-                        KeyValue::new("method", "get_chain_id"),
-                    ],
-                );
+                metrics.record_rpc_request("get_chain_id");
             }
 
             let result = provider
@@ -85,22 +69,10 @@ where
 
             // Record metrics if enabled
             if let Some(metrics) = metrics {
-                metrics.rpc_latency.record(
-                    start.elapsed().as_secs_f64(),
-                    &[
-                        KeyValue::new("chain", metrics.chain_name.clone()),
-                        KeyValue::new("method", "get_chain_id"),
-                    ],
-                );
+                metrics.record_rpc_latency("get_chain_id", start.elapsed().as_secs_f64());
 
                 if result.is_err() {
-                    metrics.rpc_errors.add(
-                        1,
-                        &[
-                            KeyValue::new("chain", metrics.chain_name.clone()),
-                            KeyValue::new("method", "get_chain_id"),
-                        ],
-                    );
+                    metrics.record_rpc_error("get_chain_id");
                 }
             }
 
@@ -112,12 +84,11 @@ where
     .await
 }
 
-pub async fn get_latest_block_number<T, N>(
-    provider: &dyn Provider<T, N>,
+pub async fn get_latest_block_number<N>(
+    provider: &dyn Provider<N>,
     metrics: Option<&Metrics>,
 ) -> Result<BlockNumberOrTag>
 where
-    T: Transport + Clone,
     N: Network,
 {
     let retry_config = RetryConfig::default();
@@ -126,13 +97,7 @@ where
             let start = std::time::Instant::now();
 
             if let Some(metrics) = metrics {
-                metrics.rpc_requests.add(
-                    1,
-                    &[
-                        KeyValue::new("chain", metrics.chain_name.clone()),
-                        KeyValue::new("method", "get_latest_block_number"),
-                    ],
-                );
+                metrics.record_rpc_request("get_latest_block_number");
             }
 
             let result = provider
@@ -142,21 +107,10 @@ where
 
             // Record metrics if enabled
             if let Some(metrics) = metrics {
-                metrics.rpc_latency.record(
-                    start.elapsed().as_secs_f64(),
-                    &[
-                        KeyValue::new("chain", metrics.chain_name.clone()),
-                        KeyValue::new("method", "get_latest_block_number"),
-                    ],
-                );
+                metrics
+                    .record_rpc_latency("get_latest_block_number", start.elapsed().as_secs_f64());
                 if result.is_err() {
-                    metrics.rpc_errors.add(
-                        1,
-                        &[
-                            KeyValue::new("chain", metrics.chain_name.clone()),
-                            KeyValue::new("method", "get_latest_block_number"),
-                        ],
-                    );
+                    metrics.record_rpc_error("get_latest_block_number");
                 }
             }
 
@@ -168,14 +122,12 @@ where
     .await
 }
 
-pub async fn get_block_by_number<T, N>(
-    provider: &dyn Provider<T, N>,
+pub async fn get_block_by_number<N>(
+    provider: &dyn Provider<N>,
     block_number: BlockNumberOrTag,
-    kind: BlockTransactionsKind,
     metrics: Option<&Metrics>,
 ) -> Result<Option<N::BlockResponse>>
 where
-    T: Transport + Clone,
     N: Network,
 {
     let retry_config = RetryConfig::default();
@@ -184,42 +136,25 @@ where
             let start = std::time::Instant::now();
 
             if let Some(metrics) = metrics {
-                metrics.rpc_requests.add(
-                    1,
-                    &[
-                        KeyValue::new("chain", metrics.chain_name.clone()),
-                        KeyValue::new("method", "get_block_by_number"),
-                    ],
-                );
+                metrics.record_rpc_request("get_block_by_number");
             }
 
             let result = provider
-                .get_block_by_number(block_number, kind)
+                .get_block(block_number.into())
+                .full()
                 .await
                 .with_context(|| {
                     format!(
-                        "Failed request to get_block_by_number() for block number {}",
+                        "Failed request to get_block() for block number {}",
                         block_number
                     )
                 });
 
             // Record metrics if enabled
             if let Some(metrics) = metrics {
-                metrics.rpc_latency.record(
-                    start.elapsed().as_secs_f64(),
-                    &[
-                        KeyValue::new("chain", metrics.chain_name.clone()),
-                        KeyValue::new("method", "get_block_by_number"),
-                    ],
-                );
+                metrics.record_rpc_latency("get_block_by_number", start.elapsed().as_secs_f64());
                 if result.is_err() {
-                    metrics.rpc_errors.add(
-                        1,
-                        &[
-                            KeyValue::new("chain", metrics.chain_name.clone()),
-                            KeyValue::new("method", "get_block_by_number"),
-                        ],
-                    );
+                    metrics.record_rpc_error("get_block_by_number");
                 }
             }
 
@@ -231,13 +166,12 @@ where
     .await
 }
 
-pub async fn get_block_receipts<T, N>(
-    provider: &dyn Provider<T, N>,
+pub async fn get_block_receipts<N>(
+    provider: &dyn Provider<N>,
     block: BlockId,
     metrics: Option<&Metrics>,
 ) -> Result<Option<Vec<N::ReceiptResponse>>>
 where
-    T: Transport + Clone,
     N: Network,
 {
     let retry_config = RetryConfig::default();
@@ -246,13 +180,7 @@ where
             let start = std::time::Instant::now();
 
             if let Some(metrics) = metrics {
-                metrics.rpc_requests.add(
-                    1,
-                    &[
-                        KeyValue::new("chain", metrics.chain_name.clone()),
-                        KeyValue::new("method", "get_block_receipts"),
-                    ],
-                );
+                metrics.record_rpc_request("get_block_receipts");
             }
 
             let result = provider.get_block_receipts(block).await.with_context(|| {
@@ -261,21 +189,9 @@ where
 
             // Record metrics if enabled
             if let Some(metrics) = metrics {
-                metrics.rpc_latency.record(
-                    start.elapsed().as_secs_f64(),
-                    &[
-                        KeyValue::new("chain", metrics.chain_name.clone()),
-                        KeyValue::new("method", "get_block_receipts"),
-                    ],
-                );
+                metrics.record_rpc_latency("get_block_receipts", start.elapsed().as_secs_f64());
                 if result.is_err() {
-                    metrics.rpc_errors.add(
-                        1,
-                        &[
-                            KeyValue::new("chain", metrics.chain_name.clone()),
-                            KeyValue::new("method", "get_block_receipts"),
-                        ],
-                    );
+                    metrics.record_rpc_error("get_block_receipts");
                 }
             }
 
@@ -287,14 +203,13 @@ where
     .await
 }
 
-pub async fn debug_trace_transaction_by_hash<T, N>(
-    provider: &(impl DebugApi<N, T> + ?Sized),
+pub async fn debug_trace_transaction_by_hash<N>(
+    provider: &(impl DebugApi<N> + ?Sized),
     transaction_hashes: Vec<FixedBytes<32>>,
     trace_options: GethDebugTracingOptions,
     metrics: Option<&Metrics>,
 ) -> Result<Option<Vec<TraceResult<GethTrace, String>>>>
 where
-    T: Transport + Clone,
     N: Network,
 {
     const BATCH_SIZE: usize = 10; // Configurable batch size
@@ -305,13 +220,7 @@ where
             let start = std::time::Instant::now();
 
             if let Some(metrics) = metrics {
-                metrics.rpc_requests.add(
-                    1,
-                    &[
-                        KeyValue::new("chain", metrics.chain_name.clone()),
-                        KeyValue::new("method", "debug_trace_transaction"),
-                    ],
-                );
+                metrics.record_rpc_request("debug_trace_transaction");
             }
 
             // Process transactions in batches
@@ -358,13 +267,7 @@ where
                             }
 
                             if let Some(metrics) = metrics {
-                                metrics.rpc_errors.add(
-                                    1,
-                                    &[
-                                        KeyValue::new("chain", metrics.chain_name.clone()),
-                                        KeyValue::new("method", "debug_trace_transaction"),
-                                    ],
-                                );
+                                metrics.record_rpc_error("debug_trace_transaction");
                             }
                             return Err(e);
                         }
@@ -374,13 +277,7 @@ where
 
             // Record metrics if enabled
             if let Some(metrics) = metrics {
-                metrics.rpc_latency.record(
-                    start.elapsed().as_secs_f64(),
-                    &[
-                        KeyValue::new("chain", metrics.chain_name.clone()),
-                        KeyValue::new("method", "debug_trace_transaction"),
-                    ],
-                );
+                metrics.record_rpc_latency("debug_trace_transaction", start.elapsed().as_secs_f64());
             }
 
             Ok(Some(all_traces))
@@ -524,8 +421,8 @@ pub async fn transform_data(
     })
 }
 
-pub async fn process_block<T, N>(
-    provider: &impl ProviderDebugApi<T, N>,
+pub async fn process_block<N>(
+    provider: &impl ProviderDebugApi<N>,
     block_number: BlockNumberOrTag,
     chain: Chain,
     chain_id: u64,
@@ -533,7 +430,6 @@ pub async fn process_block<T, N>(
     metrics: Option<&Metrics>,
 ) -> Result<TransformedData>
 where
-    T: Transport + Clone + Send + Sync,
     N: Network<BlockResponse = AnyRpcBlock, ReceiptResponse = AnyTransactionReceipt>,
 {
     // Track which RPC responses we need to fetch
@@ -545,7 +441,7 @@ where
 
     // Fetch block data if needed
     let block = if need_block {
-        get_block_by_number(provider, block_number, BlockTransactionsKind::Full, metrics).await?
+        get_block_by_number(provider, block_number, metrics).await?
     } else {
         None
     };
@@ -563,9 +459,9 @@ where
         // Get transaction hashes from block if we have it
         let tx_hashes = if let Some(block_data) = &block {
             block_data
-                .transactions
+                .transactions()
                 .txns()
-                .map(|transaction| match &transaction.inner.inner {
+                .map(|transaction| match &*transaction.inner.inner {
                     AnyTxEnvelope::Ethereum(inner) => match inner {
                         TxEnvelope::Legacy(signed) => {
                             (*signed.hash(), transaction.transaction_index)
@@ -582,7 +478,6 @@ where
                         TxEnvelope::Eip7702(signed) => {
                             (*signed.hash(), transaction.transaction_index)
                         }
-                        _ => (FixedBytes::<32>::ZERO, None),
                     },
                     AnyTxEnvelope::Unknown(unknown) => {
                         (unknown.hash, transaction.transaction_index)
@@ -592,6 +487,40 @@ where
         } else {
             Vec::new()
         };
+
+        // // Fetch traces if needed
+        // let traces = if need_traces {
+        //     // Get transaction hashes from block if we have it
+        //     let tx_hashes = if let Some(block_data) = &block {
+        //         block_data
+        //             .transactions()
+        //             .map(|transaction| match &transaction.inner.inner {
+        //                 AnyTxEnvelope::Ethereum(inner) => match inner {
+        //                     TxEnvelope::Legacy(signed) => {
+        //                         (*signed.hash(), transaction.transaction_index)
+        //                     }
+        //                     TxEnvelope::Eip2930(signed) => {
+        //                         (*signed.hash(), transaction.transaction_index)
+        //                     }
+        //                     TxEnvelope::Eip1559(signed) => {
+        //                         (*signed.hash(), transaction.transaction_index)
+        //                     }
+        //                     TxEnvelope::Eip4844(signed) => {
+        //                         (*signed.hash(), transaction.transaction_index)
+        //                     }
+        //                     TxEnvelope::Eip7702(signed) => {
+        //                         (*signed.hash(), transaction.transaction_index)
+        //                     }
+        //                     _ => (FixedBytes::<32>::ZERO, None),
+        //                 },
+        //                 AnyTxEnvelope::Unknown(unknown) => {
+        //                     (unknown.hash, transaction.transaction_index)
+        //                 }
+        //             })
+        //             .collect()
+        //     } else {
+        //         Vec::new()
+        //     };
 
         let trace_options = GethDebugTracingOptions {
             config: GethDefaultTracingOptions::default(),

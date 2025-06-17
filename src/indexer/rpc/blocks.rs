@@ -90,18 +90,20 @@ impl BlockParser for AnyRpcBlock {
     }
 
     fn parse_transactions(&self, chain: Chain) -> Result<Vec<RpcTransactionData>> {
-        match self.transactions {
-            BlockTransactions::Full(_) => {
-                Ok(self
-                .transactions
-                .txns()
+        match &self.transactions {
+            BlockTransactions::Full(txs) => {
+                Ok(txs
+                .iter()
                 .map(|transaction| -> Result<RpcTransactionData> {
                     let inner = &transaction.inner;
                     let block_hash = transaction.block_hash;
                     let block_number = transaction.block_number;
                     let tx_index = transaction.transaction_index;
                     let effective_gas_price = transaction.effective_gas_price;
-                    let from_address = transaction.from;
+                    let from_address = transaction.other
+                        .get_deserialized::<Address>("from")
+                        .and_then(std::result::Result::ok)
+                        .unwrap_or(Address::ZERO);
 
                     // default values of mandatory fields are not too important as they will always get overrriden by the actual values
                     // TODO: Can this be improved?
@@ -128,7 +130,7 @@ impl BlockParser for AnyRpcBlock {
                     // This current method makes it difficult to get fields nested
                     // under `other` for non-Ethereum chains.
                     // - e.g. l1_batch_number, l1_batch_tx_index, max_fee_per_gas, max_priority_fee_per_gas
-                    match &inner.inner {
+                    match &*inner.inner {
                         // Ethereum will always enter this match arm
                         // Other chains will only enter this match arm for tx_type = Legacy
                         AnyTxEnvelope::Ethereum(inner) => {
@@ -267,13 +269,6 @@ impl BlockParser for AnyRpcBlock {
                                         proofs: Vec::new(),
                                     })
                                 }
-                                _ => RpcTransactionData::Ethereum(EthereumRpcTransactionData {
-                                    common,
-                                    max_fee_per_blob_gas: None,
-                                    blobs: Vec::new(),
-                                    commitments: Vec::new(),
-                                    proofs: Vec::new(),
-                                })
                             };
 
 
@@ -361,7 +356,7 @@ impl BlockParser for AnyRpcBlock {
                                 tx_index,
                                 tx_type: ty.0, // Gets the first element of the tuple as u8
                                 nonce,
-                                from_address: transaction.from,
+                                from_address,
                                 to_address,
                                 input: other_fields
                                     .get_deserialized::<Bytes>("input")

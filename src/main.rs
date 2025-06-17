@@ -6,11 +6,14 @@ mod utils;
 
 use alloy_eips::BlockNumberOrTag;
 use alloy_network::AnyNetwork;
-use alloy_provider::ProviderBuilder;
+use alloy_provider::RootProvider;
+use alloy_rpc_client::RpcClient;
+use alloy_transport_http::Http;
 use anyhow::Result;
-
 use futures::{stream::FuturesUnordered, StreamExt};
-use opentelemetry::KeyValue;
+use http::{HeaderMap, HeaderValue};
+use reqwest;
+use std::{future::Future, pin::Pin};
 use tokio::{signal, time::Instant};
 use tracing::{error, info};
 use tracing_subscriber::{self, EnvFilter};
@@ -21,9 +24,6 @@ use crate::models::common::{Chain, TransformedData};
 use crate::models::datasets::blocks::TransformedBlockData;
 use crate::storage::{setup_channels, DatasetType};
 use crate::utils::load_config;
-
-use std::future::Future;
-use std::pin::Pin;
 
 const SLEEP_DURATION: u64 = 3000; // 3000 ms = 3s
 const BATCH_SIZE: usize = 10; // Number of blocks to process in parallel
@@ -69,12 +69,24 @@ async fn main() -> Result<()> {
             .await;
     }
 
-    // Create RPC provider
+    // Create RPC provider with no-cache headers to ensure we always get fresh data
+    // This prevents any potential caching issues that could lead to stale data
     let rpc_url: Url = rpc.parse()?;
     info!("RPC URL: {:?}", rpc_url);
-    let provider = ProviderBuilder::new()
-        .network::<AnyNetwork>()
-        .on_http(rpc_url);
+
+    // Create HTTP client with no-cache headers
+    let mut headers = HeaderMap::new();
+    headers.insert("Cache-Control", HeaderValue::from_static("no-cache"));
+    let http = Http::with_client(
+        reqwest::Client::builder()
+            .default_headers(headers)
+            .build()?,
+        rpc_url,
+    );
+
+    // Create RPC client and provider
+    let rpc_client = RpcClient::new(http, true);
+    let provider: RootProvider<AnyNetwork> = RootProvider::new(rpc_client);
 
     // Get chain ID
     let chain_id = indexer::get_chain_id(&provider, metrics.as_ref()).await?;
@@ -266,26 +278,14 @@ async fn main() -> Result<()> {
 
                 // Update metrics for this block if available
                 if let Some(metrics_instance) = metrics_ref {
-                    metrics_instance.blocks_processed.add(
-                        1,
-                        &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
-                    );
-                    metrics_instance.latest_processed_block.record(
-                        *block_num,
-                        &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
-                    );
-                    metrics_instance.latest_block_processing_time.record(
+                    metrics_instance.record_blocks_processed(1);
+                    metrics_instance.record_latest_processed_block(*block_num);
+                    metrics_instance.record_latest_block_processing_time(
                         block_start_time.elapsed().as_secs_f64(),
-                        &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
                     );
-                    metrics_instance.chain_tip_block.record(
-                        last_known_latest_block,
-                        &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
-                    );
-                    metrics_instance.chain_tip_lag.record(
-                        last_known_latest_block.saturating_sub(*block_num),
-                        &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
-                    );
+                    metrics_instance.record_chain_tip(last_known_latest_block);
+                    metrics_instance
+                        .record_chain_tip_lag(last_known_latest_block.saturating_sub(*block_num));
                 }
 
                 result
@@ -376,10 +376,7 @@ async fn main() -> Result<()> {
             let elapsed = last_metric_update.elapsed();
             if elapsed.as_secs() >= 1 {
                 let blocks_per_second = blocks_since_last_metric as f64 / elapsed.as_secs_f64();
-                metrics_instance.blocks_per_second.record(
-                    blocks_per_second,
-                    &[KeyValue::new("chain", metrics_instance.chain_name.clone())],
-                );
+                metrics_instance.record_blocks_per_second(blocks_per_second);
 
                 // Reset counters
                 blocks_since_last_metric = 0;

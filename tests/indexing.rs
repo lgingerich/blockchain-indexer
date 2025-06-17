@@ -1,8 +1,11 @@
 use alloy_eips::BlockNumberOrTag;
 use alloy_network::AnyNetwork;
-use alloy_provider::ProviderBuilder;
-
+use alloy_provider::RootProvider;
+use alloy_rpc_client::RpcClient;
+use alloy_transport_http::Http;
 use anyhow::Result;
+use http::{HeaderMap, HeaderValue};
+use reqwest;
 use url::Url;
 
 use blockchain_indexer::{indexer, models::common::Chain};
@@ -57,15 +60,28 @@ const SOPHON_PARAMS: [(u64, usize, usize, usize, usize); 5] = [
 async fn process_chain_test(
     chain: Chain,
     chain_name: &str,
-    rpc_url: &str,
+    rpc: &str,
     block_cases: Vec<(u64, usize, usize, usize, usize)>,
 ) -> Result<()> {
     println!("\nTesting {} chain", chain_name);
 
-    // Set up provider
-    let provider = ProviderBuilder::new()
-        .network::<AnyNetwork>()
-        .on_http(rpc_url.parse::<Url>()?);
+    // Create RPC provider with no-cache headers to ensure we always get fresh data
+    // This prevents any potential caching issues that could lead to stale data
+    let rpc_url: Url = rpc.parse()?;
+
+    // Create HTTP client with no-cache headers
+    let mut headers = HeaderMap::new();
+    headers.insert("Cache-Control", HeaderValue::from_static("no-cache"));
+    let http = Http::with_client(
+        reqwest::Client::builder()
+            .default_headers(headers)
+            .build()?,
+        rpc_url,
+    );
+
+    // Create RPC client and provider
+    let rpc_client = RpcClient::new(http, true);
+    let provider: RootProvider<AnyNetwork> = RootProvider::new(rpc_client);
 
     // Get chain ID
     let chain_id = indexer::get_chain_id(&provider, None).await?;
@@ -184,8 +200,8 @@ async fn test_indexing_pipeline() -> Result<()> {
     // Create a vector of futures for each chain test
     let chain_futures = test_cases
         .into_iter()
-        .map(|(chain, chain_name, rpc_url, block_cases)| {
-            process_chain_test(chain, chain_name, rpc_url, block_cases)
+        .map(|(chain, chain_name, rpc, block_cases)| {
+            process_chain_test(chain, chain_name, rpc, block_cases)
         })
         .collect::<Vec<_>>();
 
