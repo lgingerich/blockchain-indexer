@@ -6,7 +6,7 @@ mod utils;
 
 use alloy_eips::BlockNumberOrTag;
 use alloy_network::AnyNetwork;
-use alloy_provider::ProviderBuilder;
+
 use anyhow::Result;
 
 use futures::{stream::FuturesUnordered, StreamExt};
@@ -68,13 +68,32 @@ async fn main() -> Result<()> {
             .await;
     }
 
-    // Create RPC provider
+
+    use alloy_transport_http::Http;
+    use alloy_provider::RootProvider;
+    use alloy_rpc_client::RpcClient;
+    use http::{HeaderMap, HeaderValue};
+    use reqwest;
+
+    // Create RPC provider with no-cache headers to ensure we always get fresh data
+    // This prevents any potential caching issues that could lead to stale data
     let rpc_url: Url = rpc.parse()?;
     info!("RPC URL: {:?}", rpc_url);
-    let provider = ProviderBuilder::new()
-        .network::<AnyNetwork>()
-        .connect_http(rpc_url);
 
+    // Create HTTP client with no-cache headers
+    let mut headers = HeaderMap::new();
+    headers.insert("Cache-Control", HeaderValue::from_static("no-cache"));
+    let http = Http::with_client(
+        reqwest::Client::builder()
+            .default_headers(headers)
+            .build()?,
+        rpc_url,
+    );
+
+    // Create RPC client and provider
+    let rpc_client = RpcClient::new(http, true);
+    let provider: RootProvider<AnyNetwork> = RootProvider::new(rpc_client);
+    
     // Get chain ID
     let chain_id = indexer::get_chain_id(&provider, metrics.as_ref()).await?;
     let chain = Chain::from_chain_id(chain_id)?;
