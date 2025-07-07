@@ -10,12 +10,13 @@ use tokio::time::{Duration, Instant};
 use tracing::{debug, error, info, warn};
 
 use crate::metrics::Metrics;
-use crate::models::common::Chain;
+use crate::models::common::ChainInfo;
 use crate::models::datasets::blocks::TransformedBlockData;
 use crate::models::datasets::logs::TransformedLogData;
 use crate::models::datasets::traces::TransformedTraceData;
 use crate::models::datasets::transactions::TransformedTransactionData;
 use crate::storage::bigquery::insert_data;
+use crate::utils::Table;
 
 const MAX_CHANNEL_CAPACITY: usize = 1024;
 const BATCH_SIZE: usize = 10; // Number of blocks to batch together
@@ -542,21 +543,18 @@ pub async fn setup_channels(chain_name: &str, metrics: Option<&Metrics>) -> Resu
 
 // Initialize BigQuery dataset and tables
 pub async fn initialize_storage(
-    chain_name: &str,
+    chain_info: &ChainInfo,
     dataset_location: &str,
-    datasets: &[String],
-    chain: Chain,
+    datasets: &[Table],
 ) -> Result<()> {
-    info!("Initializing storage for chain: {}", chain_name);
+    info!("Initializing storage for chain: {}", chain_info.name);
 
     // Create dataset if it doesn't exist
-    bigquery::create_dataset(chain_name, dataset_location).await?;
+    bigquery::create_dataset(chain_info, dataset_location).await?;
 
     // Create tables if they don't exist
-    for table in ["blocks", "logs", "transactions", "traces"] {
-        if datasets.contains(&table.to_owned()) {
-            bigquery::create_table(chain_name, table, chain).await?;
-        }
+    for table in datasets {
+        bigquery::create_table(chain_info, table).await?;
     }
 
     info!("Storage initialized successfully");

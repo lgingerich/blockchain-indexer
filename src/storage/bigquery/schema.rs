@@ -2,9 +2,9 @@ use google_cloud_bigquery::http::table::{
     TableFieldMode, TableFieldSchema, TableFieldType, TableSchema,
 };
 
-use crate::models::common::Chain;
+use crate::models::common::Schema;
 
-pub fn block_schema(chain: Chain) -> TableSchema {
+pub fn block_schema(chain: Schema) -> TableSchema {
     let mut fields = vec![
         TableFieldSchema {
             name: "id".to_string(),
@@ -180,10 +180,10 @@ pub fn block_schema(chain: Chain) -> TableSchema {
 
     // Add chain-specific fields
     match chain {
-        Chain::Ethereum => {
+        Schema::Ethereum => {
             // No extra fields for Ethereum
         }
-        Chain::ZKsync => {
+        Schema::ZKsync => {
             // ZkSync-specific fields
             fields.extend(vec![
                 TableFieldSchema {
@@ -207,7 +207,7 @@ pub fn block_schema(chain: Chain) -> TableSchema {
     TableSchema { fields }
 }
 
-pub fn log_schema(chain: Chain) -> TableSchema {
+pub fn log_schema(chain: Schema) -> TableSchema {
     let fields = vec![
         TableFieldSchema {
             name: "id".to_string(),
@@ -297,10 +297,10 @@ pub fn log_schema(chain: Chain) -> TableSchema {
 
     // Fields are the same for all chain
     match chain {
-        Chain::Ethereum => {
+        Schema::Ethereum => {
             // No extra fields for Ethereum
         }
-        Chain::ZKsync => {
+        Schema::ZKsync => {
             // No extra fields for ZKsync
         }
     }
@@ -308,7 +308,7 @@ pub fn log_schema(chain: Chain) -> TableSchema {
     TableSchema { fields }
 }
 
-pub fn transaction_schema(chain: Chain) -> TableSchema {
+pub fn transaction_schema(chain: Schema) -> TableSchema {
     let mut fields = vec![
         TableFieldSchema {
             name: "id".to_string(),
@@ -486,7 +486,7 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
 
     // Add chain-specific fields
     match chain {
-        Chain::Ethereum => {
+        Schema::Ethereum => {
             fields.extend(vec![
                 TableFieldSchema {
                     name: "max_fee_per_blob_gas".to_string(),
@@ -518,7 +518,7 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
                 },
             ]);
         }
-        Chain::ZKsync => {
+        Schema::ZKsync => {
             // ZkSync-specific fields
             fields.extend(vec![
                 TableFieldSchema {
@@ -542,7 +542,7 @@ pub fn transaction_schema(chain: Chain) -> TableSchema {
     TableSchema { fields }
 }
 
-pub fn trace_schema(chain: Chain) -> TableSchema {
+pub fn trace_schema(chain: Schema) -> TableSchema {
     let fields = vec![
         TableFieldSchema {
             name: "id".to_string(),
@@ -683,10 +683,10 @@ pub fn trace_schema(chain: Chain) -> TableSchema {
 
     // Fields are the same for all chain
     match chain {
-        Chain::Ethereum => {
+        Schema::Ethereum => {
             // No extra fields for Ethereum
         }
-        Chain::ZKsync => {
+        Schema::ZKsync => {
             // No extra fields for ZKsync
         }
     }

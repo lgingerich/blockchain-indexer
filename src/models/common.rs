@@ -1,6 +1,7 @@
 use alloy_primitives::{Address, TxKind};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use std::sync::OnceLock;
 
 use crate::models::datasets::blocks::{RpcHeaderData, TransformedBlockData};
 use crate::models::datasets::logs::{RpcLogReceiptData, TransformedLogData};
@@ -8,6 +9,8 @@ use crate::models::datasets::traces::{RpcTraceData, TransformedTraceData};
 use crate::models::datasets::transactions::{
     RpcTransactionData, RpcTransactionReceiptData, TransformedTransactionData,
 };
+
+static CHAIN_INFO: OnceLock<ChainInfo> = OnceLock::new();
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MetricsConfig {
@@ -28,20 +31,50 @@ pub struct Config {
     pub metrics: MetricsConfig,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Chain {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Schema {
     Ethereum,
     ZKsync,
 }
 
-impl Chain {
+impl Schema {
     pub fn from_chain_id(chain_id: u64) -> Result<Self> {
         match chain_id {
             1 => Ok(Self::Ethereum),
             232 | 320 | 324 | 325 | 388 | 1217 | 1345 | 2741 | 2904 | 9075 | 9637 | 50104
-            | 61166 | 543210 => Ok(Self::ZKsync), // Lens | ZKcandy | ZKsync Era | GRVT | OpenZK | SxT | Cronos zkEVM | Abstract | Ripio LaChain | WonderFi | Gateway | Sophon | Treasure Chain | Zero Network
-            _ => Err(anyhow::anyhow!("Unsupported chain id: {}", chain_id)),
+            | 61166 | 543210 => Ok(Self::ZKsync), // Lens | ZKcandy | ZKsync Era | GRVT | OpenZK | SxT | Cronos zkEVM | Abstract | Ripio LaChain | WonderFi | Gateway | Sophon | Treasure Schema | Zero Network
+            _ => Ok(Self::Ethereum) // Default to Ethereum for unknown chains
         }
+    }
+}
+
+impl std::fmt::Display for Schema {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Schema::Ethereum => write!(f, "Ethereum"),
+            Schema::ZKsync => write!(f, "ZKsync"),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ChainInfo {
+    pub id: u64,
+    pub name: String,
+    pub schema: Schema,
+}
+
+impl ChainInfo {
+    pub fn new(id: u64, name: String, schema: Schema) -> Self {
+        Self { id, name, schema }
+    }
+
+    pub fn set_chain_info(chain_info: Self) {
+        let _ = CHAIN_INFO.set(chain_info);
+    }
+
+    pub fn get_chain_info() -> &'static ChainInfo {
+        CHAIN_INFO.get().expect("CHAIN_INFO must be initialized before use")
     }
 }
 
@@ -53,7 +86,6 @@ pub enum TransactionTo {
 
 #[derive(Debug, Clone)]
 pub struct ParsedData {
-    pub chain_id: u64,
     pub header: Vec<RpcHeaderData>,
     pub transactions: Vec<RpcTransactionData>,
     pub transaction_receipts: Vec<RpcTransactionReceiptData>,

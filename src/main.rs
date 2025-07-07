@@ -12,7 +12,6 @@ use alloy_transport_http::Http;
 use anyhow::Result;
 use futures::{stream::FuturesUnordered, StreamExt};
 use http::{HeaderMap, HeaderValue};
-use reqwest;
 use std::{future::Future, pin::Pin};
 use tokio::{signal, time::Instant};
 use tracing::{error, info};
@@ -20,10 +19,10 @@ use tracing_subscriber::{self, EnvFilter};
 use url::Url;
 
 use crate::metrics::Metrics;
-use crate::models::common::{Chain, TransformedData};
+use crate::models::common::{ChainInfo, Schema, TransformedData};
 use crate::models::datasets::blocks::TransformedBlockData;
 use crate::storage::{setup_channels, DatasetType};
-use crate::utils::load_config;
+use crate::utils::{load_config, Table};
 
 const SLEEP_DURATION: u64 = 3000; // 3000 ms = 3s
 const BATCH_SIZE: usize = 10; // Number of blocks to process in parallel
@@ -48,7 +47,7 @@ async fn main() -> Result<()> {
     let end_block = config.end_block;
     let chain_tip_buffer = config.chain_tip_buffer;
     let rpc = config.rpc_url.as_str();
-    let datasets = config.datasets;
+    let datasets = Table::from_vec(config.datasets)?;
     let metrics_enabled = config.metrics.enabled;
     let metrics_addr = config.metrics.address;
     let metrics_port = config.metrics.port;
@@ -90,11 +89,17 @@ async fn main() -> Result<()> {
 
     // Get chain ID
     let chain_id = indexer::get_chain_id(&provider, metrics.as_ref()).await?;
-    let chain = Chain::from_chain_id(chain_id)?;
+    let schema = Schema::from_chain_id(chain_id)?;
     info!("Chain ID: {:?}", chain_id);
 
+    // Set chain info for OnceLock
+    ChainInfo::set_chain_info(ChainInfo::new(chain_id, chain_name, schema));
+
+    // Get chain info
+    let chain_info = ChainInfo::get_chain_info();
+
     // Set up channels
-    let channels = setup_channels(chain_name.as_str(), metrics.as_ref()).await?;
+    let channels = setup_channels(&chain_info.name, metrics.as_ref()).await?;
 
     // Create a shutdown signal handler. Flush channels before shutting down.
     let mut shutdown_signal = channels.shutdown_signal();
@@ -109,11 +114,11 @@ async fn main() -> Result<()> {
     });
 
     // Create dataset and tables. Ensure everything is ready before proceeding.
-    storage::initialize_storage(chain_name.as_str(), &dataset_location, &datasets, chain).await?;
+    storage::initialize_storage(&chain_info, &dataset_location, &datasets).await?;
 
     // Get last processed block number from storage
     let last_processed_block =
-        storage::bigquery::get_last_processed_block(chain_name.as_str(), &datasets).await?;
+        storage::bigquery::get_last_processed_block(&chain_info, &datasets).await?;
 
     // Use the maximum of last_processed_block + 1 and start_block (if specified)
     let mut block_number = if last_processed_block > 0 {
@@ -269,8 +274,7 @@ async fn main() -> Result<()> {
                 let result = indexer::process_block(
                     &provider,
                     BlockNumberOrTag::Number(*block_num),
-                    chain,
-                    chain_id,
+                    &chain_info,
                     &datasets,
                     metrics_ref,
                 )
@@ -318,17 +322,14 @@ async fn main() -> Result<()> {
 
                     // Send transformed data through channels for saving to storage
                     let dataset_mappings = [
-                        ("blocks", DatasetType::Blocks(transformed_data.blocks)),
-                        (
-                            "transactions",
-                            DatasetType::Transactions(transformed_data.transactions),
-                        ),
-                        ("logs", DatasetType::Logs(transformed_data.logs)),
-                        ("traces", DatasetType::Traces(transformed_data.traces)),
+                        (Table::Blocks, DatasetType::Blocks(transformed_data.blocks)),
+                        (Table::Transactions, DatasetType::Transactions(transformed_data.transactions)),
+                        (Table::Logs, DatasetType::Logs(transformed_data.logs)),
+                        (Table::Traces, DatasetType::Traces(transformed_data.traces)),
                     ];
 
                     for (dataset_name, dataset) in dataset_mappings {
-                        if datasets.contains(&dataset_name.to_string()) {
+                        if datasets.contains(&dataset_name) {
                             let _ = channels.send_dataset(dataset, *block_num).await;
                         }
                     }

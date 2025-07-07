@@ -2,7 +2,7 @@ use alloy_primitives::FixedBytes;
 use chrono::{DateTime, NaiveDate, Utc};
 use std::collections::HashMap;
 
-use crate::models::common::Chain;
+use crate::models::common::{ChainInfo, Schema};
 use crate::models::datasets::transactions::{
     CommonTransformedTransactionData, EthereumTransformedTransactionData, RpcTransactionData,
     RpcTransactionReceiptData, TransformedTransactionData, ZKsyncTransformedTransactionData,
@@ -14,8 +14,7 @@ pub trait TransactionTransformer {
     fn transform_transactions(
         transactions: Vec<RpcTransactionData>,
         receipts: Vec<RpcTransactionReceiptData>,
-        chain: Chain,
-        chain_id: u64,
+        chain_info: &ChainInfo,
         block_map: &HashMap<u64, (DateTime<Utc>, NaiveDate, FixedBytes<32>)>,
     ) -> Result<Vec<TransformedTransactionData>>;
 }
@@ -24,8 +23,7 @@ impl TransactionTransformer for RpcTransactionData {
     fn transform_transactions(
         transactions: Vec<RpcTransactionData>,
         receipts: Vec<RpcTransactionReceiptData>,
-        chain: Chain,
-        chain_id: u64,
+        chain_info: &ChainInfo,
         block_map: &HashMap<u64, (DateTime<Utc>, NaiveDate, FixedBytes<32>)>,
     ) -> Result<Vec<TransformedTransactionData>> {
         transactions
@@ -41,11 +39,11 @@ impl TransactionTransformer for RpcTransactionData {
                     RpcTransactionReceiptData::ZKsync(r) => &r.common,
                 };
 
-                let pk = format!("tx_{}_{}", chain_id, common_receipt.tx_hash); // Build primary key
+                let pk = format!("tx_{}_{}", chain_info.id, common_receipt.tx_hash); // Build primary key
 
                 let common = CommonTransformedTransactionData {
                     id: pk,
-                    chain_id,
+                    chain_id: chain_info.id,
                     block_time: common_tx // Have to get block time data from the block header
                         .block_number
                         .and_then(|num| block_map.get(&num))
@@ -82,8 +80,8 @@ impl TransactionTransformer for RpcTransactionData {
                     blob_versioned_hashes: common_tx.blob_versioned_hashes.clone(),
                 };
 
-                match chain {
-                    Chain::Ethereum => {
+                match chain_info.schema {
+                    Schema::Ethereum => {
                         let eth_tx = match tx {
                             RpcTransactionData::Ethereum(data) => data,
                             _ => {
@@ -103,7 +101,7 @@ impl TransactionTransformer for RpcTransactionData {
                             },
                         ))
                     }
-                    Chain::ZKsync => {
+                    Schema::ZKsync => {
                         let zksync_tx = match tx {
                             RpcTransactionData::ZKsync(data) => data,
                             _ => {

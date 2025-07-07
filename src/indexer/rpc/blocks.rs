@@ -7,7 +7,7 @@ use alloy_network::{primitives::BlockTransactions, AnyRpcBlock, AnyTxEnvelope};
 use alloy_primitives::{Address, Bytes, FixedBytes, TxKind, Uint};
 use chrono::DateTime;
 
-use crate::models::common::{Chain, TransactionTo};
+use crate::models::common::{ChainInfo, Schema, TransactionTo};
 use crate::models::datasets::blocks::{
     CommonRpcHeaderData, EthereumRpcHeaderData, RpcHeaderData, ZKsyncRpcHeaderData,
 };
@@ -20,12 +20,12 @@ use crate::utils::{hex_to_u128, hex_to_u64, sanitize_block_time};
 use anyhow::Result;
 
 pub trait BlockParser {
-    fn parse_header(&self, chain: Chain) -> Result<Vec<RpcHeaderData>>;
-    fn parse_transactions(&self, chain: Chain) -> Result<Vec<RpcTransactionData>>;
+    fn parse_header(&self, chain_info: &ChainInfo) -> Result<Vec<RpcHeaderData>>;
+    fn parse_transactions(&self, chain_info: &ChainInfo) -> Result<Vec<RpcTransactionData>>;
 }
 
 impl BlockParser for AnyRpcBlock {
-    fn parse_header(&self, chain: Chain) -> Result<Vec<RpcHeaderData>> {
+    fn parse_header(&self, chain_info: &ChainInfo) -> Result<Vec<RpcHeaderData>> {
         let inner = &self.header.inner;
         let other = &self.other;
 
@@ -64,9 +64,9 @@ impl BlockParser for AnyRpcBlock {
             withdrawals_root: inner.withdrawals_root,
         };
 
-        let header = match chain {
-            Chain::Ethereum => RpcHeaderData::Ethereum(EthereumRpcHeaderData { common }),
-            Chain::ZKsync => RpcHeaderData::ZKsync(ZKsyncRpcHeaderData {
+        let header = match chain_info.schema {
+            Schema::Ethereum => RpcHeaderData::Ethereum(EthereumRpcHeaderData { common }),
+            Schema::ZKsync => RpcHeaderData::ZKsync(ZKsyncRpcHeaderData {
                 common,
                 l1_batch_number: other
                     .get_deserialized::<String>("l1BatchNumber")
@@ -89,7 +89,7 @@ impl BlockParser for AnyRpcBlock {
         Ok(vec![header])
     }
 
-    fn parse_transactions(&self, chain: Chain) -> Result<Vec<RpcTransactionData>> {
+    fn parse_transactions(&self, chain_info: &ChainInfo) -> Result<Vec<RpcTransactionData>> {
         match &self.transactions {
             BlockTransactions::Full(txs) => {
                 Ok(txs
@@ -276,9 +276,9 @@ impl BlockParser for AnyRpcBlock {
                             // for legacy transactions. This handles converting back to
                             // proper chain type.
                             let other = &transaction.other;
-                            Ok(match chain {
-                                Chain::Ethereum => eth_tx_data,
-                                Chain::ZKsync => match eth_tx_data {
+                            Ok(match chain_info.schema {
+                                Schema::Ethereum => eth_tx_data,
+                                Schema::ZKsync => match eth_tx_data {
                                     RpcTransactionData::Ethereum(t) => {
                                         RpcTransactionData::ZKsync(ZKsyncRpcTransactionData {
                                             common: CommonRpcTransactionData {
@@ -388,11 +388,11 @@ impl BlockParser for AnyRpcBlock {
                                     .unwrap_or_default(),
                             };
 
-                            match chain {
-                                Chain::Ethereum => {
+                            match chain_info.schema {
+                                Schema::Ethereum => {
                                     unreachable!("Ethereum transactions should be handled by AnyTxEnvelope::Ethereum variant") // TODO: Should be able to get rid of this after refactor
                                 }
-                                Chain::ZKsync => {
+                                Schema::ZKsync => {
                                     Ok(RpcTransactionData::ZKsync(ZKsyncRpcTransactionData {
                                         common: common_fields,
                                         l1_batch_number: other_fields

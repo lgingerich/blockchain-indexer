@@ -1,4 +1,4 @@
-use crate::models::common::Chain;
+use crate::models::common::{ChainInfo, Schema};
 use crate::models::datasets::logs::{
     CommonTransformedLogData, EthereumTransformedLogData, RpcLogReceiptData, TransformedLogData,
     ZKsyncTransformedLogData,
@@ -9,16 +9,14 @@ use anyhow::Result;
 pub trait LogTransformer {
     fn transform_logs(
         logs: Vec<RpcLogReceiptData>,
-        chain: Chain,
-        chain_id: u64,
+        chain_info: &ChainInfo,
     ) -> Result<Vec<TransformedLogData>>;
 }
 
 impl LogTransformer for RpcLogReceiptData {
     fn transform_logs(
         logs: Vec<RpcLogReceiptData>,
-        chain: Chain,
-        chain_id: u64,
+        chain_info: &ChainInfo,
     ) -> Result<Vec<TransformedLogData>> {
         logs.into_iter()
             .map(|log| {
@@ -34,11 +32,11 @@ impl LogTransformer for RpcLogReceiptData {
                 let log_index = common_data
                     .log_index
                     .ok_or_else(|| anyhow::anyhow!("Missing log_index for log primary key"))?;
-                let pk = format!("log_{}_{}_{}", chain_id, tx_hash, log_index);
+                let pk = format!("log_{}_{}_{}", chain_info.id, tx_hash, log_index);
 
                 let common = CommonTransformedLogData {
                     id: pk,
-                    chain_id,
+                    chain_id: chain_info.id,
                     block_time: common_data.block_time,
                     block_date: common_data.block_date,
                     block_number: common_data.block_number,
@@ -51,11 +49,11 @@ impl LogTransformer for RpcLogReceiptData {
                     data: common_data.data.clone(),
                 };
 
-                Ok(match chain {
-                    Chain::Ethereum => {
+                Ok(match chain_info.schema {
+                    Schema::Ethereum => {
                         TransformedLogData::Ethereum(EthereumTransformedLogData { common })
                     }
-                    Chain::ZKsync => {
+                    Schema::ZKsync => {
                         TransformedLogData::ZKsync(ZKsyncTransformedLogData { common })
                     }
                 })

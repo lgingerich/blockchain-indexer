@@ -22,7 +22,7 @@ pub struct Metrics {
     pub latest_processed_block: Gauge<u64>,
     pub latest_block_processing_time: Gauge<f64>,
 
-    // Chain metrics
+    // Schema metrics
     pub chain_tip_block: Gauge<u64>,
     pub chain_tip_lag: Gauge<u64>,
 
