@@ -20,11 +20,11 @@ use url::Url;
 
 use crate::metrics::Metrics;
 use crate::models::{
-    common::{Chain, TransformedData},
+    common::{ChainInfo, Schema, TransformedData},
     datasets::blocks::TransformedBlockData,
 };
 use crate::storage::{DatasetType, setup_channels};
-use crate::utils::load_config;
+use crate::utils::{load_config, Table};
 
 const SLEEP_DURATION: u64 = 3000; // 3000 ms = 3s
 const BATCH_SIZE: usize = 10; // Number of blocks to process in parallel

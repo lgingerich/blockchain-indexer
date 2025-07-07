@@ -4,7 +4,7 @@ use anyhow::Result;
 use chrono::DateTime;
 
 use crate::models::{
-    common::Chain,
+    common::{ChainInfo, Schema},
     datasets::{
         logs::{
             CommonRpcLogReceiptData, EthereumRpcLogReceiptData, RpcLogReceiptData,

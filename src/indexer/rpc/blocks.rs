@@ -11,7 +11,7 @@ use anyhow::Result;
 use chrono::DateTime;
 
 use crate::models::{
-    common::{Chain, TransactionTo},
+    common::{ChainInfo, Schema, TransactionTo},
     datasets::{
         blocks::{CommonRpcHeaderData, EthereumRpcHeaderData, RpcHeaderData, ZKsyncRpcHeaderData},
         transactions::{

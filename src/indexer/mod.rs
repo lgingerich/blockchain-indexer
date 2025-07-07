@@ -27,13 +27,13 @@ use crate::indexer::{
 };
 use crate::metrics::Metrics;
 use crate::models::{
-    common::{Chain, ParsedData, TransformedData},
+    common::{ChainInfo, ParsedData, TransformedData},
     datasets::{
         blocks::RpcHeaderData, logs::RpcLogReceiptData, traces::RpcTraceData,
         transactions::RpcTransactionData,
     },
 };
-use crate::utils::retry::{RetryConfig, retry};
+use crate::utils::{retry::{RetryConfig, retry}, Table};
 
 pub trait ProviderDebugApi<N>: Provider<N> + DebugApi<N>
 where

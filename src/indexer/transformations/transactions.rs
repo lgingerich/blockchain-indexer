@@ -4,7 +4,7 @@ use chrono::{DateTime, NaiveDate, Utc};
 use std::collections::HashMap;
 
 use crate::models::{
-    common::Chain,
+    common::{ChainInfo, Schema},
     datasets::transactions::{
         CommonTransformedTransactionData, EthereumTransformedTransactionData, RpcTransactionData,
         RpcTransactionReceiptData, TransformedTransactionData, ZKsyncTransformedTransactionData,

@@ -4,7 +4,7 @@ use anyhow::Result;
 use serde_json::Value;
 
 use crate::models::{
-    common::Chain,
+    common::{ChainInfo, Schema},
     datasets::traces::{
         CommonRpcTraceData, EthereumRpcTraceData, RpcTraceData, ZKsyncRpcTraceData,
     },

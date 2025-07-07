@@ -18,7 +18,7 @@ use tokio::{
 use tracing::{debug, error, info, warn};
 
 use crate::models::{
-    common::Chain,
+    common::ChainInfo,
     datasets::{
         blocks::TransformedBlockData, logs::TransformedLogData, traces::TransformedTraceData,
         transactions::TransformedTransactionData,

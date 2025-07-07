@@ -1,7 +1,7 @@
 use anyhow::Result;
 
 use crate::models::{
-    common::Chain,
+    common::{ChainInfo, Schema},
     datasets::logs::{
         CommonTransformedLogData, EthereumTransformedLogData, RpcLogReceiptData,
         TransformedLogData, ZKsyncTransformedLogData,
