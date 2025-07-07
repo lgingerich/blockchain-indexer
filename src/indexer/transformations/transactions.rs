@@ -90,7 +90,7 @@ impl TransactionTransformer for RpcTransactionData {
                             _ => {
                                 return Err(anyhow::anyhow!(
                                     "Expected Ethereum transaction for Ethereum chain"
-                                ))
+                                ));
                             }
                         };
 
@@ -110,7 +110,7 @@ impl TransactionTransformer for RpcTransactionData {
                             _ => {
                                 return Err(anyhow::anyhow!(
                                     "Expected ZKsync transaction for ZKsync chain"
-                                ))
+                                ));
                             }
                         };
 

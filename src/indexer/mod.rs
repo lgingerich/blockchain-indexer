@@ -5,7 +5,7 @@ use alloy_consensus::TxEnvelope;
 use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_network::{AnyRpcBlock, AnyTransactionReceipt, AnyTxEnvelope, BlockResponse, Network};
 use alloy_primitives::FixedBytes;
-use alloy_provider::{ext::DebugApi, Provider};
+use alloy_provider::{Provider, ext::DebugApi};
 use alloy_rpc_types_trace::geth::{
     GethDebugBuiltInTracerType, GethDebugTracerConfig, GethDebugTracerType,
     GethDefaultTracingOptions,
@@ -29,13 +29,11 @@ use crate::metrics::Metrics;
 use crate::models::{
     common::{Chain, ParsedData, TransformedData},
     datasets::{
-        blocks::RpcHeaderData,
-        logs::RpcLogReceiptData,
-        traces::RpcTraceData,
+        blocks::RpcHeaderData, logs::RpcLogReceiptData, traces::RpcTraceData,
         transactions::RpcTransactionData,
     },
 };
-use crate::utils::retry::{retry, RetryConfig};
+use crate::utils::retry::{RetryConfig, retry};
 
 pub trait ProviderDebugApi<N>: Provider<N> + DebugApi<N>
 where
@@ -86,9 +84,7 @@ where
     .await
 }
 
-pub async fn get_latest_block_number<N>(
-    provider: &dyn Provider<N>,
-) -> Result<BlockNumberOrTag>
+pub async fn get_latest_block_number<N>(provider: &dyn Provider<N>) -> Result<BlockNumberOrTag>
 where
     N: Network,
 {

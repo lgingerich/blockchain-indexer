@@ -21,7 +21,7 @@ use crate::models::common::Chain;
 use crate::storage::bigquery::schema::{
     block_schema, log_schema, trace_schema, transaction_schema,
 };
-use crate::utils::retry::{retry, RetryConfig};
+use crate::utils::retry::{RetryConfig, retry};
 
 // Define a static OnceCell to hold the shared Client and Project ID
 static BIGQUERY_CLIENT: OnceCell<Arc<(Client, String)>> = OnceCell::new();

@@ -6,8 +6,14 @@ use chrono::DateTime;
 use crate::models::{
     common::Chain,
     datasets::{
-        logs::{CommonRpcLogReceiptData, EthereumRpcLogReceiptData, RpcLogReceiptData, ZKsyncRpcLogReceiptData},
-        transactions::{CommonRpcTransactionReceiptData, EthereumRpcTransactionReceiptData, RpcTransactionReceiptData, ZKsyncRpcTransactionReceiptData},
+        logs::{
+            CommonRpcLogReceiptData, EthereumRpcLogReceiptData, RpcLogReceiptData,
+            ZKsyncRpcLogReceiptData,
+        },
+        transactions::{
+            CommonRpcTransactionReceiptData, EthereumRpcTransactionReceiptData,
+            RpcTransactionReceiptData, ZKsyncRpcTransactionReceiptData,
+        },
     },
 };
 use crate::utils::{hex_to_u64, sanitize_block_time};

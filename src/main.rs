@@ -10,9 +10,8 @@ use alloy_provider::RootProvider;
 use alloy_rpc_client::RpcClient;
 use alloy_transport_http::Http;
 use anyhow::Result;
-use futures::{stream::FuturesUnordered, StreamExt};
+use futures::{StreamExt, stream::FuturesUnordered};
 use http::{HeaderMap, HeaderValue};
-use reqwest;
 use std::{future::Future, pin::Pin};
 use tokio::{signal, time::Instant};
 use tracing::{error, info};
@@ -24,7 +23,7 @@ use crate::models::{
     common::{Chain, TransformedData},
     datasets::blocks::TransformedBlockData,
 };
-use crate::storage::{setup_channels, DatasetType};
+use crate::storage::{DatasetType, setup_channels};
 use crate::utils::load_config;
 
 const SLEEP_DURATION: u64 = 3000; // 3000 ms = 3s
@@ -59,7 +58,7 @@ async fn main() -> Result<()> {
     // Initialize global metrics if enabled
     if metrics_enabled {
         Metrics::init_global(chain_name.to_string())?;
-        
+
         // Start metrics server
         if let Some(metrics_instance) = Metrics::global() {
             let _ = metrics_instance
@@ -233,7 +232,14 @@ async fn main() -> Result<()> {
                 "Buffer limit reached. Waiting for current block to be {} blocks behind tip: {} - current distance: {} - sleeping for {} seconds",
                 chain_tip_buffer,
                 last_known_latest_block,
-                last_known_latest_block.saturating_sub(block_number_to_process.as_number().ok_or_else(|| anyhow::anyhow!("Invalid block number response: {}", format!("{:?}", block_number_to_process)))?),
+                last_known_latest_block.saturating_sub(
+                    block_number_to_process
+                        .as_number()
+                        .ok_or_else(|| anyhow::anyhow!(
+                            "Invalid block number response: {}",
+                            format!("{:?}", block_number_to_process)
+                        ))?
+                ),
                 SLEEP_DURATION as f64 / 1000.0
             );
             tokio::time::sleep(tokio::time::Duration::from_millis(SLEEP_DURATION)).await;

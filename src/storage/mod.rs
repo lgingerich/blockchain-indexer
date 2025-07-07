@@ -3,8 +3,8 @@ pub mod bigquery;
 use anyhow::Result;
 use std::{
     sync::{
-        atomic::{AtomicU64, Ordering},
         Arc,
+        atomic::{AtomicU64, Ordering},
     },
     time::Duration as StdDuration,
 };
@@ -80,9 +80,11 @@ impl DataChannels {
                     return Ok(());
                 }
                 debug!(
-                    "Waiting for workers to complete. Progress: blocks={}, txs={}, logs={}, traces={}", 
+                    "Waiting for workers to complete. Progress: blocks={}, txs={}, logs={}, traces={}",
                     self.last_block_processed.blocks.load(Ordering::Relaxed),
-                    self.last_block_processed.transactions.load(Ordering::Relaxed),
+                    self.last_block_processed
+                        .transactions
+                        .load(Ordering::Relaxed),
                     self.last_block_processed.logs.load(Ordering::Relaxed),
                     self.last_block_processed.traces.load(Ordering::Relaxed),
                 );

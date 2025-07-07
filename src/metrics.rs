@@ -1,9 +1,9 @@
 use anyhow::{Context, Result};
-use axum::{extract::State, http::StatusCode, routing::get, Router};
+use axum::{Router, extract::State, http::StatusCode, routing::get};
 use once_cell::sync::OnceCell;
 use opentelemetry::{
-    metrics::{Counter, Gauge, Histogram, MeterProvider},
     KeyValue,
+    metrics::{Counter, Gauge, Histogram, MeterProvider},
 };
 use opentelemetry_sdk::metrics::SdkMeterProvider;
 use prometheus::{Encoder, TextEncoder};
@@ -142,7 +142,8 @@ impl Metrics {
     // Initialize global metrics instance
     pub fn init_global(chain_name: String) -> Result<()> {
         let metrics = Self::new(chain_name)?;
-        GLOBAL_METRICS.set(Arc::new(metrics))
+        GLOBAL_METRICS
+            .set(Arc::new(metrics))
             .map_err(|_| anyhow::anyhow!("Global metrics already initialized"))?;
         Ok(())
     }
@@ -249,8 +250,6 @@ impl Metrics {
         Ok(())
     }
 }
-
-
 
 #[axum::debug_handler]
 async fn metrics_handler(

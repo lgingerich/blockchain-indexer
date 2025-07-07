@@ -1,11 +1,11 @@
 use alloy_consensus::{
+    TxEip4844Variant, TxEnvelope,
     constants::{
         EIP1559_TX_TYPE_ID, EIP2930_TX_TYPE_ID, EIP4844_TX_TYPE_ID, EIP7702_TX_TYPE_ID,
         LEGACY_TX_TYPE_ID,
     },
-    TxEip4844Variant, TxEnvelope,
 };
-use alloy_network::{primitives::BlockTransactions, AnyRpcBlock, AnyTxEnvelope};
+use alloy_network::{AnyRpcBlock, AnyTxEnvelope, primitives::BlockTransactions};
 use alloy_primitives::{Address, Bytes, FixedBytes, TxKind, Uint};
 use anyhow::Result;
 use chrono::DateTime;
@@ -13,16 +13,14 @@ use chrono::DateTime;
 use crate::models::{
     common::{Chain, TransactionTo},
     datasets::{
-        blocks::{
-            CommonRpcHeaderData, EthereumRpcHeaderData, RpcHeaderData, ZKsyncRpcHeaderData,
-        },
+        blocks::{CommonRpcHeaderData, EthereumRpcHeaderData, RpcHeaderData, ZKsyncRpcHeaderData},
         transactions::{
             CommonRpcTransactionData, EthereumRpcTransactionData, RpcTransactionData,
             ZKsyncRpcTransactionData,
         },
     },
 };
-use crate::utils::{hex_to_u128, hex_to_u64, sanitize_block_time};
+use crate::utils::{hex_to_u64, hex_to_u128, sanitize_block_time};
 
 pub trait BlockParser {
     fn parse_header(&self, chain: Chain) -> Result<Vec<RpcHeaderData>>;

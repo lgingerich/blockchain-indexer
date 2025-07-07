@@ -69,7 +69,7 @@ impl BlockTransformer for RpcHeaderData {
                             _ => {
                                 return Err(anyhow::anyhow!(
                                     "Expected ZKsync header for ZKsync chain"
-                                ))
+                                ));
                             }
                         };
 

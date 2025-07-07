@@ -3,8 +3,8 @@ use anyhow::Result;
 use crate::models::{
     common::Chain,
     datasets::logs::{
-        CommonTransformedLogData, EthereumTransformedLogData, RpcLogReceiptData, TransformedLogData,
-        ZKsyncTransformedLogData,
+        CommonTransformedLogData, EthereumTransformedLogData, RpcLogReceiptData,
+        TransformedLogData, ZKsyncTransformedLogData,
     },
 };
 

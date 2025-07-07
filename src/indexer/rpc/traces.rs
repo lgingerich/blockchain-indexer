@@ -5,8 +5,8 @@ use serde_json::Value;
 
 use crate::models::{
     common::Chain,
-    datasets::{
-        traces::{CommonRpcTraceData, EthereumRpcTraceData, RpcTraceData, ZKsyncRpcTraceData},
+    datasets::traces::{
+        CommonRpcTraceData, EthereumRpcTraceData, RpcTraceData, ZKsyncRpcTraceData,
     },
 };
 
