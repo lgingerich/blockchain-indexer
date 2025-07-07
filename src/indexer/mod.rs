@@ -21,6 +21,7 @@ use crate::indexer::transformations::{
     transactions::TransactionTransformer,
 };
 use crate::metrics::Metrics;
+
 use crate::models::common::{Chain, ParsedData, TransformedData};
 use crate::models::datasets::blocks::RpcHeaderData;
 use crate::models::datasets::logs::RpcLogReceiptData;
@@ -48,7 +49,7 @@ where
 {
 }
 
-pub async fn get_chain_id<N>(provider: &dyn Provider<N>, metrics: Option<&Metrics>) -> Result<u64>
+pub async fn get_chain_id<N>(provider: &dyn Provider<N>) -> Result<u64>
 where
     N: Network,
 {
@@ -58,7 +59,7 @@ where
             let start = std::time::Instant::now();
 
             // Record metrics if enabled
-            if let Some(metrics) = metrics {
+            if let Some(metrics) = Metrics::global() {
                 metrics.record_rpc_request("get_chain_id");
             }
 
@@ -68,7 +69,7 @@ where
                 .context("Failed to get chain ID");
 
             // Record metrics if enabled
-            if let Some(metrics) = metrics {
+            if let Some(metrics) = Metrics::global() {
                 metrics.record_rpc_latency("get_chain_id", start.elapsed().as_secs_f64());
 
                 if result.is_err() {
@@ -86,7 +87,6 @@ where
 
 pub async fn get_latest_block_number<N>(
     provider: &dyn Provider<N>,
-    metrics: Option<&Metrics>,
 ) -> Result<BlockNumberOrTag>
 where
     N: Network,
@@ -96,7 +96,7 @@ where
         || async {
             let start = std::time::Instant::now();
 
-            if let Some(metrics) = metrics {
+            if let Some(metrics) = Metrics::global() {
                 metrics.record_rpc_request("get_latest_block_number");
             }
 
@@ -106,7 +106,7 @@ where
                 .context("Failed to get latest block number");
 
             // Record metrics if enabled
-            if let Some(metrics) = metrics {
+            if let Some(metrics) = Metrics::global() {
                 metrics
                     .record_rpc_latency("get_latest_block_number", start.elapsed().as_secs_f64());
                 if result.is_err() {
@@ -125,7 +125,6 @@ where
 pub async fn get_block_by_number<N>(
     provider: &dyn Provider<N>,
     block_number: BlockNumberOrTag,
-    metrics: Option<&Metrics>,
 ) -> Result<Option<N::BlockResponse>>
 where
     N: Network,
@@ -135,7 +134,7 @@ where
         || async {
             let start = std::time::Instant::now();
 
-            if let Some(metrics) = metrics {
+            if let Some(metrics) = Metrics::global() {
                 metrics.record_rpc_request("get_block_by_number");
             }
 
@@ -151,7 +150,7 @@ where
                 });
 
             // Record metrics if enabled
-            if let Some(metrics) = metrics {
+            if let Some(metrics) = Metrics::global() {
                 metrics.record_rpc_latency("get_block_by_number", start.elapsed().as_secs_f64());
                 if result.is_err() {
                     metrics.record_rpc_error("get_block_by_number");
@@ -169,7 +168,6 @@ where
 pub async fn get_block_receipts<N>(
     provider: &dyn Provider<N>,
     block: BlockId,
-    metrics: Option<&Metrics>,
 ) -> Result<Option<Vec<N::ReceiptResponse>>>
 where
     N: Network,
@@ -179,7 +177,7 @@ where
         || async {
             let start = std::time::Instant::now();
 
-            if let Some(metrics) = metrics {
+            if let Some(metrics) = Metrics::global() {
                 metrics.record_rpc_request("get_block_receipts");
             }
 
@@ -188,7 +186,7 @@ where
             });
 
             // Record metrics if enabled
-            if let Some(metrics) = metrics {
+            if let Some(metrics) = Metrics::global() {
                 metrics.record_rpc_latency("get_block_receipts", start.elapsed().as_secs_f64());
                 if result.is_err() {
                     metrics.record_rpc_error("get_block_receipts");
@@ -207,7 +205,6 @@ pub async fn debug_trace_transaction_by_hash<N>(
     provider: &(impl DebugApi<N> + ?Sized),
     transaction_hashes: Vec<FixedBytes<32>>,
     trace_options: GethDebugTracingOptions,
-    metrics: Option<&Metrics>,
 ) -> Result<Option<Vec<TraceResult<GethTrace, String>>>>
 where
     N: Network,
@@ -219,7 +216,7 @@ where
         || async {
             let start = std::time::Instant::now();
 
-            if let Some(metrics) = metrics {
+            if let Some(metrics) = Metrics::global() {
                 metrics.record_rpc_request("debug_trace_transaction");
             }
 
@@ -266,7 +263,7 @@ where
                                 continue;
                             }
 
-                            if let Some(metrics) = metrics {
+                            if let Some(metrics) = Metrics::global() {
                                 metrics.record_rpc_error("debug_trace_transaction");
                             }
                             return Err(e);
@@ -276,7 +273,7 @@ where
             }
 
             // Record metrics if enabled
-            if let Some(metrics) = metrics {
+            if let Some(metrics) = Metrics::global() {
                 metrics.record_rpc_latency("debug_trace_transaction", start.elapsed().as_secs_f64());
             }
 
@@ -427,7 +424,6 @@ pub async fn process_block<N>(
     chain: Chain,
     chain_id: u64,
     datasets: &[String],
-    metrics: Option<&Metrics>,
 ) -> Result<TransformedData>
 where
     N: Network<BlockResponse = AnyRpcBlock, ReceiptResponse = AnyTransactionReceipt>,
@@ -441,7 +437,7 @@ where
 
     // Fetch block data if needed
     let block = if need_block {
-        get_block_by_number(provider, block_number, metrics).await?
+        get_block_by_number(provider, block_number).await?
     } else {
         None
     };
@@ -449,7 +445,7 @@ where
     // Fetch receipts if needed
     let receipts = if need_receipts {
         let block_id = BlockId::Number(block_number);
-        get_block_receipts(provider, block_id, metrics).await?
+        get_block_receipts(provider, block_id).await?
     } else {
         None
     };
@@ -534,7 +530,7 @@ where
         // Get just the hashes for the trace API
         let hashes: Vec<_> = tx_hashes.into_iter().map(|(hash, _)| hash).collect();
 
-        debug_trace_transaction_by_hash(provider, hashes, trace_options, metrics).await?
+        debug_trace_transaction_by_hash(provider, hashes, trace_options).await?
     } else {
         None
     };

@@ -7,6 +7,10 @@ use prometheus::{Encoder, TextEncoder};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tracing::info;
+use once_cell::sync::OnceCell;
+
+// Global metrics instance
+static GLOBAL_METRICS: OnceCell<Arc<Metrics>> = OnceCell::new();
 
 #[derive(Clone)]
 pub struct Metrics {
@@ -134,6 +138,19 @@ impl Metrics {
         })
     }
 
+    // Initialize global metrics instance
+    pub fn init_global(chain_name: String) -> Result<()> {
+        let metrics = Self::new(chain_name)?;
+        GLOBAL_METRICS.set(Arc::new(metrics))
+            .map_err(|_| anyhow::anyhow!("Global metrics already initialized"))?;
+        Ok(())
+    }
+
+    // Get global metrics instance
+    pub fn global() -> Option<Arc<Self>> {
+        GLOBAL_METRICS.get().cloned()
+    }
+
     // Convenience methods for recording metrics with pre-computed attributes
 
     pub fn record_blocks_processed(&self, count: u64) {
@@ -231,6 +248,8 @@ impl Metrics {
         Ok(())
     }
 }
+
+
 
 #[axum::debug_handler]
 async fn metrics_handler(
