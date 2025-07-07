@@ -1,14 +1,15 @@
 use alloy_primitives::FixedBytes;
+use anyhow::Result;
 use chrono::{DateTime, NaiveDate, Utc};
 use std::collections::HashMap;
 
-use crate::models::common::{ChainInfo, Schema};
-use crate::models::datasets::transactions::{
-    CommonTransformedTransactionData, EthereumTransformedTransactionData, RpcTransactionData,
-    RpcTransactionReceiptData, TransformedTransactionData, ZKsyncTransformedTransactionData,
+use crate::models::{
+    common::Chain,
+    datasets::transactions::{
+        CommonTransformedTransactionData, EthereumTransformedTransactionData, RpcTransactionData,
+        RpcTransactionReceiptData, TransformedTransactionData, ZKsyncTransformedTransactionData,
+    },
 };
-
-use anyhow::Result;
 
 pub trait TransactionTransformer {
     fn transform_transactions(
@@ -87,7 +88,7 @@ impl TransactionTransformer for RpcTransactionData {
                             _ => {
                                 return Err(anyhow::anyhow!(
                                     "Expected Ethereum transaction for Ethereum chain"
-                                ))
+                                ));
                             }
                         };
 
@@ -107,7 +108,7 @@ impl TransactionTransformer for RpcTransactionData {
                             _ => {
                                 return Err(anyhow::anyhow!(
                                     "Expected ZKsync transaction for ZKsync chain"
-                                ))
+                                ));
                             }
                         };
 

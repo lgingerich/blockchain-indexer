@@ -1,9 +1,12 @@
-use crate::models::common::{ChainInfo, Schema};
-use crate::models::datasets::blocks::{
-    CommonTransformedBlockData, EthereumTransformedBlockData, RpcHeaderData, TransformedBlockData,
-    ZKsyncTransformedBlockData,
-};
 use anyhow::Result;
+
+use crate::models::{
+    common::Chain,
+    datasets::blocks::{
+        CommonTransformedBlockData, EthereumTransformedBlockData, RpcHeaderData,
+        TransformedBlockData, ZKsyncTransformedBlockData,
+    },
+};
 
 pub trait BlockTransformer {
     fn transform_blocks(
@@ -64,7 +67,7 @@ impl BlockTransformer for RpcHeaderData {
                             _ => {
                                 return Err(anyhow::anyhow!(
                                     "Expected ZKsync header for ZKsync chain"
-                                ))
+                                ));
                             }
                         };
 

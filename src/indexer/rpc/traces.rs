@@ -1,12 +1,14 @@
-use crate::models::common::{ChainInfo, Schema};
-use crate::models::datasets::traces::{
-    CommonRpcTraceData, EthereumRpcTraceData, RpcTraceData, ZKsyncRpcTraceData,
-};
 use alloy_primitives::FixedBytes;
 use alloy_rpc_types_trace::geth::{CallFrame, GethTrace, TraceResult};
+use anyhow::Result;
 use serde_json::Value;
 
-use anyhow::Result;
+use crate::models::{
+    common::Chain,
+    datasets::traces::{
+        CommonRpcTraceData, EthereumRpcTraceData, RpcTraceData, ZKsyncRpcTraceData,
+    },
+};
 
 pub trait TraceParser {
     fn parse_traces(self, chain_info: &ChainInfo, block_number: u64) -> Result<Vec<RpcTraceData>>;

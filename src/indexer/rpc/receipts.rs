@@ -1,18 +1,22 @@
 use alloy_consensus::Eip658Value;
 use alloy_network::AnyTransactionReceipt;
+use anyhow::Result;
 use chrono::DateTime;
 
-use crate::models::common::{ChainInfo, Schema};
-use crate::models::datasets::logs::{
-    CommonRpcLogReceiptData, EthereumRpcLogReceiptData, RpcLogReceiptData, ZKsyncRpcLogReceiptData,
-};
-use crate::models::datasets::transactions::{
-    CommonRpcTransactionReceiptData, EthereumRpcTransactionReceiptData, RpcTransactionReceiptData,
-    ZKsyncRpcTransactionReceiptData,
+use crate::models::{
+    common::Chain,
+    datasets::{
+        logs::{
+            CommonRpcLogReceiptData, EthereumRpcLogReceiptData, RpcLogReceiptData,
+            ZKsyncRpcLogReceiptData,
+        },
+        transactions::{
+            CommonRpcTransactionReceiptData, EthereumRpcTransactionReceiptData,
+            RpcTransactionReceiptData, ZKsyncRpcTransactionReceiptData,
+        },
+    },
 };
 use crate::utils::{hex_to_u64, sanitize_block_time};
-
-use anyhow::Result;
 
 pub trait ReceiptParser {
     fn parse_transaction_receipts(&self, chain_info: &ChainInfo) -> Result<Vec<RpcTransactionReceiptData>>;

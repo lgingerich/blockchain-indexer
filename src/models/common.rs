@@ -3,11 +3,11 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::sync::OnceLock;
 
-use crate::models::datasets::blocks::{RpcHeaderData, TransformedBlockData};
-use crate::models::datasets::logs::{RpcLogReceiptData, TransformedLogData};
-use crate::models::datasets::traces::{RpcTraceData, TransformedTraceData};
-use crate::models::datasets::transactions::{
-    RpcTransactionData, RpcTransactionReceiptData, TransformedTransactionData,
+use crate::models::datasets::{
+    blocks::{RpcHeaderData, TransformedBlockData},
+    logs::{RpcLogReceiptData, TransformedLogData},
+    traces::{RpcTraceData, TransformedTraceData},
+    transactions::{RpcTransactionData, RpcTransactionReceiptData, TransformedTransactionData},
 };
 
 static CHAIN_INFO: OnceLock<ChainInfo> = OnceLock::new();

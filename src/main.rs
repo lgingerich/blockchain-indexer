@@ -10,7 +10,7 @@ use alloy_provider::RootProvider;
 use alloy_rpc_client::RpcClient;
 use alloy_transport_http::Http;
 use anyhow::Result;
-use futures::{stream::FuturesUnordered, StreamExt};
+use futures::{StreamExt, stream::FuturesUnordered};
 use http::{HeaderMap, HeaderValue};
 use std::{future::Future, pin::Pin};
 use tokio::{signal, time::Instant};
@@ -19,10 +19,12 @@ use tracing_subscriber::{self, EnvFilter};
 use url::Url;
 
 use crate::metrics::Metrics;
-use crate::models::common::{ChainInfo, Schema, TransformedData};
-use crate::models::datasets::blocks::TransformedBlockData;
-use crate::storage::{setup_channels, DatasetType};
-use crate::utils::{load_config, Table};
+use crate::models::{
+    common::{Chain, TransformedData},
+    datasets::blocks::TransformedBlockData,
+};
+use crate::storage::{DatasetType, setup_channels};
+use crate::utils::load_config;
 
 const SLEEP_DURATION: u64 = 3000; // 3000 ms = 3s
 const BATCH_SIZE: usize = 10; // Number of blocks to process in parallel
@@ -53,19 +55,18 @@ async fn main() -> Result<()> {
     let metrics_port = config.metrics.port;
     let dataset_location = config.dataset_location;
 
-    // Initialize optional metrics
-    let metrics: Option<Metrics> = if metrics_enabled {
-        Some(Metrics::new(chain_name.to_string())?)
+    // Initialize global metrics if enabled
+    if metrics_enabled {
+        Metrics::init_global(chain_name.to_string())?;
+
+        // Start metrics server
+        if let Some(metrics_instance) = Metrics::global() {
+            let _ = metrics_instance
+                .start_metrics_server(metrics_addr.as_str(), metrics_port)
+                .await;
+        }
     } else {
         info!("Metrics are disabled");
-        None
-    };
-
-    // Start metrics server if metrics are enabled
-    if let Some(metrics_instance) = &metrics {
-        let _ = metrics_instance
-            .start_metrics_server(metrics_addr.as_str(), metrics_port)
-            .await;
     }
 
     // Create RPC provider with no-cache headers to ensure we always get fresh data
@@ -88,7 +89,7 @@ async fn main() -> Result<()> {
     let provider: RootProvider<AnyNetwork> = RootProvider::new(rpc_client);
 
     // Get chain ID
-    let chain_id = indexer::get_chain_id(&provider, metrics.as_ref()).await?;
+    let chain_id = indexer::get_chain_id(&provider).await?;
     let schema = Schema::from_chain_id(chain_id)?;
     info!("Chain ID: {:?}", chain_id);
 
@@ -99,7 +100,7 @@ async fn main() -> Result<()> {
     let chain_info = ChainInfo::get_chain_info();
 
     // Set up channels
-    let channels = setup_channels(&chain_info.name, metrics.as_ref()).await?;
+    let channels = setup_channels(&chain_info.name).await?;
 
     // Create a shutdown signal handler. Flush channels before shutting down.
     let mut shutdown_signal = channels.shutdown_signal();
@@ -152,7 +153,7 @@ async fn main() -> Result<()> {
     let mut block_number_to_process = BlockNumberOrTag::Number(block_number);
 
     // Get initial latest block number before loop
-    let latest_block_tag = indexer::get_latest_block_number(&provider, metrics.as_ref()).await?;
+    let latest_block_tag = indexer::get_latest_block_number(&provider).await?;
     let mut last_known_latest_block = latest_block_tag.as_number().ok_or_else(|| {
         anyhow::anyhow!(
             "Invalid block number response: {}",
@@ -213,7 +214,7 @@ async fn main() -> Result<()> {
         })? > last_known_latest_block.saturating_sub(chain_tip_buffer * 2)
         {
             let latest_block: BlockNumberOrTag =
-                indexer::get_latest_block_number(&provider, metrics.as_ref()).await?;
+                indexer::get_latest_block_number(&provider).await?;
 
             last_known_latest_block = latest_block.as_number().ok_or_else(|| {
                 anyhow::anyhow!(
@@ -237,7 +238,14 @@ async fn main() -> Result<()> {
                 "Buffer limit reached. Waiting for current block to be {} blocks behind tip: {} - current distance: {} - sleeping for {} seconds",
                 chain_tip_buffer,
                 last_known_latest_block,
-                last_known_latest_block.saturating_sub(block_number_to_process.as_number().ok_or_else(|| anyhow::anyhow!("Invalid block number response: {}", format!("{:?}", block_number_to_process)))?),
+                last_known_latest_block.saturating_sub(
+                    block_number_to_process
+                        .as_number()
+                        .ok_or_else(|| anyhow::anyhow!(
+                            "Invalid block number response: {}",
+                            format!("{:?}", block_number_to_process)
+                        ))?
+                ),
                 SLEEP_DURATION as f64 / 1000.0
             );
             tokio::time::sleep(tokio::time::Duration::from_millis(SLEEP_DURATION)).await;
@@ -265,7 +273,6 @@ async fn main() -> Result<()> {
         for block_num in &block_batch {
             let provider = provider.clone();
             let datasets = datasets.clone();
-            let metrics_ref = metrics.as_ref();
 
             futures.push(Box::pin(async move {
                 let block_start_time = Instant::now();
@@ -276,12 +283,11 @@ async fn main() -> Result<()> {
                     BlockNumberOrTag::Number(*block_num),
                     &chain_info,
                     &datasets,
-                    metrics_ref,
                 )
                 .await;
 
                 // Update metrics for this block if available
-                if let Some(metrics_instance) = metrics_ref {
+                if let Some(metrics_instance) = Metrics::global() {
                     metrics_instance.record_blocks_processed(1);
                     metrics_instance.record_latest_processed_block(*block_num);
                     metrics_instance.record_latest_block_processing_time(
@@ -369,7 +375,8 @@ async fn main() -> Result<()> {
             block_number_to_process = BlockNumberOrTag::Number(block_number);
         }
 
-        if let Some(metrics_instance) = &metrics {
+        // Update metrics if available
+        if let Some(metrics_instance) = Metrics::global() {
             // Update blocks processed count
             blocks_since_last_metric += successful_blocks;
 

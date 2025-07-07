@@ -1,28 +1,27 @@
 mod schema;
 
-use crate::metrics::Metrics;
-use crate::models::common::ChainInfo;
-use crate::storage::bigquery::schema::{
-    block_schema, log_schema, trace_schema, transaction_schema,
-};
-use crate::utils::Table;
-use crate::utils::retry::{retry, RetryConfig};
+use anyhow::Result;
 use google_cloud_bigquery::client::{Client, ClientConfig};
-use google_cloud_bigquery::http::dataset::{Dataset, DatasetReference};
-use google_cloud_bigquery::http::error::Error as BigQueryError;
-use google_cloud_bigquery::http::job::query::QueryRequest;
-use google_cloud_bigquery::http::table::{
-    Table as BigQueryTable, TableReference, TimePartitionType, TimePartitioning,
-};
-use google_cloud_bigquery::http::tabledata::{
-    insert_all::{InsertAllRequest, Row as TableRow},
-    list::Value,
+use google_cloud_bigquery::http::{
+    dataset::{Dataset, DatasetReference},
+    error::Error as BigQueryError,
+    job::query::QueryRequest,
+    table::{Table, TableReference, TimePartitionType, TimePartitioning},
+    tabledata::{
+        insert_all::{InsertAllRequest, Row as TableRow},
+        list::Value,
+    },
 };
 use once_cell::sync::OnceCell;
 use std::sync::Arc;
 use tracing::{error, info, warn};
 
-use anyhow::Result;
+use crate::metrics::Metrics;
+use crate::models::common::Chain;
+use crate::storage::bigquery::schema::{
+    block_schema, log_schema, trace_schema, transaction_schema,
+};
+use crate::utils::retry::{RetryConfig, retry};
 
 // Define a static OnceCell to hold the shared Client and Project ID
 static BIGQUERY_CLIENT: OnceCell<Arc<(Client, String)>> = OnceCell::new();
@@ -199,7 +198,6 @@ pub async fn insert_data<T: serde::Serialize>(
     table_id: &str,
     data: Vec<T>,
     block_range: (u64, u64),
-    metrics: Option<&Metrics>,
 ) -> Result<()> {
     let (client, project_id) = &*get_client().await?;
 
@@ -215,7 +213,7 @@ pub async fn insert_data<T: serde::Serialize>(
     let batch_start = std::time::Instant::now();
 
     // Record batch size if metrics enabled
-    if let Some(metrics) = metrics {
+    if let Some(metrics) = Metrics::global() {
         metrics.record_bigquery_batch_size_with_table(table_id, total_rows as f64);
     }
 
@@ -357,7 +355,7 @@ pub async fn insert_data<T: serde::Serialize>(
     }
 
     // After batches are sent, record metrics
-    if let Some(metrics) = metrics {
+    if let Some(metrics) = Metrics::global() {
         metrics.record_bigquery_insert_latency_with_table(
             table_id,
             batch_start.elapsed().as_secs_f64(),
