@@ -1,9 +1,12 @@
-use crate::models::common::Chain;
-use crate::models::datasets::blocks::{
-    CommonTransformedBlockData, EthereumTransformedBlockData, RpcHeaderData, TransformedBlockData,
-    ZKsyncTransformedBlockData,
-};
 use anyhow::Result;
+
+use crate::models::{
+    common::Chain,
+    datasets::blocks::{
+        CommonTransformedBlockData, EthereumTransformedBlockData, RpcHeaderData,
+        TransformedBlockData, ZKsyncTransformedBlockData,
+    },
+};
 
 pub trait BlockTransformer {
     fn transform_blocks(

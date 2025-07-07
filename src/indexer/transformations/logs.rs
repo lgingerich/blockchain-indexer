@@ -1,10 +1,12 @@
-use crate::models::common::Chain;
-use crate::models::datasets::logs::{
-    CommonTransformedLogData, EthereumTransformedLogData, RpcLogReceiptData, TransformedLogData,
-    ZKsyncTransformedLogData,
-};
-
 use anyhow::Result;
+
+use crate::models::{
+    common::Chain,
+    datasets::logs::{
+        CommonTransformedLogData, EthereumTransformedLogData, RpcLogReceiptData, TransformedLogData,
+        ZKsyncTransformedLogData,
+    },
+};
 
 pub trait LogTransformer {
     fn transform_logs(

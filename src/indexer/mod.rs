@@ -1,40 +1,41 @@
 pub mod rpc;
 pub mod transformations;
 
-use anyhow::{Context, Result};
-
-use alloy_eips::{BlockId, BlockNumberOrTag};
-use alloy_network::{AnyRpcBlock, AnyTransactionReceipt, BlockResponse, Network};
-use alloy_provider::{ext::DebugApi, Provider};
-use alloy_rpc_types_trace::{
-    common::TraceResult,
-    geth::{GethDebugTracingOptions, GethTrace},
-};
-
-use alloy_primitives::FixedBytes;
-use std::collections::HashMap;
-use tracing::warn;
-
-use crate::indexer::rpc::{blocks::BlockParser, receipts::ReceiptParser, traces::TraceParser};
-use crate::indexer::transformations::{
-    blocks::BlockTransformer, logs::LogTransformer, traces::TraceTransformer,
-    transactions::TransactionTransformer,
-};
-use crate::metrics::Metrics;
-
-use crate::models::common::{Chain, ParsedData, TransformedData};
-use crate::models::datasets::blocks::RpcHeaderData;
-use crate::models::datasets::logs::RpcLogReceiptData;
-use crate::models::datasets::traces::RpcTraceData;
-use crate::models::datasets::transactions::RpcTransactionData;
-use crate::utils::retry::{retry, RetryConfig};
-
 use alloy_consensus::TxEnvelope;
-use alloy_network::AnyTxEnvelope;
+use alloy_eips::{BlockId, BlockNumberOrTag};
+use alloy_network::{AnyRpcBlock, AnyTransactionReceipt, AnyTxEnvelope, BlockResponse, Network};
+use alloy_primitives::FixedBytes;
+use alloy_provider::{ext::DebugApi, Provider};
 use alloy_rpc_types_trace::geth::{
     GethDebugBuiltInTracerType, GethDebugTracerConfig, GethDebugTracerType,
     GethDefaultTracingOptions,
 };
+use alloy_rpc_types_trace::{
+    common::TraceResult,
+    geth::{GethDebugTracingOptions, GethTrace},
+};
+use anyhow::{Context, Result};
+use std::collections::HashMap;
+use tracing::warn;
+
+use crate::indexer::{
+    rpc::{blocks::BlockParser, receipts::ReceiptParser, traces::TraceParser},
+    transformations::{
+        blocks::BlockTransformer, logs::LogTransformer, traces::TraceTransformer,
+        transactions::TransactionTransformer,
+    },
+};
+use crate::metrics::Metrics;
+use crate::models::{
+    common::{Chain, ParsedData, TransformedData},
+    datasets::{
+        blocks::RpcHeaderData,
+        logs::RpcLogReceiptData,
+        traces::RpcTraceData,
+        transactions::RpcTransactionData,
+    },
+};
+use crate::utils::retry::{retry, RetryConfig};
 
 pub trait ProviderDebugApi<N>: Provider<N> + DebugApi<N>
 where

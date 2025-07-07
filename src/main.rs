@@ -20,8 +20,10 @@ use tracing_subscriber::{self, EnvFilter};
 use url::Url;
 
 use crate::metrics::Metrics;
-use crate::models::common::{Chain, TransformedData};
-use crate::models::datasets::blocks::TransformedBlockData;
+use crate::models::{
+    common::{Chain, TransformedData},
+    datasets::blocks::TransformedBlockData,
+};
 use crate::storage::{setup_channels, DatasetType};
 use crate::utils::load_config;
 

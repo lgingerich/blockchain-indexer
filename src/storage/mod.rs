@@ -1,20 +1,29 @@
 pub mod bigquery;
 
 use anyhow::Result;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
-use std::time::Duration as StdDuration;
-use tokio::sync::broadcast;
-use tokio::sync::mpsc::{self, Sender};
-use tokio::time::{Duration, Instant};
+use std::{
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
+    time::Duration as StdDuration,
+};
+use tokio::{
+    sync::{
+        broadcast,
+        mpsc::{self, Sender},
+    },
+    time::{Duration, Instant},
+};
 use tracing::{debug, error, info, warn};
 
-
-use crate::models::common::Chain;
-use crate::models::datasets::blocks::TransformedBlockData;
-use crate::models::datasets::logs::TransformedLogData;
-use crate::models::datasets::traces::TransformedTraceData;
-use crate::models::datasets::transactions::TransformedTransactionData;
+use crate::models::{
+    common::Chain,
+    datasets::{
+        blocks::TransformedBlockData, logs::TransformedLogData, traces::TransformedTraceData,
+        transactions::TransformedTransactionData,
+    },
+};
 use crate::storage::bigquery::insert_data;
 
 const MAX_CHANNEL_CAPACITY: usize = 1024;

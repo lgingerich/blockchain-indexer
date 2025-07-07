@@ -1,13 +1,14 @@
 use anyhow::{Context, Result};
 use axum::{extract::State, http::StatusCode, routing::get, Router};
-use opentelemetry::metrics::{Counter, Gauge, Histogram, MeterProvider};
-use opentelemetry::KeyValue;
+use once_cell::sync::OnceCell;
+use opentelemetry::{
+    metrics::{Counter, Gauge, Histogram, MeterProvider},
+    KeyValue,
+};
 use opentelemetry_sdk::metrics::SdkMeterProvider;
 use prometheus::{Encoder, TextEncoder};
-use std::net::SocketAddr;
-use std::sync::Arc;
+use std::{net::SocketAddr, sync::Arc};
 use tracing::info;
-use once_cell::sync::OnceCell;
 
 // Global metrics instance
 static GLOBAL_METRICS: OnceCell<Arc<Metrics>> = OnceCell::new();

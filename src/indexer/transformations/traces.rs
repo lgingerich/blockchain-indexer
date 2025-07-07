@@ -1,14 +1,15 @@
 use alloy_primitives::FixedBytes;
+use anyhow::Result;
 use chrono::{DateTime, NaiveDate, Utc};
 use std::collections::HashMap;
 
-use crate::models::common::Chain;
-use crate::models::datasets::traces::{
-    CommonTransformedTraceData, EthereumTransformedTraceData, RpcTraceData, TransformedTraceData,
-    ZKsyncTransformedTraceData,
+use crate::models::{
+    common::Chain,
+    datasets::traces::{
+        CommonTransformedTraceData, EthereumTransformedTraceData, RpcTraceData,
+        TransformedTraceData, ZKsyncTransformedTraceData,
+    },
 };
-
-use anyhow::Result;
 
 pub trait TraceTransformer {
     fn transform_traces(

@@ -1,28 +1,27 @@
 mod schema;
 
+use anyhow::Result;
+use google_cloud_bigquery::client::{Client, ClientConfig};
+use google_cloud_bigquery::http::{
+    dataset::{Dataset, DatasetReference},
+    error::Error as BigQueryError,
+    job::query::QueryRequest,
+    table::{Table, TableReference, TimePartitionType, TimePartitioning},
+    tabledata::{
+        insert_all::{InsertAllRequest, Row as TableRow},
+        list::Value,
+    },
+};
+use once_cell::sync::OnceCell;
+use std::sync::Arc;
+use tracing::{error, info, warn};
 
+use crate::metrics::Metrics;
 use crate::models::common::Chain;
 use crate::storage::bigquery::schema::{
     block_schema, log_schema, trace_schema, transaction_schema,
 };
 use crate::utils::retry::{retry, RetryConfig};
-use google_cloud_bigquery::client::{Client, ClientConfig};
-use google_cloud_bigquery::http::dataset::{Dataset, DatasetReference};
-use google_cloud_bigquery::http::error::Error as BigQueryError;
-use google_cloud_bigquery::http::job::query::QueryRequest;
-use google_cloud_bigquery::http::table::{
-    Table, TableReference, TimePartitionType, TimePartitioning,
-};
-use google_cloud_bigquery::http::tabledata::{
-    insert_all::{InsertAllRequest, Row as TableRow},
-    list::Value,
-};
-use crate::metrics::Metrics;
-use once_cell::sync::OnceCell;
-use std::sync::Arc;
-use tracing::{error, info, warn};
-
-use anyhow::Result;
 
 // Define a static OnceCell to hold the shared Client and Project ID
 static BIGQUERY_CLIENT: OnceCell<Arc<(Client, String)>> = OnceCell::new();

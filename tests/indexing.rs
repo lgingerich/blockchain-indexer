@@ -84,7 +84,7 @@ async fn process_chain_test(
     let provider: RootProvider<AnyNetwork> = RootProvider::new(rpc_client);
 
     // Get chain ID
-    let chain_id = indexer::get_chain_id(&provider, None).await?;
+    let chain_id = indexer::get_chain_id(&provider).await?;
     assert_eq!(chain, Chain::from_chain_id(chain_id)?);
 
     // Process blocks sequentially
@@ -105,7 +105,6 @@ async fn process_chain_test(
             chain,
             chain_id,
             &datasets,
-            None,
         )
         .await?;
 
