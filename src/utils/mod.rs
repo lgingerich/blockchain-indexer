@@ -15,7 +15,7 @@ pub enum Table {
     Blocks,
     Logs,
     Transactions,
-    Traces
+    Traces,
 }
 
 impl Table {
@@ -25,16 +25,14 @@ impl Table {
             "logs" => Ok(Table::Logs),
             "transactions" => Ok(Table::Transactions),
             "traces" => Ok(Table::Traces),
-            _ => Err(anyhow::anyhow!("'{}' is not a valid table name", table))
+            _ => Err(anyhow::anyhow!("'{}' is not a valid table name", table)),
         }
     }
-    
+
     pub fn from_vec(tables: Vec<String>) -> Result<Vec<Table>> {
-        tables.iter()
-            .map(Self::from_string)
-            .collect()
+        tables.iter().map(Self::from_string).collect()
     }
-    
+
     #[allow(dead_code)]
     pub fn to_vec(tables: &[Table]) -> Vec<String> {
         tables.iter().map(|t| t.to_string()).collect()

@@ -43,7 +43,7 @@ impl Schema {
             1 => Ok(Self::Ethereum),
             232 | 320 | 324 | 325 | 388 | 1217 | 1345 | 2741 | 2904 | 9075 | 9637 | 50104
             | 61166 | 543210 => Ok(Self::ZKsync), // Lens | ZKcandy | ZKsync Era | GRVT | OpenZK | SxT | Cronos zkEVM | Abstract | Ripio LaChain | WonderFi | Gateway | Sophon | Treasure Schema | Zero Network
-            _ => Ok(Self::Ethereum) // Default to Ethereum for unknown chains
+            _ => Ok(Self::Ethereum), // Default to Ethereum for unknown chains
         }
     }
 }
@@ -74,7 +74,9 @@ impl ChainInfo {
     }
 
     pub fn get_chain_info() -> &'static ChainInfo {
-        CHAIN_INFO.get().expect("CHAIN_INFO must be initialized before use")
+        CHAIN_INFO
+            .get()
+            .expect("CHAIN_INFO must be initialized before use")
     }
 }
 

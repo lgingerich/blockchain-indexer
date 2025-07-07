@@ -40,7 +40,10 @@ impl TraceTransformer for RpcTraceData {
                     .ok_or_else(|| anyhow::anyhow!("Missing tx_hash for trace primary key"))?;
 
                 let pk = if common_data.trace_address.is_empty() {
-                    format!("trace_{}_{}_{}", chain_info.id, tx_hash, common_data.trace_type)
+                    format!(
+                        "trace_{}_{}_{}",
+                        chain_info.id, tx_hash, common_data.trace_type
+                    )
                 } else {
                     format!(
                         "trace_{}_{}_{}_{}",
@@ -93,9 +96,11 @@ impl TraceTransformer for RpcTraceData {
                     Schema::Ethereum => Ok(TransformedTraceData::Ethereum(
                         EthereumTransformedTraceData { common },
                     )),
-                    Schema::ZKsync => Ok(TransformedTraceData::ZKsync(ZKsyncTransformedTraceData {
-                        common,
-                    })),
+                    Schema::ZKsync => {
+                        Ok(TransformedTraceData::ZKsync(ZKsyncTransformedTraceData {
+                            common,
+                        }))
+                    }
                 }
             })
             .collect::<Result<Vec<_>>>()

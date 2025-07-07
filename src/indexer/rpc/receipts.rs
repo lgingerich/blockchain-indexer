@@ -19,12 +19,18 @@ use crate::models::{
 use crate::utils::{hex_to_u64, sanitize_block_time};
 
 pub trait ReceiptParser {
-    fn parse_transaction_receipts(&self, chain_info: &ChainInfo) -> Result<Vec<RpcTransactionReceiptData>>;
+    fn parse_transaction_receipts(
+        &self,
+        chain_info: &ChainInfo,
+    ) -> Result<Vec<RpcTransactionReceiptData>>;
     fn parse_log_receipts(&self, chain_info: &ChainInfo) -> Result<Vec<RpcLogReceiptData>>;
 }
 
 impl ReceiptParser for Vec<AnyTransactionReceipt> {
-    fn parse_transaction_receipts(&self, chain_info: &ChainInfo) -> Result<Vec<RpcTransactionReceiptData>> {
+    fn parse_transaction_receipts(
+        &self,
+        chain_info: &ChainInfo,
+    ) -> Result<Vec<RpcTransactionReceiptData>> {
         self.iter()
             .map(|receipt| {
                 // Access the inner ReceiptWithBloom through the AnyReceiptEnvelope

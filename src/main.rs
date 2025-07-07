@@ -24,7 +24,7 @@ use crate::models::{
     datasets::blocks::TransformedBlockData,
 };
 use crate::storage::{DatasetType, setup_channels};
-use crate::utils::{load_config, Table};
+use crate::utils::{Table, load_config};
 
 const SLEEP_DURATION: u64 = 3000; // 3000 ms = 3s
 const BATCH_SIZE: usize = 10; // Number of blocks to process in parallel
@@ -329,7 +329,10 @@ async fn main() -> Result<()> {
                     // Send transformed data through channels for saving to storage
                     let dataset_mappings = [
                         (Table::Blocks, DatasetType::Blocks(transformed_data.blocks)),
-                        (Table::Transactions, DatasetType::Transactions(transformed_data.transactions)),
+                        (
+                            Table::Transactions,
+                            DatasetType::Transactions(transformed_data.transactions),
+                        ),
                         (Table::Logs, DatasetType::Logs(transformed_data.logs)),
                         (Table::Traces, DatasetType::Traces(transformed_data.traces)),
                     ];

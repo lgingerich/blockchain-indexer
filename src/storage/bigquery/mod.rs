@@ -21,7 +21,10 @@ use crate::models::common::ChainInfo;
 use crate::storage::bigquery::schema::{
     block_schema, log_schema, trace_schema, transaction_schema,
 };
-use crate::utils::{retry::{RetryConfig, retry}, Table};
+use crate::utils::{
+    Table,
+    retry::{RetryConfig, retry},
+};
 
 // Define a static OnceCell to hold the shared Client and Project ID
 static BIGQUERY_CLIENT: OnceCell<Arc<(Client, String)>> = OnceCell::new();
@@ -52,7 +55,11 @@ pub async fn get_client() -> Result<Arc<(Client, String)>> {
 }
 
 // Verify that a dataset exists and is accessible
-pub async fn verify_dataset(client: &Client, project_id: &str, chain_info: &ChainInfo) -> Result<bool> {
+pub async fn verify_dataset(
+    client: &Client,
+    project_id: &str,
+    chain_info: &ChainInfo,
+) -> Result<bool> {
     // TODO: Better handle case when dataset is not found
     match client.dataset().get(project_id, &chain_info.name).await {
         Ok(_) => Ok(true),
@@ -69,7 +76,11 @@ pub async fn verify_table(
     table_id: &str,
 ) -> Result<bool> {
     // TODO: Better handle case when table is not found
-    match client.table().get(project_id, &chain_info.name, table_id).await {
+    match client
+        .table()
+        .get(project_id, &chain_info.name, table_id)
+        .await
+    {
         Ok(_) => Ok(true),
         Err(BigQueryError::Response(resp)) if resp.message.contains("Not found") => Ok(false),
         Err(e) => Err(e.into()),
@@ -83,7 +94,10 @@ pub async fn create_dataset(chain_info: &ChainInfo, dataset_location: &str) -> R
 
     // Check if dataset exists first
     if verify_dataset(client, project_id, chain_info).await? {
-        info!("Dataset '{}' already exists and is accessible", chain_info.name);
+        info!(
+            "Dataset '{}' already exists and is accessible",
+            chain_info.name
+        );
         return Ok(());
     }
 
@@ -131,7 +145,8 @@ pub async fn create_table(chain_info: &ChainInfo, table: &Table) -> Result<()> {
     if verify_table(client, project_id, chain_info, &table.to_string()).await? {
         info!(
             "Table '{}.{}' already exists and is accessible",
-            chain_info.name, table.to_string()
+            chain_info.name,
+            table.to_string()
         );
         return Ok(());
     }
@@ -165,7 +180,8 @@ pub async fn create_table(chain_info: &ChainInfo, table: &Table) -> Result<()> {
                 Ok(_) => {
                     info!(
                         "Table '{}' successfully created in dataset '{}'",
-                        table.to_string(), chain_info.name
+                        table.to_string(),
+                        chain_info.name
                     );
                     Ok::<(), anyhow::Error>(())
                 }
@@ -175,7 +191,8 @@ pub async fn create_table(chain_info: &ChainInfo, table: &Table) -> Result<()> {
                         if resp.message.contains("Already Exists") {
                             info!(
                                 "Table '{}' already exists in dataset '{}'",
-                                table.to_string(), chain_info.name
+                                table.to_string(),
+                                chain_info.name
                             );
                             return Ok(()); // Treat as success for the retry logic
                         }
@@ -476,7 +493,10 @@ fn generate_insert_id<T: serde::Serialize>(
 }
 
 // Get the last processed block number from storage
-pub async fn get_last_processed_block(chain_info: &ChainInfo, datasets: &Vec<Table>) -> Result<u64> {
+pub async fn get_last_processed_block(
+    chain_info: &ChainInfo,
+    datasets: &Vec<Table>,
+) -> Result<u64> {
     let (client, project_id) = &*get_client().await?;
     let job_client = client.job(); // Create BigqueryJobClient
     let mut min_block: Option<u64> = None;

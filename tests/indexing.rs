@@ -8,7 +8,11 @@ use http::{HeaderMap, HeaderValue};
 use reqwest;
 use url::Url;
 
-use blockchain_indexer::{indexer, models::common::{ChainInfo, Schema}, utils::Table};
+use blockchain_indexer::{
+    indexer,
+    models::common::{ChainInfo, Schema},
+    utils::Table,
+};
 
 //////// Ethereum test params ////////
 const ETH_RPC_URL: &str = "https://eth.drpc.org";
@@ -91,7 +95,12 @@ async fn process_chain_test(
     {
         println!("\nProcessing {} block {}", chain_info.name, block_number);
 
-        let datasets = vec![Table::Blocks, Table::Transactions, Table::Logs, Table::Traces];
+        let datasets = vec![
+            Table::Blocks,
+            Table::Transactions,
+            Table::Logs,
+            Table::Traces,
+        ];
 
         let transformed_data = indexer::process_block(
             &provider,
@@ -188,9 +197,7 @@ async fn test_indexing_pipeline() -> Result<()> {
     // Create a vector of futures for each chain test
     let chain_futures = test_cases
         .into_iter()
-        .map(|(chain_info, rpc, block_cases)| {
-            process_chain_test(chain_info, rpc, block_cases)
-        })
+        .map(|(chain_info, rpc, block_cases)| process_chain_test(chain_info, rpc, block_cases))
         .collect::<Vec<_>>();
 
     // Run all chain tests in parallel

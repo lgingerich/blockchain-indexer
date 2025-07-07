@@ -33,7 +33,10 @@ use crate::models::{
         transactions::RpcTransactionData,
     },
 };
-use crate::utils::{retry::{RetryConfig, retry}, Table};
+use crate::utils::{
+    Table,
+    retry::{RetryConfig, retry},
+};
 
 pub trait ProviderDebugApi<N>: Provider<N> + DebugApi<N>
 where
@@ -291,7 +294,10 @@ pub async fn parse_data(
 ) -> Result<ParsedData> {
     // Parse block data if available
     let (header, transactions) = if let Some(block) = &block {
-        (block.parse_header(chain_info)?, block.parse_transactions(chain_info)?)
+        (
+            block.parse_header(chain_info)?,
+            block.parse_transactions(chain_info)?,
+        )
     } else {
         (vec![], vec![])
     };
@@ -373,17 +379,17 @@ pub async fn transform_data(
         vec![]
     };
 
-    let transactions =
-        if active_datasets.contains(&Table::Transactions) && !transactions.is_empty() {
-            <RpcTransactionData as TransactionTransformer>::transform_transactions(
-                transactions,
-                transaction_receipts,
-                chain_info,
-                &block_map,
-            )?
-        } else {
-            vec![]
-        };
+    let transactions = if active_datasets.contains(&Table::Transactions) && !transactions.is_empty()
+    {
+        <RpcTransactionData as TransactionTransformer>::transform_transactions(
+            transactions,
+            transaction_receipts,
+            chain_info,
+            &block_map,
+        )?
+    } else {
+        vec![]
+    };
 
     let logs = if active_datasets.contains(&Table::Logs) && !logs.is_empty() {
         <RpcLogReceiptData as LogTransformer>::transform_logs(logs, chain_info)?
@@ -420,10 +426,8 @@ where
     N: Network<BlockResponse = AnyRpcBlock, ReceiptResponse = AnyTransactionReceipt>,
 {
     // Track which RPC responses we need to fetch
-    let need_block =
-        datasets.contains(&Table::Blocks) || datasets.contains(&Table::Transactions);
-    let need_receipts =
-        datasets.contains(&Table::Logs) || datasets.contains(&Table::Transactions);
+    let need_block = datasets.contains(&Table::Blocks) || datasets.contains(&Table::Transactions);
+    let need_receipts = datasets.contains(&Table::Logs) || datasets.contains(&Table::Transactions);
     let need_traces = datasets.contains(&Table::Traces);
 
     // Fetch block data if needed
