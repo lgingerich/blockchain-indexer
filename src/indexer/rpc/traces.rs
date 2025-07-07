@@ -1,19 +1,21 @@
-use crate::models::common::Chain;
-use crate::models::datasets::traces::{
-    CommonRpcTraceData, EthereumRpcTraceData, RpcTraceData, ZKsyncRpcTraceData,
-};
 use alloy_primitives::FixedBytes;
 use alloy_rpc_types_trace::geth::{CallFrame, GethTrace, TraceResult};
+use anyhow::Result;
 use serde_json::Value;
 
-use anyhow::Result;
+use crate::models::{
+    common::{ChainInfo, Schema},
+    datasets::traces::{
+        CommonRpcTraceData, EthereumRpcTraceData, RpcTraceData, ZKsyncRpcTraceData,
+    },
+};
 
 pub trait TraceParser {
-    fn parse_traces(self, chain: Chain, block_number: u64) -> Result<Vec<RpcTraceData>>;
+    fn parse_traces(self, chain_info: &ChainInfo, block_number: u64) -> Result<Vec<RpcTraceData>>;
 }
 
 impl TraceParser for Vec<TraceResult> {
-    fn parse_traces(self, chain: Chain, block_number: u64) -> Result<Vec<RpcTraceData>> {
+    fn parse_traces(self, chain_info: &ChainInfo, block_number: u64) -> Result<Vec<RpcTraceData>> {
         Ok(self
             .into_iter()
             .flat_map(|trace_result| {
@@ -26,7 +28,7 @@ impl TraceParser for Vec<TraceResult> {
                             }
                             GethTrace::CallTracer(frame) => {
                                 // Process the frame and all its nested calls
-                                flatten_call_frames(frame, tx_hash, chain, block_number)
+                                flatten_call_frames(frame, tx_hash, chain_info, block_number)
                             }
                             GethTrace::FlatCallTracer(_frame) => {
                                 unimplemented!()
@@ -93,14 +95,14 @@ impl TraceParser for Vec<TraceResult> {
 fn flatten_call_frames(
     frame: CallFrame,
     tx_hash: Option<FixedBytes<32>>,
-    chain: Chain,
+    chain_info: &ChainInfo,
     block_number: u64,
 ) -> Vec<RpcTraceData> {
     // Helper function to process frame and its children with trace address
     fn process_frame_with_address(
         frame: CallFrame,
         tx_hash: Option<FixedBytes<32>>,
-        chain: Chain,
+        chain_info: &ChainInfo,
         block_number: u64,
         trace_address: Vec<usize>,
     ) -> Vec<RpcTraceData> {
@@ -122,11 +124,11 @@ fn flatten_call_frames(
             error: frame.error,
         };
 
-        let trace_data = match chain {
-            Chain::Ethereum => RpcTraceData::Ethereum(EthereumRpcTraceData {
+        let trace_data = match chain_info.schema {
+            Schema::Ethereum => RpcTraceData::Ethereum(EthereumRpcTraceData {
                 common: common_data,
             }),
-            Chain::ZKsync => RpcTraceData::ZKsync(ZKsyncRpcTraceData {
+            Schema::ZKsync => RpcTraceData::ZKsync(ZKsyncRpcTraceData {
                 common: common_data,
             }),
         };
@@ -140,7 +142,7 @@ fn flatten_call_frames(
             traces.extend(process_frame_with_address(
                 nested_call,
                 tx_hash,
-                chain,
+                chain_info,
                 block_number,
                 child_address,
             ));
@@ -150,5 +152,5 @@ fn flatten_call_frames(
     }
 
     // Start with empty trace_address for top-level frame
-    process_frame_with_address(frame, tx_hash, chain, block_number, Vec::new())
+    process_frame_with_address(frame, tx_hash, chain_info, block_number, Vec::new())
 }

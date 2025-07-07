@@ -1,38 +1,41 @@
 pub mod rpc;
 pub mod transformations;
 
-use anyhow::{Context, Result};
-
+use alloy_consensus::TxEnvelope;
 use alloy_eips::{BlockId, BlockNumberOrTag};
-use alloy_network::{AnyRpcBlock, AnyTransactionReceipt, BlockResponse, Network};
-use alloy_provider::{ext::DebugApi, Provider};
+use alloy_network::{AnyRpcBlock, AnyTransactionReceipt, AnyTxEnvelope, BlockResponse, Network};
+use alloy_primitives::FixedBytes;
+use alloy_provider::{Provider, ext::DebugApi};
+use alloy_rpc_types_trace::geth::{
+    GethDebugBuiltInTracerType, GethDebugTracerConfig, GethDebugTracerType,
+    GethDefaultTracingOptions,
+};
 use alloy_rpc_types_trace::{
     common::TraceResult,
     geth::{GethDebugTracingOptions, GethTrace},
 };
-
-use alloy_primitives::FixedBytes;
+use anyhow::{Context, Result};
 use std::collections::HashMap;
 use tracing::warn;
 
-use crate::indexer::rpc::{blocks::BlockParser, receipts::ReceiptParser, traces::TraceParser};
-use crate::indexer::transformations::{
-    blocks::BlockTransformer, logs::LogTransformer, traces::TraceTransformer,
-    transactions::TransactionTransformer,
+use crate::indexer::{
+    rpc::{blocks::BlockParser, receipts::ReceiptParser, traces::TraceParser},
+    transformations::{
+        blocks::BlockTransformer, logs::LogTransformer, traces::TraceTransformer,
+        transactions::TransactionTransformer,
+    },
 };
 use crate::metrics::Metrics;
-use crate::models::common::{Chain, ParsedData, TransformedData};
-use crate::models::datasets::blocks::RpcHeaderData;
-use crate::models::datasets::logs::RpcLogReceiptData;
-use crate::models::datasets::traces::RpcTraceData;
-use crate::models::datasets::transactions::RpcTransactionData;
-use crate::utils::retry::{retry, RetryConfig};
-
-use alloy_consensus::TxEnvelope;
-use alloy_network::AnyTxEnvelope;
-use alloy_rpc_types_trace::geth::{
-    GethDebugBuiltInTracerType, GethDebugTracerConfig, GethDebugTracerType,
-    GethDefaultTracingOptions,
+use crate::models::{
+    common::{ChainInfo, ParsedData, TransformedData},
+    datasets::{
+        blocks::RpcHeaderData, logs::RpcLogReceiptData, traces::RpcTraceData,
+        transactions::RpcTransactionData,
+    },
+};
+use crate::utils::{
+    Table,
+    retry::{RetryConfig, retry},
 };
 
 pub trait ProviderDebugApi<N>: Provider<N> + DebugApi<N>
@@ -48,7 +51,7 @@ where
 {
 }
 
-pub async fn get_chain_id<N>(provider: &dyn Provider<N>, metrics: Option<&Metrics>) -> Result<u64>
+pub async fn get_chain_id<N>(provider: &dyn Provider<N>) -> Result<u64>
 where
     N: Network,
 {
@@ -58,7 +61,7 @@ where
             let start = std::time::Instant::now();
 
             // Record metrics if enabled
-            if let Some(metrics) = metrics {
+            if let Some(metrics) = Metrics::global() {
                 metrics.record_rpc_request("get_chain_id");
             }
 
@@ -68,7 +71,7 @@ where
                 .context("Failed to get chain ID");
 
             // Record metrics if enabled
-            if let Some(metrics) = metrics {
+            if let Some(metrics) = Metrics::global() {
                 metrics.record_rpc_latency("get_chain_id", start.elapsed().as_secs_f64());
 
                 if result.is_err() {
@@ -84,10 +87,7 @@ where
     .await
 }
 
-pub async fn get_latest_block_number<N>(
-    provider: &dyn Provider<N>,
-    metrics: Option<&Metrics>,
-) -> Result<BlockNumberOrTag>
+pub async fn get_latest_block_number<N>(provider: &dyn Provider<N>) -> Result<BlockNumberOrTag>
 where
     N: Network,
 {
@@ -96,7 +96,7 @@ where
         || async {
             let start = std::time::Instant::now();
 
-            if let Some(metrics) = metrics {
+            if let Some(metrics) = Metrics::global() {
                 metrics.record_rpc_request("get_latest_block_number");
             }
 
@@ -106,7 +106,7 @@ where
                 .context("Failed to get latest block number");
 
             // Record metrics if enabled
-            if let Some(metrics) = metrics {
+            if let Some(metrics) = Metrics::global() {
                 metrics
                     .record_rpc_latency("get_latest_block_number", start.elapsed().as_secs_f64());
                 if result.is_err() {
@@ -125,7 +125,6 @@ where
 pub async fn get_block_by_number<N>(
     provider: &dyn Provider<N>,
     block_number: BlockNumberOrTag,
-    metrics: Option<&Metrics>,
 ) -> Result<Option<N::BlockResponse>>
 where
     N: Network,
@@ -135,7 +134,7 @@ where
         || async {
             let start = std::time::Instant::now();
 
-            if let Some(metrics) = metrics {
+            if let Some(metrics) = Metrics::global() {
                 metrics.record_rpc_request("get_block_by_number");
             }
 
@@ -151,7 +150,7 @@ where
                 });
 
             // Record metrics if enabled
-            if let Some(metrics) = metrics {
+            if let Some(metrics) = Metrics::global() {
                 metrics.record_rpc_latency("get_block_by_number", start.elapsed().as_secs_f64());
                 if result.is_err() {
                     metrics.record_rpc_error("get_block_by_number");
@@ -169,7 +168,6 @@ where
 pub async fn get_block_receipts<N>(
     provider: &dyn Provider<N>,
     block: BlockId,
-    metrics: Option<&Metrics>,
 ) -> Result<Option<Vec<N::ReceiptResponse>>>
 where
     N: Network,
@@ -179,7 +177,7 @@ where
         || async {
             let start = std::time::Instant::now();
 
-            if let Some(metrics) = metrics {
+            if let Some(metrics) = Metrics::global() {
                 metrics.record_rpc_request("get_block_receipts");
             }
 
@@ -188,7 +186,7 @@ where
             });
 
             // Record metrics if enabled
-            if let Some(metrics) = metrics {
+            if let Some(metrics) = Metrics::global() {
                 metrics.record_rpc_latency("get_block_receipts", start.elapsed().as_secs_f64());
                 if result.is_err() {
                     metrics.record_rpc_error("get_block_receipts");
@@ -207,7 +205,6 @@ pub async fn debug_trace_transaction_by_hash<N>(
     provider: &(impl DebugApi<N> + ?Sized),
     transaction_hashes: Vec<FixedBytes<32>>,
     trace_options: GethDebugTracingOptions,
-    metrics: Option<&Metrics>,
 ) -> Result<Option<Vec<TraceResult<GethTrace, String>>>>
 where
     N: Network,
@@ -219,7 +216,7 @@ where
         || async {
             let start = std::time::Instant::now();
 
-            if let Some(metrics) = metrics {
+            if let Some(metrics) = Metrics::global() {
                 metrics.record_rpc_request("debug_trace_transaction");
             }
 
@@ -266,7 +263,7 @@ where
                                 continue;
                             }
 
-                            if let Some(metrics) = metrics {
+                            if let Some(metrics) = Metrics::global() {
                                 metrics.record_rpc_error("debug_trace_transaction");
                             }
                             return Err(e);
@@ -276,7 +273,7 @@ where
             }
 
             // Record metrics if enabled
-            if let Some(metrics) = metrics {
+            if let Some(metrics) = Metrics::global() {
                 metrics.record_rpc_latency("debug_trace_transaction", start.elapsed().as_secs_f64());
             }
 
@@ -289,8 +286,7 @@ where
 }
 
 pub async fn parse_data(
-    chain: Chain,
-    chain_id: u64,
+    chain_info: &ChainInfo,
     block_number: u64,
     block: Option<AnyRpcBlock>,
     receipts: Option<Vec<AnyTransactionReceipt>>,
@@ -298,7 +294,10 @@ pub async fn parse_data(
 ) -> Result<ParsedData> {
     // Parse block data if available
     let (header, transactions) = if let Some(block) = &block {
-        (block.parse_header(chain)?, block.parse_transactions(chain)?)
+        (
+            block.parse_header(chain_info)?,
+            block.parse_transactions(chain_info)?,
+        )
     } else {
         (vec![], vec![])
     };
@@ -306,8 +305,8 @@ pub async fn parse_data(
     // Parse receipt data if available
     let (transaction_receipts, logs) = if let Some(receipts) = &receipts {
         (
-            receipts.parse_transaction_receipts(chain)?,
-            receipts.parse_log_receipts(chain)?,
+            receipts.parse_transaction_receipts(chain_info)?,
+            receipts.parse_log_receipts(chain_info)?,
         )
     } else {
         (vec![], vec![])
@@ -315,13 +314,12 @@ pub async fn parse_data(
 
     // Parse traces if available
     let traces = if let Some(traces) = traces {
-        traces.parse_traces(chain, block_number)?
+        traces.parse_traces(chain_info, block_number)?
     } else {
         vec![]
     };
 
     Ok(ParsedData {
-        chain_id,
         header,
         transactions,
         transaction_receipts,
@@ -331,12 +329,11 @@ pub async fn parse_data(
 }
 
 pub async fn transform_data(
-    chain: Chain,
+    chain_info: &ChainInfo,
     parsed_data: ParsedData,
-    active_datasets: &[String],
+    active_datasets: &[Table],
 ) -> Result<TransformedData> {
     let ParsedData {
-        chain_id,
         header,
         transactions,
         transaction_receipts,
@@ -376,36 +373,34 @@ pub async fn transform_data(
         })
         .collect();
 
-    let blocks = if active_datasets.contains(&"blocks".to_string()) {
-        <RpcHeaderData as BlockTransformer>::transform_blocks(header, chain, chain_id)?
+    let blocks = if active_datasets.contains(&Table::Blocks) {
+        <RpcHeaderData as BlockTransformer>::transform_blocks(header, chain_info)?
     } else {
         vec![]
     };
 
-    let transactions =
-        if active_datasets.contains(&"transactions".to_string()) && !transactions.is_empty() {
-            <RpcTransactionData as TransactionTransformer>::transform_transactions(
-                transactions,
-                transaction_receipts,
-                chain,
-                chain_id,
-                &block_map,
-            )?
-        } else {
-            vec![]
-        };
-
-    let logs = if active_datasets.contains(&"logs".to_string()) && !logs.is_empty() {
-        <RpcLogReceiptData as LogTransformer>::transform_logs(logs, chain, chain_id)?
+    let transactions = if active_datasets.contains(&Table::Transactions) && !transactions.is_empty()
+    {
+        <RpcTransactionData as TransactionTransformer>::transform_transactions(
+            transactions,
+            transaction_receipts,
+            chain_info,
+            &block_map,
+        )?
     } else {
         vec![]
     };
 
-    let traces = if active_datasets.contains(&"traces".to_string()) && !traces.is_empty() {
+    let logs = if active_datasets.contains(&Table::Logs) && !logs.is_empty() {
+        <RpcLogReceiptData as LogTransformer>::transform_logs(logs, chain_info)?
+    } else {
+        vec![]
+    };
+
+    let traces = if active_datasets.contains(&Table::Traces) && !traces.is_empty() {
         <RpcTraceData as TraceTransformer>::transform_traces(
             traces,
-            chain,
-            chain_id,
+            chain_info,
             &block_map,
             &tx_index_map,
         )?
@@ -424,24 +419,20 @@ pub async fn transform_data(
 pub async fn process_block<N>(
     provider: &impl ProviderDebugApi<N>,
     block_number: BlockNumberOrTag,
-    chain: Chain,
-    chain_id: u64,
-    datasets: &[String],
-    metrics: Option<&Metrics>,
+    chain_info: &ChainInfo,
+    datasets: &[Table],
 ) -> Result<TransformedData>
 where
     N: Network<BlockResponse = AnyRpcBlock, ReceiptResponse = AnyTransactionReceipt>,
 {
     // Track which RPC responses we need to fetch
-    let need_block =
-        datasets.contains(&"blocks".to_string()) || datasets.contains(&"transactions".to_string());
-    let need_receipts =
-        datasets.contains(&"logs".to_string()) || datasets.contains(&"transactions".to_string());
-    let need_traces = datasets.contains(&"traces".to_string());
+    let need_block = datasets.contains(&Table::Blocks) || datasets.contains(&Table::Transactions);
+    let need_receipts = datasets.contains(&Table::Logs) || datasets.contains(&Table::Transactions);
+    let need_traces = datasets.contains(&Table::Traces);
 
     // Fetch block data if needed
     let block = if need_block {
-        get_block_by_number(provider, block_number, metrics).await?
+        get_block_by_number(provider, block_number).await?
     } else {
         None
     };
@@ -449,7 +440,7 @@ where
     // Fetch receipts if needed
     let receipts = if need_receipts {
         let block_id = BlockId::Number(block_number);
-        get_block_receipts(provider, block_id, metrics).await?
+        get_block_receipts(provider, block_id).await?
     } else {
         None
     };
@@ -534,15 +525,14 @@ where
         // Get just the hashes for the trace API
         let hashes: Vec<_> = tx_hashes.into_iter().map(|(hash, _)| hash).collect();
 
-        debug_trace_transaction_by_hash(provider, hashes, trace_options, metrics).await?
+        debug_trace_transaction_by_hash(provider, hashes, trace_options).await?
     } else {
         None
     };
 
     // Parse and transform the data
     let parsed_data = parse_data(
-        chain,
-        chain_id,
+        chain_info,
         block_number
             .as_number()
             .ok_or_else(|| anyhow::anyhow!("Expected block number, got {:?}", block_number))?,
@@ -552,5 +542,5 @@ where
     )
     .await?;
 
-    transform_data(chain, parsed_data, datasets).await
+    transform_data(chain_info, parsed_data, datasets).await
 }

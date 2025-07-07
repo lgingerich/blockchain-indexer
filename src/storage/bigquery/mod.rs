@@ -1,27 +1,30 @@
 mod schema;
 
-use crate::metrics::Metrics;
-use crate::models::common::Chain;
-use crate::storage::bigquery::schema::{
-    block_schema, log_schema, trace_schema, transaction_schema,
-};
-use crate::utils::retry::{retry, RetryConfig};
+use anyhow::Result;
 use google_cloud_bigquery::client::{Client, ClientConfig};
-use google_cloud_bigquery::http::dataset::{Dataset, DatasetReference};
-use google_cloud_bigquery::http::error::Error as BigQueryError;
-use google_cloud_bigquery::http::job::query::QueryRequest;
-use google_cloud_bigquery::http::table::{
-    Table, TableReference, TimePartitionType, TimePartitioning,
-};
-use google_cloud_bigquery::http::tabledata::{
-    insert_all::{InsertAllRequest, Row as TableRow},
-    list::Value,
+use google_cloud_bigquery::http::{
+    dataset::{Dataset, DatasetReference},
+    error::Error as BigQueryError,
+    job::query::QueryRequest,
+    table::{Table as BigQueryTable, TableReference, TimePartitionType, TimePartitioning},
+    tabledata::{
+        insert_all::{InsertAllRequest, Row as TableRow},
+        list::Value,
+    },
 };
 use once_cell::sync::OnceCell;
 use std::sync::Arc;
 use tracing::{error, info, warn};
 
-use anyhow::Result;
+use crate::metrics::Metrics;
+use crate::models::common::ChainInfo;
+use crate::storage::bigquery::schema::{
+    block_schema, log_schema, trace_schema, transaction_schema,
+};
+use crate::utils::{
+    Table,
+    retry::{RetryConfig, retry},
+};
 
 // Define a static OnceCell to hold the shared Client and Project ID
 static BIGQUERY_CLIENT: OnceCell<Arc<(Client, String)>> = OnceCell::new();
@@ -52,9 +55,13 @@ pub async fn get_client() -> Result<Arc<(Client, String)>> {
 }
 
 // Verify that a dataset exists and is accessible
-pub async fn verify_dataset(client: &Client, project_id: &str, chain_name: &str) -> Result<bool> {
+pub async fn verify_dataset(
+    client: &Client,
+    project_id: &str,
+    chain_info: &ChainInfo,
+) -> Result<bool> {
     // TODO: Better handle case when dataset is not found
-    match client.dataset().get(project_id, chain_name).await {
+    match client.dataset().get(project_id, &chain_info.name).await {
         Ok(_) => Ok(true),
         Err(BigQueryError::Response(resp)) if resp.message.contains("Not found") => Ok(false),
         Err(e) => Err(e.into()),
@@ -65,11 +72,15 @@ pub async fn verify_dataset(client: &Client, project_id: &str, chain_name: &str)
 pub async fn verify_table(
     client: &Client,
     project_id: &str,
-    chain_name: &str,
+    chain_info: &ChainInfo,
     table_id: &str,
 ) -> Result<bool> {
     // TODO: Better handle case when table is not found
-    match client.table().get(project_id, chain_name, table_id).await {
+    match client
+        .table()
+        .get(project_id, &chain_info.name, table_id)
+        .await
+    {
         Ok(_) => Ok(true),
         Err(BigQueryError::Response(resp)) if resp.message.contains("Not found") => Ok(false),
         Err(e) => Err(e.into()),
@@ -77,20 +88,23 @@ pub async fn verify_table(
 }
 
 // Create a dataset
-pub async fn create_dataset(chain_name: &str, dataset_location: &str) -> Result<()> {
+pub async fn create_dataset(chain_info: &ChainInfo, dataset_location: &str) -> Result<()> {
     let (client, project_id) = &*get_client().await?;
     let dataset_client = client.dataset();
 
     // Check if dataset exists first
-    if verify_dataset(client, project_id, chain_name).await? {
-        info!("Dataset '{}' already exists and is accessible", chain_name);
+    if verify_dataset(client, project_id, chain_info).await? {
+        info!(
+            "Dataset '{}' already exists and is accessible",
+            chain_info.name
+        );
         return Ok(());
     }
 
     let metadata = Dataset {
         dataset_reference: DatasetReference {
             project_id: project_id.clone(),
-            dataset_id: chain_name.to_string(),
+            dataset_id: chain_info.name.clone(),
         },
         location: dataset_location.to_string(),
         ..Default::default()
@@ -103,12 +117,12 @@ pub async fn create_dataset(chain_name: &str, dataset_location: &str) -> Result<
                 Ok(_) => {
                     info!(
                         "Dataset successfully created for chain_name: {}, project_id: {}",
-                        chain_name, project_id
+                        chain_info.name, project_id
                     );
                     Ok::<(), anyhow::Error>(())
                 }
                 Err(BigQueryError::Response(resp)) if resp.message.contains("Already Exists") => {
-                    info!("Dataset '{}' already exists", chain_name);
+                    info!("Dataset '{}' already exists", chain_info.name);
                     Ok(())
                 }
                 Err(e) => Err(e.into()),
@@ -123,32 +137,32 @@ pub async fn create_dataset(chain_name: &str, dataset_location: &str) -> Result<
 }
 
 // Create a table
-pub async fn create_table(chain_name: &str, table_id: &str, chain: Chain) -> Result<()> {
+pub async fn create_table(chain_info: &ChainInfo, table: &Table) -> Result<()> {
     let (client, project_id) = &*get_client().await?;
     let table_client = client.table(); // Create BigqueryTableClient
 
     // Check if table exists
-    if verify_table(client, project_id, chain_name, table_id).await? {
+    if verify_table(client, project_id, chain_info, &table.to_string()).await? {
         info!(
             "Table '{}.{}' already exists and is accessible",
-            chain_name, table_id
+            chain_info.name,
+            table.to_string()
         );
         return Ok(());
     }
 
-    let schema = match table_id {
-        "blocks" => block_schema(chain),
-        "logs" => log_schema(chain),
-        "transactions" => transaction_schema(chain),
-        "traces" => trace_schema(chain),
-        _ => return Err(anyhow::anyhow!("Invalid table ID: {}", table_id)),
+    let schema = match table {
+        Table::Blocks => block_schema(chain_info.schema),
+        Table::Logs => log_schema(chain_info.schema),
+        Table::Transactions => transaction_schema(chain_info.schema),
+        Table::Traces => trace_schema(chain_info.schema),
     };
 
-    let metadata = Table {
+    let metadata = BigQueryTable {
         table_reference: TableReference {
             project_id: project_id.clone(),
-            dataset_id: chain_name.to_string(),
-            table_id: table_id.to_string(),
+            dataset_id: chain_info.name.clone(),
+            table_id: table.to_string(),
         },
         schema: Some(schema),
         time_partitioning: Some(TimePartitioning {
@@ -166,7 +180,8 @@ pub async fn create_table(chain_name: &str, table_id: &str, chain: Chain) -> Res
                 Ok(_) => {
                     info!(
                         "Table '{}' successfully created in dataset '{}'",
-                        table_id, chain_name
+                        table.to_string(),
+                        chain_info.name
                     );
                     Ok::<(), anyhow::Error>(())
                 }
@@ -176,7 +191,8 @@ pub async fn create_table(chain_name: &str, table_id: &str, chain: Chain) -> Res
                         if resp.message.contains("Already Exists") {
                             info!(
                                 "Table '{}' already exists in dataset '{}'",
-                                table_id, chain_name
+                                table.to_string(),
+                                chain_info.name
                             );
                             return Ok(()); // Treat as success for the retry logic
                         }
@@ -199,7 +215,6 @@ pub async fn insert_data<T: serde::Serialize>(
     table_id: &str,
     data: Vec<T>,
     block_range: (u64, u64),
-    metrics: Option<&Metrics>,
 ) -> Result<()> {
     let (client, project_id) = &*get_client().await?;
 
@@ -215,7 +230,7 @@ pub async fn insert_data<T: serde::Serialize>(
     let batch_start = std::time::Instant::now();
 
     // Record batch size if metrics enabled
-    if let Some(metrics) = metrics {
+    if let Some(metrics) = Metrics::global() {
         metrics.record_bigquery_batch_size_with_table(table_id, total_rows as f64);
     }
 
@@ -357,7 +372,7 @@ pub async fn insert_data<T: serde::Serialize>(
     }
 
     // After batches are sent, record metrics
-    if let Some(metrics) = metrics {
+    if let Some(metrics) = Metrics::global() {
         metrics.record_bigquery_insert_latency_with_table(
             table_id,
             batch_start.elapsed().as_secs_f64(),
@@ -478,19 +493,24 @@ fn generate_insert_id<T: serde::Serialize>(
 }
 
 // Get the last processed block number from storage
-pub async fn get_last_processed_block(chain_name: &str, datasets: &Vec<String>) -> Result<u64> {
+pub async fn get_last_processed_block(
+    chain_info: &ChainInfo,
+    datasets: &Vec<Table>,
+) -> Result<u64> {
     let (client, project_id) = &*get_client().await?;
     let job_client = client.job(); // Create BigqueryJobClient
     let mut min_block: Option<u64> = None;
 
-    for table_id in datasets {
+    for table in datasets {
+        let table_name = table.to_string();
         // Skip tables that don't exist
-        if !verify_table(client, project_id, chain_name, table_id).await? {
+        if !verify_table(client, project_id, chain_info, &table_name).await? {
             continue;
         }
 
         let query = format!(
-            "SELECT MAX(block_number) AS max_block FROM `{project_id}.{chain_name}.{table_id}`",
+            "SELECT MAX(block_number) AS max_block FROM `{project_id}.{}.{table_name}`",
+            chain_info.name,
         );
         let request = QueryRequest {
             query,
@@ -520,7 +540,7 @@ pub async fn get_last_processed_block(chain_name: &str, datasets: &Vec<String>) 
                 // If querying any table fails, propagate the error immediately.
                 error!(
                     "Failed to query max block for table '{}.{}.{}': {}",
-                    project_id, chain_name, table_id, e
+                    project_id, chain_info.name, table_name, e
                 );
                 return Err(e.into());
             }

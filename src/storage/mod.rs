@@ -1,21 +1,31 @@
 pub mod bigquery;
 
 use anyhow::Result;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
-use std::time::Duration as StdDuration;
-use tokio::sync::broadcast;
-use tokio::sync::mpsc::{self, Sender};
-use tokio::time::{Duration, Instant};
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::Duration as StdDuration,
+};
+use tokio::{
+    sync::{
+        broadcast,
+        mpsc::{self, Sender},
+    },
+    time::{Duration, Instant},
+};
 use tracing::{debug, error, info, warn};
 
-use crate::metrics::Metrics;
-use crate::models::common::Chain;
-use crate::models::datasets::blocks::TransformedBlockData;
-use crate::models::datasets::logs::TransformedLogData;
-use crate::models::datasets::traces::TransformedTraceData;
-use crate::models::datasets::transactions::TransformedTransactionData;
+use crate::models::{
+    common::ChainInfo,
+    datasets::{
+        blocks::TransformedBlockData, logs::TransformedLogData, traces::TransformedTraceData,
+        transactions::TransformedTransactionData,
+    },
+};
 use crate::storage::bigquery::insert_data;
+use crate::utils::Table;
 
 const MAX_CHANNEL_CAPACITY: usize = 1024;
 const BATCH_SIZE: usize = 10; // Number of blocks to batch together
@@ -71,9 +81,11 @@ impl DataChannels {
                     return Ok(());
                 }
                 debug!(
-                    "Waiting for workers to complete. Progress: blocks={}, txs={}, logs={}, traces={}", 
+                    "Waiting for workers to complete. Progress: blocks={}, txs={}, logs={}, traces={}",
                     self.last_block_processed.blocks.load(Ordering::Relaxed),
-                    self.last_block_processed.transactions.load(Ordering::Relaxed),
+                    self.last_block_processed
+                        .transactions
+                        .load(Ordering::Relaxed),
                     self.last_block_processed.logs.load(Ordering::Relaxed),
                     self.last_block_processed.traces.load(Ordering::Relaxed),
                 );
@@ -163,7 +175,7 @@ impl DataChannels {
 }
 
 // TODO: Better align/unify error handling in this function.
-pub async fn setup_channels(chain_name: &str, metrics: Option<&Metrics>) -> Result<DataChannels> {
+pub async fn setup_channels(chain_name: &str) -> Result<DataChannels> {
     let (blocks_tx, mut blocks_rx) = mpsc::channel(MAX_CHANNEL_CAPACITY);
     let (transactions_tx, mut transactions_rx) = mpsc::channel(MAX_CHANNEL_CAPACITY);
     let (logs_tx, mut logs_rx) = mpsc::channel(MAX_CHANNEL_CAPACITY);
@@ -186,14 +198,10 @@ pub async fn setup_channels(chain_name: &str, metrics: Option<&Metrics>) -> Resu
         last_block_processed: progress.clone(),
     };
 
-    // Clone metrics once at the beginning if it exists
-    let metrics = metrics.cloned();
-
     // Spawn worker for blocks
     let blocks_dataset = chain_name.to_owned();
     let mut shutdown_rx = shutdown_tx.subscribe();
     let channels_clone = channels.clone();
-    let metrics_clone = metrics.clone();
     tokio::spawn(async move {
         let result: Result<()> = async {
             let mut batch = Vec::new();
@@ -217,7 +225,7 @@ pub async fn setup_channels(chain_name: &str, metrics: Option<&Metrics>) -> Resu
 
                         // Insert batch if we've collected BATCH_SIZE different blocks or if we've waited too long
                         if (block_count >= BATCH_SIZE || last_batch_time.elapsed() >= MAX_BATCH_WAIT) && !batch.is_empty() {
-                            insert_data(&blocks_dataset, "blocks", batch, (min_block, max_block), metrics_clone.as_ref())
+                            insert_data(&blocks_dataset, "blocks", batch, (min_block, max_block))
                                 .await
                                 .map_err(|e| anyhow::anyhow!(
                                     "Failed to insert block data batch (blocks {}-{}): {}",
@@ -244,7 +252,7 @@ pub async fn setup_channels(chain_name: &str, metrics: Option<&Metrics>) -> Resu
                         debug!("Blocks worker processing remaining items...");
                         // Process any remaining items in the batch
                         if !batch.is_empty() {
-                            insert_data(&blocks_dataset, "blocks", batch, (min_block, max_block), metrics_clone.as_ref())
+                            insert_data(&blocks_dataset, "blocks", batch, (min_block, max_block))
                                 .await
                                 .map_err(|e| anyhow::anyhow!(
                                     "Failed to insert final block data batch (blocks {}-{}): {}",
@@ -254,7 +262,7 @@ pub async fn setup_channels(chain_name: &str, metrics: Option<&Metrics>) -> Resu
                         }
                         // Process any remaining items in the channel
                         while let Some((blocks, block_number)) = blocks_rx.recv().await {
-                            insert_data(&blocks_dataset, "blocks", blocks, (block_number, block_number), metrics_clone.as_ref())
+                            insert_data(&blocks_dataset, "blocks", blocks, (block_number, block_number))
                                 .await
                                 .map_err(|e| anyhow::anyhow!(
                                     "Failed to insert final block data (block {}): {}",
@@ -280,7 +288,6 @@ pub async fn setup_channels(chain_name: &str, metrics: Option<&Metrics>) -> Resu
     let transactions_dataset = chain_name.to_owned();
     let mut shutdown_rx = shutdown_tx.subscribe();
     let channels_clone = channels.clone();
-    let metrics_clone = metrics.clone();
     tokio::spawn(async move {
         let result: Result<()> = async {
             let mut batch = Vec::new();
@@ -304,7 +311,7 @@ pub async fn setup_channels(chain_name: &str, metrics: Option<&Metrics>) -> Resu
 
                         // Insert batch if we've collected BATCH_SIZE different blocks or if we've waited too long
                         if (block_count >= BATCH_SIZE || last_batch_time.elapsed() >= MAX_BATCH_WAIT) && !batch.is_empty() {
-                            insert_data(&transactions_dataset, "transactions", batch, (min_block, max_block), metrics_clone.as_ref())
+                            insert_data(&transactions_dataset, "transactions", batch, (min_block, max_block))
                                 .await
                                 .map_err(|e| anyhow::anyhow!(
                                     "Failed to insert transaction data batch (blocks {}-{}): {}",
@@ -331,7 +338,7 @@ pub async fn setup_channels(chain_name: &str, metrics: Option<&Metrics>) -> Resu
                         debug!("Transactions worker processing remaining items...");
                         // Process any remaining items in the batch
                         if !batch.is_empty() {
-                            insert_data(&transactions_dataset, "transactions", batch, (min_block, max_block), metrics_clone.as_ref())
+                            insert_data(&transactions_dataset, "transactions", batch, (min_block, max_block))
                                 .await
                                 .map_err(|e| anyhow::anyhow!(
                                     "Failed to insert final transaction data batch (blocks {}-{}): {}",
@@ -341,7 +348,7 @@ pub async fn setup_channels(chain_name: &str, metrics: Option<&Metrics>) -> Resu
                         }
                         // Process any remaining items in the channel
                         while let Some((transactions, block_number)) = transactions_rx.recv().await {
-                            insert_data(&transactions_dataset, "transactions", transactions, (block_number, block_number), metrics_clone.as_ref())
+                            insert_data(&transactions_dataset, "transactions", transactions, (block_number, block_number))
                                 .await
                                 .map_err(|e| anyhow::anyhow!(
                                     "Failed to insert final transaction data (block {}): {}",
@@ -367,7 +374,6 @@ pub async fn setup_channels(chain_name: &str, metrics: Option<&Metrics>) -> Resu
     let logs_dataset = chain_name.to_owned();
     let mut shutdown_rx = shutdown_tx.subscribe();
     let channels_clone = channels.clone();
-    let metrics_clone = metrics.clone();
     tokio::spawn(async move {
         let result: Result<()> = async {
             let mut batch = Vec::new();
@@ -391,7 +397,7 @@ pub async fn setup_channels(chain_name: &str, metrics: Option<&Metrics>) -> Resu
 
                         // Insert batch if we've collected BATCH_SIZE different blocks or if we've waited too long
                         if (block_count >= BATCH_SIZE || last_batch_time.elapsed() >= MAX_BATCH_WAIT) && !batch.is_empty() {
-                            insert_data(&logs_dataset, "logs", batch, (min_block, max_block), metrics_clone.as_ref())
+                            insert_data(&logs_dataset, "logs", batch, (min_block, max_block))
                                 .await
                                 .map_err(|e| anyhow::anyhow!(
                                     "Failed to insert log data batch (blocks {}-{}): {}",
@@ -418,7 +424,7 @@ pub async fn setup_channels(chain_name: &str, metrics: Option<&Metrics>) -> Resu
                         debug!("Logs worker processing remaining items...");
                         // Process any remaining items in the batch
                         if !batch.is_empty() {
-                            insert_data(&logs_dataset, "logs", batch, (min_block, max_block), metrics_clone.as_ref())
+                            insert_data(&logs_dataset, "logs", batch, (min_block, max_block))
                                 .await
                                 .map_err(|e| anyhow::anyhow!(
                                     "Failed to insert final log data batch (blocks {}-{}): {}",
@@ -428,7 +434,7 @@ pub async fn setup_channels(chain_name: &str, metrics: Option<&Metrics>) -> Resu
                         }
                         // Process any remaining items in the channel
                         while let Some((logs, block_number)) = logs_rx.recv().await {
-                            insert_data(&logs_dataset, "logs", logs, (block_number, block_number), metrics_clone.as_ref())
+                            insert_data(&logs_dataset, "logs", logs, (block_number, block_number))
                                 .await
                                 .map_err(|e| anyhow::anyhow!(
                                     "Failed to insert final log data (block {}): {}",
@@ -454,7 +460,6 @@ pub async fn setup_channels(chain_name: &str, metrics: Option<&Metrics>) -> Resu
     let traces_dataset = chain_name.to_owned();
     let mut shutdown_rx = shutdown_tx.subscribe();
     let channels_clone = channels.clone();
-    let metrics_clone = metrics.clone();
     tokio::spawn(async move {
         let result: Result<()> = async {
             let mut batch = Vec::new();
@@ -478,7 +483,7 @@ pub async fn setup_channels(chain_name: &str, metrics: Option<&Metrics>) -> Resu
 
                         // Insert batch if we've collected BATCH_SIZE different blocks or if we've waited too long
                         if (block_count >= BATCH_SIZE || last_batch_time.elapsed() >= MAX_BATCH_WAIT) && !batch.is_empty() {
-                            insert_data(&traces_dataset, "traces", batch, (min_block, max_block), metrics_clone.as_ref())
+                            insert_data(&traces_dataset, "traces", batch, (min_block, max_block))
                                 .await
                                 .map_err(|e| anyhow::anyhow!(
                                     "Failed to insert trace data batch (blocks {}-{}): {}",
@@ -505,7 +510,7 @@ pub async fn setup_channels(chain_name: &str, metrics: Option<&Metrics>) -> Resu
                         debug!("Traces worker processing remaining items...");
                         // Process any remaining items in the batch
                         if !batch.is_empty() {
-                            insert_data(&traces_dataset, "traces", batch, (min_block, max_block), metrics_clone.as_ref())
+                            insert_data(&traces_dataset, "traces", batch, (min_block, max_block))
                                 .await
                                 .map_err(|e| anyhow::anyhow!(
                                     "Failed to insert final trace data batch (blocks {}-{}): {}",
@@ -515,7 +520,7 @@ pub async fn setup_channels(chain_name: &str, metrics: Option<&Metrics>) -> Resu
                         }
                         // Process any remaining items in the channel
                         while let Some((traces, block_number)) = traces_rx.recv().await {
-                            insert_data(&traces_dataset, "traces", traces, (block_number, block_number), metrics_clone.as_ref())
+                            insert_data(&traces_dataset, "traces", traces, (block_number, block_number))
                                 .await
                                 .map_err(|e| anyhow::anyhow!(
                                     "Failed to insert final trace data (block {}): {}",
@@ -542,21 +547,18 @@ pub async fn setup_channels(chain_name: &str, metrics: Option<&Metrics>) -> Resu
 
 // Initialize BigQuery dataset and tables
 pub async fn initialize_storage(
-    chain_name: &str,
+    chain_info: &ChainInfo,
     dataset_location: &str,
-    datasets: &[String],
-    chain: Chain,
+    datasets: &[Table],
 ) -> Result<()> {
-    info!("Initializing storage for chain: {}", chain_name);
+    info!("Initializing storage for chain: {}", chain_info.name);
 
     // Create dataset if it doesn't exist
-    bigquery::create_dataset(chain_name, dataset_location).await?;
+    bigquery::create_dataset(chain_info, dataset_location).await?;
 
     // Create tables if they don't exist
-    for table in ["blocks", "logs", "transactions", "traces"] {
-        if datasets.contains(&table.to_owned()) {
-            bigquery::create_table(chain_name, table, chain).await?;
-        }
+    for table in datasets {
+        bigquery::create_table(chain_info, table).await?;
     }
 
     info!("Storage initialized successfully");

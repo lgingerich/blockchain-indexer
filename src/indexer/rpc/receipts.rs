@@ -1,26 +1,36 @@
 use alloy_consensus::Eip658Value;
 use alloy_network::AnyTransactionReceipt;
+use anyhow::Result;
 use chrono::DateTime;
 
-use crate::models::common::Chain;
-use crate::models::datasets::logs::{
-    CommonRpcLogReceiptData, EthereumRpcLogReceiptData, RpcLogReceiptData, ZKsyncRpcLogReceiptData,
-};
-use crate::models::datasets::transactions::{
-    CommonRpcTransactionReceiptData, EthereumRpcTransactionReceiptData, RpcTransactionReceiptData,
-    ZKsyncRpcTransactionReceiptData,
+use crate::models::{
+    common::{ChainInfo, Schema},
+    datasets::{
+        logs::{
+            CommonRpcLogReceiptData, EthereumRpcLogReceiptData, RpcLogReceiptData,
+            ZKsyncRpcLogReceiptData,
+        },
+        transactions::{
+            CommonRpcTransactionReceiptData, EthereumRpcTransactionReceiptData,
+            RpcTransactionReceiptData, ZKsyncRpcTransactionReceiptData,
+        },
+    },
 };
 use crate::utils::{hex_to_u64, sanitize_block_time};
 
-use anyhow::Result;
-
 pub trait ReceiptParser {
-    fn parse_transaction_receipts(&self, chain: Chain) -> Result<Vec<RpcTransactionReceiptData>>;
-    fn parse_log_receipts(&self, chain: Chain) -> Result<Vec<RpcLogReceiptData>>;
+    fn parse_transaction_receipts(
+        &self,
+        chain_info: &ChainInfo,
+    ) -> Result<Vec<RpcTransactionReceiptData>>;
+    fn parse_log_receipts(&self, chain_info: &ChainInfo) -> Result<Vec<RpcLogReceiptData>>;
 }
 
 impl ReceiptParser for Vec<AnyTransactionReceipt> {
-    fn parse_transaction_receipts(&self, chain: Chain) -> Result<Vec<RpcTransactionReceiptData>> {
+    fn parse_transaction_receipts(
+        &self,
+        chain_info: &ChainInfo,
+    ) -> Result<Vec<RpcTransactionReceiptData>> {
         self.iter()
             .map(|receipt| {
                 // Access the inner ReceiptWithBloom through the AnyReceiptEnvelope
@@ -46,13 +56,13 @@ impl ReceiptParser for Vec<AnyTransactionReceipt> {
                     cumulative_gas_used: receipt_with_bloom.receipt.cumulative_gas_used,
                 };
 
-                let receipt = match chain {
-                    Chain::Ethereum => {
+                let receipt = match chain_info.schema {
+                    Schema::Ethereum => {
                         RpcTransactionReceiptData::Ethereum(EthereumRpcTransactionReceiptData {
                             common,
                         })
                     }
-                    Chain::ZKsync => {
+                    Schema::ZKsync => {
                         let l1_batch_number = receipt
                             .other
                             .get_deserialized::<String>("l1BatchNumber")
@@ -79,7 +89,7 @@ impl ReceiptParser for Vec<AnyTransactionReceipt> {
             .collect()
     }
 
-    fn parse_log_receipts(&self, chain: Chain) -> Result<Vec<RpcLogReceiptData>> {
+    fn parse_log_receipts(&self, chain_info: &ChainInfo) -> Result<Vec<RpcLogReceiptData>> {
         self.iter()
             .flat_map(|receipt| {
                 let receipt_with_bloom = &receipt.inner.inner.inner;
@@ -115,11 +125,11 @@ impl ReceiptParser for Vec<AnyTransactionReceipt> {
                             data: log.inner.data.data.clone(),
                         };
 
-                        let log = match chain {
-                            Chain::Ethereum => {
+                        let log = match chain_info.schema {
+                            Schema::Ethereum => {
                                 RpcLogReceiptData::Ethereum(EthereumRpcLogReceiptData { common })
                             }
-                            Chain::ZKsync => {
+                            Schema::ZKsync => {
                                 RpcLogReceiptData::ZKsync(ZKsyncRpcLogReceiptData { common })
                             }
                         };

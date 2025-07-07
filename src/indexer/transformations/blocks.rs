@@ -1,23 +1,24 @@
-use crate::models::common::Chain;
-use crate::models::datasets::blocks::{
-    CommonTransformedBlockData, EthereumTransformedBlockData, RpcHeaderData, TransformedBlockData,
-    ZKsyncTransformedBlockData,
-};
 use anyhow::Result;
+
+use crate::models::{
+    common::{ChainInfo, Schema},
+    datasets::blocks::{
+        CommonTransformedBlockData, EthereumTransformedBlockData, RpcHeaderData,
+        TransformedBlockData, ZKsyncTransformedBlockData,
+    },
+};
 
 pub trait BlockTransformer {
     fn transform_blocks(
         headers: Vec<RpcHeaderData>,
-        chain: Chain,
-        chain_id: u64,
+        chain_info: &ChainInfo,
     ) -> Result<Vec<TransformedBlockData>>;
 }
 
 impl BlockTransformer for RpcHeaderData {
     fn transform_blocks(
         headers: Vec<RpcHeaderData>,
-        chain: Chain,
-        chain_id: u64,
+        chain_info: &ChainInfo,
     ) -> Result<Vec<TransformedBlockData>> {
         headers
             .into_iter()
@@ -27,11 +28,11 @@ impl BlockTransformer for RpcHeaderData {
                     RpcHeaderData::ZKsync(h) => &h.common,
                 };
 
-                let pk = format!("block_{}_{}", chain_id, common_data.block_hash); // Build primary key
+                let pk = format!("block_{}_{}", chain_info.id, common_data.block_hash); // Build primary key
 
                 let common = CommonTransformedBlockData {
                     id: pk,
-                    chain_id,
+                    chain_id: chain_info.id,
                     block_time: common_data.block_time,
                     block_date: common_data.block_date,
                     block_number: common_data.block_number,
@@ -56,17 +57,17 @@ impl BlockTransformer for RpcHeaderData {
                     withdrawals_root: common_data.withdrawals_root,
                 };
 
-                match chain {
-                    Chain::Ethereum => Ok(TransformedBlockData::Ethereum(
+                match chain_info.schema {
+                    Schema::Ethereum => Ok(TransformedBlockData::Ethereum(
                         EthereumTransformedBlockData { common },
                     )),
-                    Chain::ZKsync => {
+                    Schema::ZKsync => {
                         let zksync_data = match header {
                             RpcHeaderData::ZKsync(data) => data,
                             _ => {
                                 return Err(anyhow::anyhow!(
                                     "Expected ZKsync header for ZKsync chain"
-                                ))
+                                ));
                             }
                         };
 

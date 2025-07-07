@@ -1,12 +1,17 @@
 use anyhow::{Context, Result};
-use axum::{extract::State, http::StatusCode, routing::get, Router};
-use opentelemetry::metrics::{Counter, Gauge, Histogram, MeterProvider};
-use opentelemetry::KeyValue;
+use axum::{Router, extract::State, http::StatusCode, routing::get};
+use once_cell::sync::OnceCell;
+use opentelemetry::{
+    KeyValue,
+    metrics::{Counter, Gauge, Histogram, MeterProvider},
+};
 use opentelemetry_sdk::metrics::SdkMeterProvider;
 use prometheus::{Encoder, TextEncoder};
-use std::net::SocketAddr;
-use std::sync::Arc;
+use std::{net::SocketAddr, sync::Arc};
 use tracing::info;
+
+// Global metrics instance
+static GLOBAL_METRICS: OnceCell<Arc<Metrics>> = OnceCell::new();
 
 #[derive(Clone)]
 pub struct Metrics {
@@ -22,7 +27,7 @@ pub struct Metrics {
     pub latest_processed_block: Gauge<u64>,
     pub latest_block_processing_time: Gauge<f64>,
 
-    // Chain metrics
+    // Schema metrics
     pub chain_tip_block: Gauge<u64>,
     pub chain_tip_lag: Gauge<u64>,
 
@@ -132,6 +137,20 @@ impl Metrics {
             bigquery_insert_latency,
             bigquery_batch_size,
         })
+    }
+
+    // Initialize global metrics instance
+    pub fn init_global(chain_name: String) -> Result<()> {
+        let metrics = Self::new(chain_name)?;
+        GLOBAL_METRICS
+            .set(Arc::new(metrics))
+            .map_err(|_| anyhow::anyhow!("Global metrics already initialized"))?;
+        Ok(())
+    }
+
+    // Get global metrics instance
+    pub fn global() -> Option<Arc<Self>> {
+        GLOBAL_METRICS.get().cloned()
     }
 
     // Convenience methods for recording metrics with pre-computed attributes
