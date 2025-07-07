@@ -8,7 +8,7 @@ use http::{HeaderMap, HeaderValue};
 use reqwest;
 use url::Url;
 
-use blockchain_indexer::{indexer, models::common::Chain};
+use blockchain_indexer::{indexer, models::common::Chain, utils::Table};
 
 //////// Ethereum test params ////////
 const ETH_RPC_URL: &str = "https://eth.drpc.org";
@@ -92,12 +92,7 @@ async fn process_chain_test(
     {
         println!("\nProcessing {} block {}", chain_name, block_number);
 
-        let datasets = vec![
-            "blocks".to_string(),
-            "transactions".to_string(),
-            "logs".to_string(),
-            "traces".to_string(),
-        ];
+        let datasets = vec![Table::Blocks, Table::Transactions, Table::Logs, Table::Traces];
 
         let transformed_data = indexer::process_block(
             &provider,

@@ -5,13 +5,14 @@ use crate::models::common::Chain;
 use crate::storage::bigquery::schema::{
     block_schema, log_schema, trace_schema, transaction_schema,
 };
+use crate::utils::Table;
 use crate::utils::retry::{retry, RetryConfig};
 use google_cloud_bigquery::client::{Client, ClientConfig};
 use google_cloud_bigquery::http::dataset::{Dataset, DatasetReference};
 use google_cloud_bigquery::http::error::Error as BigQueryError;
 use google_cloud_bigquery::http::job::query::QueryRequest;
 use google_cloud_bigquery::http::table::{
-    Table, TableReference, TimePartitionType, TimePartitioning,
+    Table as BigQueryTable, TableReference, TimePartitionType, TimePartitioning,
 };
 use google_cloud_bigquery::http::tabledata::{
     insert_all::{InsertAllRequest, Row as TableRow},
@@ -123,32 +124,31 @@ pub async fn create_dataset(chain_name: &str, dataset_location: &str) -> Result<
 }
 
 // Create a table
-pub async fn create_table(chain_name: &str, table_id: &str, chain: Chain) -> Result<()> {
+pub async fn create_table(chain_name: &str, table: &Table, chain: Chain) -> Result<()> {
     let (client, project_id) = &*get_client().await?;
     let table_client = client.table(); // Create BigqueryTableClient
 
     // Check if table exists
-    if verify_table(client, project_id, chain_name, table_id).await? {
+    if verify_table(client, project_id, chain_name, &table.to_string()).await? {
         info!(
             "Table '{}.{}' already exists and is accessible",
-            chain_name, table_id
+            chain_name, table.to_string()
         );
         return Ok(());
     }
 
-    let schema = match table_id {
-        "blocks" => block_schema(chain),
-        "logs" => log_schema(chain),
-        "transactions" => transaction_schema(chain),
-        "traces" => trace_schema(chain),
-        _ => return Err(anyhow::anyhow!("Invalid table ID: {}", table_id)),
+    let schema = match table {
+        Table::Blocks => block_schema(chain),
+        Table::Logs => log_schema(chain),
+        Table::Transactions => transaction_schema(chain),
+        Table::Traces => trace_schema(chain),
     };
 
-    let metadata = Table {
+    let metadata = BigQueryTable {
         table_reference: TableReference {
             project_id: project_id.clone(),
             dataset_id: chain_name.to_string(),
-            table_id: table_id.to_string(),
+            table_id: table.to_string(),
         },
         schema: Some(schema),
         time_partitioning: Some(TimePartitioning {
@@ -166,7 +166,7 @@ pub async fn create_table(chain_name: &str, table_id: &str, chain: Chain) -> Res
                 Ok(_) => {
                     info!(
                         "Table '{}' successfully created in dataset '{}'",
-                        table_id, chain_name
+                        table.to_string(), chain_name
                     );
                     Ok::<(), anyhow::Error>(())
                 }
@@ -176,7 +176,7 @@ pub async fn create_table(chain_name: &str, table_id: &str, chain: Chain) -> Res
                         if resp.message.contains("Already Exists") {
                             info!(
                                 "Table '{}' already exists in dataset '{}'",
-                                table_id, chain_name
+                                table.to_string(), chain_name
                             );
                             return Ok(()); // Treat as success for the retry logic
                         }
@@ -478,19 +478,20 @@ fn generate_insert_id<T: serde::Serialize>(
 }
 
 // Get the last processed block number from storage
-pub async fn get_last_processed_block(chain_name: &str, datasets: &Vec<String>) -> Result<u64> {
+pub async fn get_last_processed_block(chain_name: &str, datasets: &Vec<Table>) -> Result<u64> {
     let (client, project_id) = &*get_client().await?;
     let job_client = client.job(); // Create BigqueryJobClient
     let mut min_block: Option<u64> = None;
 
-    for table_id in datasets {
+    for table in datasets {
+        let table_name = table.to_string();
         // Skip tables that don't exist
-        if !verify_table(client, project_id, chain_name, table_id).await? {
+        if !verify_table(client, project_id, chain_name, &table_name).await? {
             continue;
         }
 
         let query = format!(
-            "SELECT MAX(block_number) AS max_block FROM `{project_id}.{chain_name}.{table_id}`",
+            "SELECT MAX(block_number) AS max_block FROM `{project_id}.{chain_name}.{table_name}`",
         );
         let request = QueryRequest {
             query,
@@ -520,7 +521,7 @@ pub async fn get_last_processed_block(chain_name: &str, datasets: &Vec<String>) 
                 // If querying any table fails, propagate the error immediately.
                 error!(
                     "Failed to query max block for table '{}.{}.{}': {}",
-                    project_id, chain_name, table_id, e
+                    project_id, chain_name, table_name, e
                 );
                 return Err(e.into());
             }

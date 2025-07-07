@@ -27,6 +27,7 @@ use crate::models::datasets::logs::RpcLogReceiptData;
 use crate::models::datasets::traces::RpcTraceData;
 use crate::models::datasets::transactions::RpcTransactionData;
 use crate::utils::retry::{retry, RetryConfig};
+use crate::utils::Table;
 
 use alloy_consensus::TxEnvelope;
 use alloy_network::AnyTxEnvelope;
@@ -333,7 +334,7 @@ pub async fn parse_data(
 pub async fn transform_data(
     chain: Chain,
     parsed_data: ParsedData,
-    active_datasets: &[String],
+    active_datasets: &[Table],
 ) -> Result<TransformedData> {
     let ParsedData {
         chain_id,
@@ -376,14 +377,14 @@ pub async fn transform_data(
         })
         .collect();
 
-    let blocks = if active_datasets.contains(&"blocks".to_string()) {
+    let blocks = if active_datasets.contains(&Table::Blocks) {
         <RpcHeaderData as BlockTransformer>::transform_blocks(header, chain, chain_id)?
     } else {
         vec![]
     };
 
     let transactions =
-        if active_datasets.contains(&"transactions".to_string()) && !transactions.is_empty() {
+        if active_datasets.contains(&Table::Transactions) && !transactions.is_empty() {
             <RpcTransactionData as TransactionTransformer>::transform_transactions(
                 transactions,
                 transaction_receipts,
@@ -395,13 +396,13 @@ pub async fn transform_data(
             vec![]
         };
 
-    let logs = if active_datasets.contains(&"logs".to_string()) && !logs.is_empty() {
+    let logs = if active_datasets.contains(&Table::Logs) && !logs.is_empty() {
         <RpcLogReceiptData as LogTransformer>::transform_logs(logs, chain, chain_id)?
     } else {
         vec![]
     };
 
-    let traces = if active_datasets.contains(&"traces".to_string()) && !traces.is_empty() {
+    let traces = if active_datasets.contains(&Table::Traces) && !traces.is_empty() {
         <RpcTraceData as TraceTransformer>::transform_traces(
             traces,
             chain,
@@ -426,7 +427,7 @@ pub async fn process_block<N>(
     block_number: BlockNumberOrTag,
     chain: Chain,
     chain_id: u64,
-    datasets: &[String],
+    datasets: &[Table],
     metrics: Option<&Metrics>,
 ) -> Result<TransformedData>
 where
@@ -434,10 +435,10 @@ where
 {
     // Track which RPC responses we need to fetch
     let need_block =
-        datasets.contains(&"blocks".to_string()) || datasets.contains(&"transactions".to_string());
+        datasets.contains(&Table::Blocks) || datasets.contains(&Table::Transactions);
     let need_receipts =
-        datasets.contains(&"logs".to_string()) || datasets.contains(&"transactions".to_string());
-    let need_traces = datasets.contains(&"traces".to_string());
+        datasets.contains(&Table::Logs) || datasets.contains(&Table::Transactions);
+    let need_traces = datasets.contains(&Table::Traces);
 
     // Fetch block data if needed
     let block = if need_block {

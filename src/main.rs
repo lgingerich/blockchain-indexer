@@ -12,7 +12,6 @@ use alloy_transport_http::Http;
 use anyhow::Result;
 use futures::{stream::FuturesUnordered, StreamExt};
 use http::{HeaderMap, HeaderValue};
-use reqwest;
 use std::{future::Future, pin::Pin};
 use tokio::{signal, time::Instant};
 use tracing::{error, info};
@@ -23,7 +22,7 @@ use crate::metrics::Metrics;
 use crate::models::common::{Chain, TransformedData};
 use crate::models::datasets::blocks::TransformedBlockData;
 use crate::storage::{setup_channels, DatasetType};
-use crate::utils::load_config;
+use crate::utils::{load_config, Table};
 
 const SLEEP_DURATION: u64 = 3000; // 3000 ms = 3s
 const BATCH_SIZE: usize = 10; // Number of blocks to process in parallel
@@ -48,7 +47,7 @@ async fn main() -> Result<()> {
     let end_block = config.end_block;
     let chain_tip_buffer = config.chain_tip_buffer;
     let rpc = config.rpc_url.as_str();
-    let datasets = config.datasets;
+    let datasets = Table::from_vec(config.datasets)?;
     let metrics_enabled = config.metrics.enabled;
     let metrics_addr = config.metrics.address;
     let metrics_port = config.metrics.port;
@@ -318,17 +317,14 @@ async fn main() -> Result<()> {
 
                     // Send transformed data through channels for saving to storage
                     let dataset_mappings = [
-                        ("blocks", DatasetType::Blocks(transformed_data.blocks)),
-                        (
-                            "transactions",
-                            DatasetType::Transactions(transformed_data.transactions),
-                        ),
-                        ("logs", DatasetType::Logs(transformed_data.logs)),
-                        ("traces", DatasetType::Traces(transformed_data.traces)),
+                        (Table::Blocks, DatasetType::Blocks(transformed_data.blocks)),
+                        (Table::Transactions, DatasetType::Transactions(transformed_data.transactions)),
+                        (Table::Logs, DatasetType::Logs(transformed_data.logs)),
+                        (Table::Traces, DatasetType::Traces(transformed_data.traces)),
                     ];
 
                     for (dataset_name, dataset) in dataset_mappings {
-                        if datasets.contains(&dataset_name.to_string()) {
+                        if datasets.contains(&dataset_name) {
                             let _ = channels.send_dataset(dataset, *block_num).await;
                         }
                     }
