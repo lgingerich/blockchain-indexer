@@ -14,8 +14,7 @@ use crate::models::{
 pub trait TraceTransformer {
     fn transform_traces(
         traces: Vec<RpcTraceData>,
-        chain: Chain,
-        chain_id: u64,
+        chain_info: &ChainInfo,
         block_map: &HashMap<u64, (DateTime<Utc>, NaiveDate, FixedBytes<32>)>,
         tx_index_map: &HashMap<FixedBytes<32>, Option<u64>>,
     ) -> Result<Vec<TransformedTraceData>>;
@@ -24,8 +23,7 @@ pub trait TraceTransformer {
 impl TraceTransformer for RpcTraceData {
     fn transform_traces(
         traces: Vec<RpcTraceData>,
-        chain: Chain,
-        chain_id: u64,
+        chain_info: &ChainInfo,
         block_map: &HashMap<u64, (DateTime<Utc>, NaiveDate, FixedBytes<32>)>,
         tx_index_map: &HashMap<FixedBytes<32>, Option<u64>>,
     ) -> Result<Vec<TransformedTraceData>> {
@@ -42,11 +40,11 @@ impl TraceTransformer for RpcTraceData {
                     .ok_or_else(|| anyhow::anyhow!("Missing tx_hash for trace primary key"))?;
 
                 let pk = if common_data.trace_address.is_empty() {
-                    format!("trace_{}_{}_{}", chain_id, tx_hash, common_data.trace_type)
+                    format!("trace_{}_{}_{}", chain_info.id, tx_hash, common_data.trace_type)
                 } else {
                     format!(
                         "trace_{}_{}_{}_{}",
-                        chain_id,
+                        chain_info.id,
                         tx_hash,
                         common_data.trace_type,
                         common_data
@@ -60,7 +58,7 @@ impl TraceTransformer for RpcTraceData {
 
                 let common = CommonTransformedTraceData {
                     id: pk,
-                    chain_id,
+                    chain_id: chain_info.id,
                     block_time: block_map
                         .get(&common_data.block_number)
                         .map(|(time, _, _)| *time)
@@ -91,11 +89,11 @@ impl TraceTransformer for RpcTraceData {
                     error: common_data.error.clone(),
                 };
 
-                match chain {
-                    Chain::Ethereum => Ok(TransformedTraceData::Ethereum(
+                match chain_info.schema {
+                    Schema::Ethereum => Ok(TransformedTraceData::Ethereum(
                         EthereumTransformedTraceData { common },
                     )),
-                    Chain::ZKsync => Ok(TransformedTraceData::ZKsync(ZKsyncTransformedTraceData {
+                    Schema::ZKsync => Ok(TransformedTraceData::ZKsync(ZKsyncTransformedTraceData {
                         common,
                     })),
                 }

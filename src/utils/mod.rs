@@ -3,10 +3,54 @@ pub mod retry;
 use anyhow::Result;
 use chrono::{DateTime, NaiveDate, Utc};
 use config::{Config, File, FileFormat};
+use serde::{Deserialize, Serialize};
+use std::fmt;
 use std::path::Path;
 use tracing::warn;
 
 use crate::models::common::Config as IndexerConfig;
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum Table {
+    Blocks,
+    Logs,
+    Transactions,
+    Traces
+}
+
+impl Table {
+    pub fn from_string(table: &String) -> Result<Table> {
+        match table.as_str() {
+            "blocks" => Ok(Table::Blocks),
+            "logs" => Ok(Table::Logs),
+            "transactions" => Ok(Table::Transactions),
+            "traces" => Ok(Table::Traces),
+            _ => Err(anyhow::anyhow!("'{}' is not a valid table name", table))
+        }
+    }
+    
+    pub fn from_vec(tables: Vec<String>) -> Result<Vec<Table>> {
+        tables.iter()
+            .map(Self::from_string)
+            .collect()
+    }
+    
+    #[allow(dead_code)]
+    pub fn to_vec(tables: &[Table]) -> Vec<String> {
+        tables.iter().map(|t| t.to_string()).collect()
+    }
+}
+
+impl fmt::Display for Table {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Table::Blocks => write!(f, "blocks"),
+            Table::Logs => write!(f, "logs"),
+            Table::Transactions => write!(f, "transactions"),
+            Table::Traces => write!(f, "traces"),
+        }
+    }
+}
 
 pub fn load_config<P: AsRef<Path>>(file_path: P) -> Result<IndexerConfig> {
     let settings = Config::builder()
