@@ -115,11 +115,11 @@ async fn main() -> Result<()> {
     });
 
     // Create dataset and tables. Ensure everything is ready before proceeding.
-    storage::initialize_storage(&chain_info, &dataset_location, &datasets).await?;
+    storage::initialize_storage(chain_info, &dataset_location, &datasets).await?;
 
     // Get last processed block number from storage
     let last_processed_block =
-        storage::bigquery::get_last_processed_block(&chain_info, &datasets).await?;
+        storage::bigquery::get_last_processed_block(chain_info, &datasets).await?;
 
     // Use the maximum of last_processed_block + 1 and start_block (if specified)
     let mut block_number = if last_processed_block > 0 {
@@ -281,7 +281,7 @@ async fn main() -> Result<()> {
                 let result = indexer::process_block(
                     &provider,
                     BlockNumberOrTag::Number(*block_num),
-                    &chain_info,
+                    chain_info,
                     &datasets,
                 )
                 .await;
