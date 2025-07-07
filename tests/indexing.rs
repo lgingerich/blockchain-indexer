@@ -8,7 +8,7 @@ use http::{HeaderMap, HeaderValue};
 use reqwest;
 use url::Url;
 
-use blockchain_indexer::{indexer, models::common::Chain, utils::Table};
+use blockchain_indexer::{indexer, models::common::{ChainInfo, Schema}, utils::Table};
 
 //////// Ethereum test params ////////
 const ETH_RPC_URL: &str = "https://eth.drpc.org";
@@ -58,12 +58,11 @@ const SOPHON_PARAMS: [(u64, usize, usize, usize, usize); 5] = [
 
 /// Process a single chain's test cases
 async fn process_chain_test(
-    chain: Chain,
-    chain_name: &str,
+    chain_info: ChainInfo,
     rpc: &str,
     block_cases: Vec<(u64, usize, usize, usize, usize)>,
 ) -> Result<()> {
-    println!("\nTesting {} chain", chain_name);
+    println!("\nTesting {} chain", chain_info.name);
 
     // Create RPC provider with no-cache headers to ensure we always get fresh data
     // This prevents any potential caching issues that could lead to stale data
@@ -85,20 +84,19 @@ async fn process_chain_test(
 
     // Get chain ID
     let chain_id = indexer::get_chain_id(&provider, None).await?;
-    assert_eq!(chain, Chain::from_chain_id(chain_id)?);
+    assert_eq!(chain_info.schema, Schema::from_chain_id(chain_id)?);
 
     // Process blocks sequentially
     for (block_number, expected_blocks, expected_txs, expected_logs, expected_traces) in block_cases
     {
-        println!("\nProcessing {} block {}", chain_name, block_number);
+        println!("\nProcessing {} block {}", chain_info.name, block_number);
 
         let datasets = vec![Table::Blocks, Table::Transactions, Table::Logs, Table::Traces];
 
         let transformed_data = indexer::process_block(
             &provider,
             BlockNumberOrTag::Number(block_number),
-            chain,
-            chain_id,
+            &chain_info,
             &datasets,
             None,
         )
@@ -109,7 +107,7 @@ async fn process_chain_test(
             transformed_data.blocks.len(),
             expected_blocks,
             "{} Block {}: Expected {} blocks, got {}",
-            chain_name,
+            chain_info.name,
             block_number,
             expected_blocks,
             transformed_data.blocks.len()
@@ -119,7 +117,7 @@ async fn process_chain_test(
             transformed_data.transactions.len(),
             expected_txs,
             "{} Block {}: Expected {} transactions, got {}",
-            chain_name,
+            chain_info.name,
             block_number,
             expected_txs,
             transformed_data.transactions.len()
@@ -129,7 +127,7 @@ async fn process_chain_test(
             transformed_data.logs.len(),
             expected_logs,
             "{} Block {}: Expected {} logs, got {}",
-            chain_name,
+            chain_info.name,
             block_number,
             expected_logs,
             transformed_data.logs.len()
@@ -139,7 +137,7 @@ async fn process_chain_test(
             transformed_data.traces.len(),
             expected_traces,
             "{} Block {}: Expected {} traces, got {}",
-            chain_name,
+            chain_info.name,
             block_number,
             expected_traces,
             transformed_data.traces.len()
@@ -147,7 +145,7 @@ async fn process_chain_test(
 
         println!(
             "{} Block {} processed successfully:",
-            chain_name, block_number
+            chain_info.name, block_number
         );
         println!("- {} blocks", transformed_data.blocks.len());
         println!("- {} transactions", transformed_data.transactions.len());
@@ -164,29 +162,25 @@ async fn test_indexing_pipeline() -> Result<()> {
     let test_cases = vec![
         // Ethereum blocks
         (
-            Chain::Ethereum,
-            "Ethereum",
+            ChainInfo::new(1, "ethereum".to_string(), Schema::Ethereum),
             ETH_RPC_URL,
             ETH_PARAMS.to_vec(),
         ),
-        // ZKSync blocks
+        // ZKsync blocks
         (
-            Chain::ZKsync,
-            "ZKsync Era",
+            ChainInfo::new(324, "zksync_era".to_string(), Schema::ZKsync),
             ZKSYNC_RPC_URL,
             ZKSYNC_PARAMS.to_vec(),
         ),
         // Abstract blocks
         (
-            Chain::ZKsync,
-            "Abstract",
+            ChainInfo::new(2741, "abstract".to_string(), Schema::ZKsync),
             ABSTRACT_RPC_URL,
             ABSTRACT_PARAMS.to_vec(),
         ),
         // Sophon blocks
         (
-            Chain::ZKsync,
-            "Sophon",
+            ChainInfo::new(50104, "sophon".to_string(), Schema::ZKsync),
             SOPHON_RPC_URL,
             SOPHON_PARAMS.to_vec(),
         ),
@@ -195,8 +189,8 @@ async fn test_indexing_pipeline() -> Result<()> {
     // Create a vector of futures for each chain test
     let chain_futures = test_cases
         .into_iter()
-        .map(|(chain, chain_name, rpc, block_cases)| {
-            process_chain_test(chain, chain_name, rpc, block_cases)
+        .map(|(chain_info, rpc, block_cases)| {
+            process_chain_test(chain_info, rpc, block_cases)
         })
         .collect::<Vec<_>>();
 
