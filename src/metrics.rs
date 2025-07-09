@@ -9,6 +9,8 @@ use opentelemetry_sdk::metrics::SdkMeterProvider;
 use prometheus::{Encoder, TextEncoder};
 use std::{net::SocketAddr, sync::Arc};
 use tracing::info;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 // Global metrics instance
 static GLOBAL_METRICS: OnceCell<Arc<Metrics>> = OnceCell::new();
@@ -39,6 +41,7 @@ pub struct Metrics {
     // BigQuery metrics
     pub bigquery_insert_latency: Histogram<f64>,
     pub bigquery_batch_size: Histogram<f64>,
+    last_rpc_request_unix: Arc<AtomicU64>,
 }
 
 impl Metrics {
@@ -136,6 +139,9 @@ impl Metrics {
             rpc_latency,
             bigquery_insert_latency,
             bigquery_batch_size,
+            last_rpc_request_unix: Arc::new(AtomicU64::new(
+                SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+            )),
         })
     }
 
@@ -186,6 +192,15 @@ impl Metrics {
         let mut attrs = self.common_attributes.clone();
         attrs.push(KeyValue::new("method", method.to_string()));
         self.rpc_requests.add(1, &attrs);
+        self.last_rpc_request_unix.store(
+            SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+            Ordering::Relaxed,
+        );
+    }
+
+    pub fn last_rpc_request_age_secs(&self) -> u64 {
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+        now.saturating_sub(self.last_rpc_request_unix.load(Ordering::Relaxed))
     }
 
     pub fn record_rpc_error(&self, method: &str) {
@@ -223,6 +238,7 @@ impl Metrics {
 
         let app = Router::new()
             .route("/metrics", get(metrics_handler))
+            .route("/health", get(health_handler))
             .with_state(registry.clone());
 
         // Determine the access URL based on the binding address. Only used for logging.
@@ -272,4 +288,21 @@ async fn metrics_handler(
             format!("Failed to convert metrics buffer to string: {}", e),
         )
     })
+}
+
+#[axum::debug_handler]
+async fn health_handler(
+    State(registry): State<Arc<prometheus::Registry>>,
+) -> Result<String, (StatusCode, String)> {
+    // Get global metrics instance
+    if let Some(metrics) = Metrics::global() {
+        let age = metrics.last_rpc_request_age_secs();
+        let max_age = 300; // 5 minutes
+        if age < max_age {
+            return Ok("ok".to_string());
+        } else {
+            return Err((StatusCode::SERVICE_UNAVAILABLE, format!("no rpc in {age} seconds")));
+        }
+    }
+    Err((StatusCode::SERVICE_UNAVAILABLE, "metrics_unavailable".to_string()))
 }
