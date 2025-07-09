@@ -7,10 +7,10 @@ use opentelemetry::{
 };
 use opentelemetry_sdk::metrics::SdkMeterProvider;
 use prometheus::{Encoder, TextEncoder};
-use std::{net::SocketAddr, sync::Arc};
-use tracing::info;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::{net::SocketAddr, sync::Arc};
+use tracing::info;
 
 // Global metrics instance
 static GLOBAL_METRICS: OnceCell<Arc<Metrics>> = OnceCell::new();
@@ -140,7 +140,10 @@ impl Metrics {
             bigquery_insert_latency,
             bigquery_batch_size,
             last_rpc_request_unix: Arc::new(AtomicU64::new(
-                SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs(),
             )),
         })
     }
@@ -193,13 +196,19 @@ impl Metrics {
         attrs.push(KeyValue::new("method", method.to_string()));
         self.rpc_requests.add(1, &attrs);
         self.last_rpc_request_unix.store(
-            SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
             Ordering::Relaxed,
         );
     }
 
     pub fn last_rpc_request_age_secs(&self) -> u64 {
-        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
         now.saturating_sub(self.last_rpc_request_unix.load(Ordering::Relaxed))
     }
 
@@ -292,7 +301,7 @@ async fn metrics_handler(
 
 #[axum::debug_handler]
 async fn health_handler(
-    State(registry): State<Arc<prometheus::Registry>>,
+    State(_registry): State<Arc<prometheus::Registry>>,
 ) -> Result<String, (StatusCode, String)> {
     // Get global metrics instance
     if let Some(metrics) = Metrics::global() {
@@ -301,8 +310,14 @@ async fn health_handler(
         if age < max_age {
             return Ok("ok".to_string());
         } else {
-            return Err((StatusCode::SERVICE_UNAVAILABLE, format!("no rpc in {age} seconds")));
+            return Err((
+                StatusCode::SERVICE_UNAVAILABLE,
+                format!("no rpc in {age} seconds"),
+            ));
         }
     }
-    Err((StatusCode::SERVICE_UNAVAILABLE, "metrics_unavailable".to_string()))
+    Err((
+        StatusCode::SERVICE_UNAVAILABLE,
+        "metrics_unavailable".to_string(),
+    ))
 }
