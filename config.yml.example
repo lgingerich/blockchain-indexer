@@ -1,23 +1,26 @@
-chain_name: "zksync_era"                   # Used in dataset names and for chain-specific logic.
-chain_tip_buffer: 100                      # Number of blocks to stay away from chain tip to avoid reorgs.
+chain_name: "zksync_era"                   # The blockchain to index (e.g., "ethereum", "zksync"). Used for BigQuery dataset naming.
+chain_tip_buffer: 100                      # Number of blocks to stay behind the chain head to avoid issues with chain reorgs.
 
-start_block: 0                             # (Optional) Start block. 
-                                           # If 0 and end_block is 0, will try to resume from the last processed block in BigQuery.
-                                           # If no prior data, starts from actual block 0.
-end_block: 100                             # (Optional) End block. 
-                                           # If 0, will run continuously until interrupted.
+start_block: 0                             # (Optional) The block number to begin indexing from.
+                                           # If omitted or set to 0, and if end_block is also 0 or omitted, the indexer will attempt
+                                           # to find the last processed block in BigQuery and resume from there.
+                                           # If no prior data exists, it starts from block 0.
+end_block: 100                             # (Optional) The block number to stop indexing at.
+                                           # If omitted or set to 0, the indexer will run continuously, processing new blocks
+                                           # as they appear on the chain (respecting chain_tip_buffer).
 
-rpc_url: "https://mainnet.era.zksync.io"   # URL of the RPC provider. Ensure it supports necessary methods (e.g., trace_block if traces are enabled).
+rpc_url: "https://mainnet.era.zksync.io"   # URL for your blockchain node. Ensure your provider supports the necessary RPC methods
+                                           # (like eth_getBlockByNumber, eth_getTransactionReceipt, debug_traceTransaction, etc., if tracing is enabled).
 
-dataset_location: "US"                     # GCP region for BigQuery dataset creation (e.g., "US", "europe-west2").
+dataset_location: "US"                     # The GCP region where your BigQuery datasets will be created (e.g., "US", "europe-west2").
 
-datasets:                                  # List of datasets to index. Options: "blocks", "transactions", "logs", "traces".
+datasets:                                  # A list of strings specifying the data types to collect. Options include: blocks, transactions, logs, traces
   - "blocks"
   - "transactions"
   - "logs"
   - "traces"
 
-metrics:
-  enabled: false                           # Set to true to enable Prometheus metrics server.
-  address: "0.0.0.0"                       # IP address for the metrics server to bind to.
-  port: 9100                               # Port for the metrics server.
+metrics:                                   # Configuration for Prometheus metrics.
+  enabled: true                            # Set to true to enable the metrics server, false to disable.
+  address: "0.0.0.0"                       # The IP address the metrics server will bind to (e.g., "0.0.0.0" for all interfaces).
+  port: 9100                               # The port for the metrics server (e.g., 9100).
