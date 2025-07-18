@@ -2,7 +2,7 @@
 ARG CONFIG_SOURCE=config.yml
 
 # Build stage
-FROM rust:1.83-slim-bullseye AS builder
+FROM rust:1.85-slim-bullseye AS builder
 
 # Set environment variables
 ENV RUST_BACKTRACE=1
