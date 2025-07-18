@@ -110,12 +110,12 @@ To add support for new chains:
 ```mermaid
 graph TB
     %% Define styles
-    classDef rpcStyle fill:#e1f5fe,stroke:#01579b,stroke-width:2px
-    classDef parseStyle fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
-    classDef transformStyle fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
-    classDef storageStyle fill:#fff3e0,stroke:#e65100,stroke-width:2px
-    classDef channelStyle fill:#fce4ec,stroke:#880e4f,stroke-width:2px
-    classDef parallelStyle fill:#f5f5f5,stroke:#212121,stroke-width:2px,stroke-dasharray: 5 5
+    classDef rpcStyle fill:#e1f5fe,stroke:#01579b,stroke-width:2px,color:black
+    classDef parseStyle fill:#f3e5f5,stroke:#4a148c,stroke-width:2px,color:black
+    classDef transformStyle fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px,color:black
+    classDef storageStyle fill:#fff3e0,stroke:#e65100,stroke-width:2px,color:black
+    classDef channelStyle fill:#fce4ec,stroke:#880e4f,stroke-width:2px,color:black
+    classDef parallelStyle fill:#f5f5f5,stroke:#212121,stroke-width:2px,stroke-dasharray: 5 5,color:black
 
     %% RPC Provider
     Provider["RPC Provider"]:::rpcStyle
