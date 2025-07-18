@@ -19,7 +19,7 @@ services:
       - CONFIG_SOURCE=${CONFIG_SOURCE:-config.yml}
     networks:
       - monitoring
-    restart: unless-stopped
+    restart: on-failure
 
 networks:
   monitoring:

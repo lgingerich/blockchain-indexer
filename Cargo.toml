@@ -4,10 +4,9 @@ version = "0.1.1"
 edition = "2024"
 
 [profile.release]
-debug = true
+debug = false
 
 [dependencies]
-
 alloy-consensus = "1.0.11"
 alloy-eips = "1.0.11"
 alloy-network = "1.0.11"
